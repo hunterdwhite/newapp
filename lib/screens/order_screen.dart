@@ -11,6 +11,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
+// Add this import for XML parsing
+import 'package:xml/xml.dart' as xml;
+
 class OrderScreen extends StatefulWidget {
   @override
   _OrderScreenState createState() => _OrderScreenState();
@@ -51,6 +54,9 @@ class _OrderScreenState extends State<OrderScreen> {
   ];
 
   final FocusNode _zipcodeFocusNode = FocusNode();
+
+  // Replace this with your actual USPS Web Tools USERID:
+  final String _uspsUserId = '1933R3DISSO13';
 
   @override
   void initState() {
@@ -139,6 +145,7 @@ class _OrderScreenState extends State<OrderScreen> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -294,7 +301,7 @@ class _OrderScreenState extends State<OrderScreen> {
               items: _previousAddresses.map((address) {
                 return DropdownMenuItem<String>(
                   value: address,
-                  // Now using white text on black background for each item
+                  // Using white text on black background for each item
                   child: Text(address, style: TextStyle(color: Colors.white)),
                 );
               }).toList(),
@@ -369,7 +376,6 @@ class _OrderScreenState extends State<OrderScreen> {
             keyboardType: TextInputType.number,
           ),
           SizedBox(height: 24.0),
-
           // Place Order button that triggers payment and order creation
           _isProcessing
               ? Center(child: CircularProgressIndicator())
@@ -380,6 +386,9 @@ class _OrderScreenState extends State<OrderScreen> {
                       : () async {
                           FocusScope.of(context).unfocus();
                           if (_formKey.currentState?.validate() ?? false) {
+                            // If you want to *force* address verification here,
+                            // you could call _verifyAddress() first and check for errors,
+                            // then proceed only if successful.
                             await _handlePlaceOrder(user.uid);
                           }
                         },
@@ -408,7 +417,9 @@ class _OrderScreenState extends State<OrderScreen> {
       ),
       style: TextStyle(color: Colors.white),
       keyboardType: keyboardType,
-      validator: (value) => value == null || value.trim().isEmpty ? 'Please enter your $label' : null,
+      validator: (value) => value == null || value.trim().isEmpty
+          ? 'Please enter your $label'
+          : null,
     );
   }
 

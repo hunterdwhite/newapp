@@ -10,6 +10,8 @@ import '../widgets/retro_button_widget.dart';
 import '../widgets/retro_form_container_widget.dart';
 import 'wishlist_screen.dart'; 
 import 'options_screen.dart'; 
+
+// <-- Import your new PersonalProfileScreen here.
 import 'personal_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -68,60 +70,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// **Admin function to update orders with missing `updatedAt`**
- Future<void> _updateOrdersWithTimestamps() async {
-  setState(() {
-    _isUpdatingOrders = true;
-  });
+  /// Admin function to update orders with missing `updatedAt`
+  Future<void> _updateOrdersWithTimestamps() async {
+    setState(() {
+      _isUpdatingOrders = true;
+    });
 
-  try {
-    final QuerySnapshot ordersSnapshot = await FirebaseFirestore.instance
-        .collection('orders')
-        .where('updatedAt', isEqualTo: null) // Check both missing & null values
-        .get();
+    try {
+      final QuerySnapshot ordersSnapshot = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('updatedAt', isEqualTo: null)
+          .get();
 
-    if (ordersSnapshot.docs.isEmpty) {
+      if (ordersSnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No orders found without updatedAt!')),
+        );
+        setState(() {
+          _isUpdatingOrders = false;
+        });
+        return;
+      }
+
+      final WriteBatch batch = FirebaseFirestore.instance.batch();
+
+      for (final doc in ordersSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final Timestamp? existingTimestamp = data['timestamp'] as Timestamp?;
+
+        if (existingTimestamp != null) {
+          print('Updating order ${doc.id} with timestamp: $existingTimestamp');
+          batch.update(doc.reference, {'updatedAt': existingTimestamp});
+        } else {
+          print('Updating order ${doc.id} with serverTimestamp');
+          batch.update(doc.reference, {'updatedAt': FieldValue.serverTimestamp()});
+        }
+      }
+
+      await batch.commit();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No orders found without updatedAt!')),
+        SnackBar(content: Text('Updated ${ordersSnapshot.docs.length} orders!')),
       );
+    } catch (error) {
+      print('Error updating orders: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating orders: $error')),
+      );
+    } finally {
       setState(() {
         _isUpdatingOrders = false;
       });
-      return;
     }
-
-    final WriteBatch batch = FirebaseFirestore.instance.batch();
-
-    for (final doc in ordersSnapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final Timestamp? existingTimestamp = data['timestamp'] as Timestamp?;
-
-      if (existingTimestamp != null) {
-        print('Updating order ${doc.id} with timestamp: $existingTimestamp');
-        batch.update(doc.reference, {'updatedAt': existingTimestamp});
-      } else {
-        print('Updating order ${doc.id} with serverTimestamp');
-        batch.update(doc.reference, {'updatedAt': FieldValue.serverTimestamp()});
-      }
-    }
-
-    await batch.commit();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Updated ${ordersSnapshot.docs.length} orders!')),
-    );
-  } catch (error) {
-    print('Error updating orders: $error');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error updating orders: $error')),
-    );
-  } finally {
-    setState(() {
-      _isUpdatingOrders = false;
-    });
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +174,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Color(0xFFFFA500),
                 fixedHeight: true,
               ),
+
+              // Only admins see these buttons
               if (_isAdmin) ...[
                 SizedBox(height: 20),
                 RetroButton(
@@ -186,7 +189,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: Color(0xFFFFA500),
                   fixedHeight: true,
                 ),
+                SizedBox(height: 20),
+                // -------------- NEW BUTTON FOR ADMINS ONLY --------------
+                RetroButton(
+                  text: 'View New Profile Screen',
+                  onPressed: () {
+                    // Navigate to your new personal profile, passing the admin's userId
+                    // or the user ID you'd like to inspect
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PersonalProfileScreen(userId: _user!.uid),
+                      ),
+                    );
+                  },
+                  color: Color(0xFFFFA500),
+                  fixedHeight: true,
+                ),
+                // --------------------------------------------------------
               ],
+
               Spacer(),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 20.0),

@@ -312,6 +312,17 @@ class FirestoreService {
     });
   }
 
+// In FirestoreService class
+Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
+  final wishlistSnapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('wishlist')
+      .get();
+
+  return wishlistSnapshot.docs; // list of docs in the wishlist subcollection
+}
+
 
   Future<void> updateOrderReturnStatus(
       String orderId, bool returnConfirmed) async {

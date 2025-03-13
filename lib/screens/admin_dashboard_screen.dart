@@ -12,7 +12,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   /// Whether to show ALL users (including those with no orders).
-  /// By default, this is false: only new (green), active (yellow), and returned (blue).
   bool showAllUsers = false;
 
   final _albumFormKey = GlobalKey<FormState>();
@@ -31,9 +30,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.filter_alt),
-            onPressed: () {
-              // Optionally add more filtering logic here
-            },
+            onPressed: () {},
           ),
           IconButton(
             icon: Icon(Icons.library_music),
@@ -70,8 +67,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 }
 
                 final allUsers = snapshot.data!;
-
-                // Filter out status == 'none' unless we explicitly want all users
                 final visibleUsers = showAllUsers
                     ? allUsers
                     : allUsers.where((u) => u['status'] != 'none').toList();
@@ -84,7 +79,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     final userId = userMap['userId'] as String;
                     final status = userMap['status'] as String;
 
-                    // Pick dot color based on status
+                    // Dot color
                     Color dotColor;
                     switch (status) {
                       case 'new':
@@ -135,85 +130,55 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  /// Fetch all users and determine each user's status:
-  ///   - "new" if they have at least one 'new' order
-  ///   - "active" if they have at least one 'sent' or 'returned' but no 'new'
-  ///   - "returned" if they have at least one 'returned' but no 'new' or 'sent'
-  ///     (We’ll refine this logic below so "active" includes 'sent'.)
-  ///   - "none" if they have no orders
-  /// Then sort so:
-  ///   1) "new" first (green), sorted by earliest new order's timestamp ascending
-  ///   2) "active" (yellow)
-  ///   3) "returned" (blue)
-  ///   4) "none" last
   Future<List<Map<String, dynamic>>> _fetchUsersWithStatus() async {
-    QuerySnapshot usersSnapshot =
+    final usersSnapshot =
         await FirebaseFirestore.instance.collection('users').get();
+
     List<Map<String, dynamic>> usersWithStatus = [];
 
     for (var userDoc in usersSnapshot.docs) {
-      String userId = userDoc.id;
-      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      final userId = userDoc.id;
+      final userData = userDoc.data() as Map<String, dynamic>;
 
-      // Return both final status and earliest "new" timestamp
-      Map<String, dynamic> statusInfo = await _determineUserStatusInfo(userId);
-
+      final statusInfo = await _determineUserStatusInfo(userId);
       usersWithStatus.add({
         'userId': userId,
         'user': userData,
-        'status': statusInfo['status'], // 'new', 'active', 'returned', or 'none'
-        'earliestNewTimestamp': statusInfo['earliestNewTimestamp'], // for sorting
+        'status': statusInfo['status'],
+        'earliestNewTimestamp': statusInfo['earliestNewTimestamp'],
       });
     }
 
-    // We define status sorting: new -> active -> returned -> none
+    // Sort by status: new -> active -> returned -> none
     final statusOrder = ['new', 'active', 'returned', 'none'];
-
     usersWithStatus.sort((a, b) {
       final statusA = a['status'] as String;
       final statusB = b['status'] as String;
 
-      int indexA = statusOrder.indexOf(statusA);
-      int indexB = statusOrder.indexOf(statusB);
+      final indexA = statusOrder.indexOf(statusA);
+      final indexB = statusOrder.indexOf(statusB);
+      if (indexA != indexB) return indexA.compareTo(indexB);
 
-      // Compare by status first
-      if (indexA != indexB) {
-        return indexA.compareTo(indexB);
-      }
-
-      // If both are "new", compare earliestNewTimestamp ascending
+      // If both "new", compare earliestNewTimestamp
       if (statusA == 'new') {
-        final Timestamp? tsA = a['earliestNewTimestamp'] as Timestamp?;
-        final Timestamp? tsB = b['earliestNewTimestamp'] as Timestamp?;
-
+        final tsA = a['earliestNewTimestamp'] as Timestamp?;
+        final tsB = b['earliestNewTimestamp'] as Timestamp?;
         if (tsA != null && tsB != null) {
-          // earlier (older) first
           return tsA.compareTo(tsB);
         } else if (tsA == null && tsB != null) {
           return 1;
         } else if (tsA != null && tsB == null) {
           return -1;
-        } else {
-          return 0;
         }
       }
-      // If same status but not "new", no further sorting needed
       return 0;
     });
 
     return usersWithStatus;
   }
 
-  /// Determine user status + earliest new order timestamp
-  /// Priority:
-  ///   1) if user has any "new" order => status = "new"
-  ///   2) else if user has any "sent" => status = "active"
-  ///   3) else if user has "returned" => status = "returned"
-  ///   4) otherwise => "none"
-  ///
-  /// Also track earliest "new" order timestamp for sorting "new" users.
   Future<Map<String, dynamic>> _determineUserStatusInfo(String userId) async {
-    QuerySnapshot ordersSnapshot = await FirebaseFirestore.instance
+    final ordersSnapshot = await FirebaseFirestore.instance
         .collection('orders')
         .where('userId', isEqualTo: userId)
         .get();
@@ -224,12 +189,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     Timestamp? earliestNewTimestamp;
 
     for (var orderDoc in ordersSnapshot.docs) {
-      String status = orderDoc['status'] ?? '';
-      Timestamp? orderTs = orderDoc['timestamp'];
+      final status = orderDoc['status'] ?? '';
+      final orderTs = orderDoc['timestamp'] as Timestamp?;
 
       if (status == 'new') {
         hasNewOrder = true;
-        // Track earliest new order
         if (orderTs != null) {
           if (earliestNewTimestamp == null ||
               orderTs.compareTo(earliestNewTimestamp) < 0) {
@@ -239,8 +203,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       } else if (status == 'sent') {
         hasActiveOrder = true;
       } else if (status == 'returned') {
-        // If we already found a 'new' or 'sent', that takes precedence,
-        // but we'll track returned separately for fallback
         hasReturnedOrder = true;
       }
     }
@@ -269,60 +231,218 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showUserDetails(String userId, Map<String, dynamic> user) {
+    bool showWishlist = false;
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(user['username'] ?? 'User Details'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Email: ${user['email'] ?? 'N/A'}'),
-                SizedBox(height: 10),
-                Text(
-                  'Taste Profile:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                _buildTasteProfile(user['tasteProfile'] as Map<String, dynamic>?),
-                SizedBox(height: 10),
-                Text('Orders:', style: TextStyle(fontWeight: FontWeight.bold)),
-                FutureBuilder<List<DocumentSnapshot>>(
-                  future: _firestoreService.getOrdersForUser(userId),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return Center(child: CircularProgressIndicator());
-                    }
+        return StatefulBuilder(
+          builder: (BuildContext context, setState) {
+            return AlertDialog(
+              title: Text(user['username'] ?? 'User Details'),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Email: ${user['email'] ?? 'N/A'}'),
+                    SizedBox(height: 10),
+                    Text(
+                      'Taste Profile:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    _buildTasteProfile(
+                      user['tasteProfile'] as Map<String, dynamic>?,
+                    ),
+                    SizedBox(height: 10),
+                    Text('Orders:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    FutureBuilder<List<DocumentSnapshot>>(
+                      future: _firestoreService.getOrdersForUser(userId),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return Center(child: CircularProgressIndicator());
+                        }
 
-                    final orders = snapshot.data ?? [];
+                        final orders = snapshot.data ?? [];
+                        if (orders.isEmpty) {
+                          return Text('No orders available');
+                        }
 
-                    if (orders.isEmpty) {
-                      return Text('No orders available');
-                    }
+                        // Separate new orders
+                        final newOrders = orders
+                            .where((o) =>
+                                (o.data() as Map<String, dynamic>)['status'] ==
+                                'new')
+                            .toList();
+                        newOrders.sort((a, b) {
+                          final aTs =
+                              (a.data() as Map<String, dynamic>)['timestamp']
+                                  as Timestamp?;
+                          final bTs =
+                              (b.data() as Map<String, dynamic>)['timestamp']
+                                  as Timestamp?;
+                          if (aTs == null || bTs == null) return 0;
+                          return bTs.compareTo(aTs);
+                        });
+                        final newestNewOrder =
+                            newOrders.isNotEmpty ? newOrders.first : null;
 
-                    return Column(
-                      children: orders.map((orderDoc) {
-                        final order = orderDoc.data() as Map<String, dynamic>;
-                        final orderId = orderDoc.id;
+                        final olderOrders = <DocumentSnapshot>[];
+                        for (final order in orders) {
+                          if (newestNewOrder != null &&
+                              order.id == newestNewOrder.id) {
+                            continue;
+                          }
+                          olderOrders.add(order);
+                        }
 
-                        return ListTile(
-                          title: Text('Address: ${order['address'] ?? 'N/A'}'),
-                          subtitle: Text('Status: ${order['status'] ?? 'N/A'}'),
-                          trailing: _buildOrderActions(order, orderId, userId),
+                        List<Widget> orderWidgets = [];
+
+                        // If there's a newest "new" order, show it in detail
+                        if (newestNewOrder != null) {
+                          final orderData =
+                              newestNewOrder.data() as Map<String, dynamic>;
+                          final orderId = newestNewOrder.id;
+                          final currentAddress = orderData['address'] ?? 'N/A';
+
+                          // find last known address from olderOrders
+                          olderOrders.sort((a, b) {
+                            final aTs =
+                                (a.data() as Map<String, dynamic>)['timestamp']
+                                    as Timestamp?;
+                            final bTs =
+                                (b.data() as Map<String, dynamic>)['timestamp']
+                                    as Timestamp?;
+                            if (aTs == null && bTs == null) return 0;
+                            if (aTs == null) return 1;
+                            if (bTs == null) return -1;
+                            return bTs.compareTo(aTs);
+                          });
+
+                          String? lastKnownAddress;
+                          if (olderOrders.isNotEmpty) {
+                            final lastOrderData =
+                                olderOrders.first.data() as Map<String, dynamic>?;
+                            lastKnownAddress = lastOrderData?['address'];
+                          }
+                          bool addressDiffers = false;
+                          if (lastKnownAddress != null &&
+                              lastKnownAddress.isNotEmpty &&
+                              currentAddress != lastKnownAddress) {
+                            addressDiffers = true;
+                          }
+
+                          orderWidgets.add(
+                            ListTile(
+                              title: Row(
+                                children: [
+                                  Text('Address: $currentAddress'),
+                                  if (addressDiffers) ...[
+                                    SizedBox(width: 6),
+                                    Icon(Icons.warning, color: Colors.red),
+                                  ],
+                                ],
+                              ),
+                              subtitle:
+                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
+                              trailing: _buildOrderActions(
+                                orderData,
+                                orderId,
+                                userId,
+                              ),
+                            ),
+                          );
+                        }
+
+                        // Minimal info for older orders
+                        olderOrders.forEach((orderDoc) {
+                          final data = orderDoc.data() as Map<String, dynamic>;
+                          final albumId = data['albumId'] as String?;
+                          final status = data['status'] ?? 'N/A';
+
+                          orderWidgets.add(
+                            FutureBuilder<DocumentSnapshot?>(
+                              future: (albumId != null && albumId.isNotEmpty)
+                                  ? _firestoreService.getAlbumById(albumId)
+                                  : Future.value(null),
+                              builder: (context, albumSnapshot) {
+                                if (albumSnapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return ListTile(
+                                    title: Text('Loading album info...'),
+                                  );
+                                }
+                                if (albumSnapshot.data == null ||
+                                    !albumSnapshot.data!.exists) {
+                                  return ListTile(
+                                    title:
+                                        Text('Older Order (No album assigned)'),
+                                    subtitle: Text('Status: $status'),
+                                  );
+                                }
+                                final albumData =
+                                    albumSnapshot.data!.data() as Map<String, dynamic>;
+                                final artist = albumData['artist'] ?? 'Unknown';
+                                final name = albumData['albumName'] ?? 'Unknown';
+                                return ListTile(
+                                  title: Text('$artist - $name'),
+                                  subtitle: Text('Status: $status'),
+                                );
+                              },
+                            ),
+                          );
+                        });
+
+                        return Column(
+                          children: orderWidgets,
                         );
-                      }).toList(),
-                    );
-                  },
+                      },
+                    ),
+                    SizedBox(height: 20),
+                    // Show/hide wishlist
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          showWishlist = !showWishlist;
+                        });
+                      },
+                      child:
+                          Text(showWishlist ? 'Hide Wishlist' : 'Show Wishlist'),
+                    ),
+                    if (showWishlist)
+                      FutureBuilder<List<DocumentSnapshot>>(
+                        future: _firestoreService.getWishlistForUser(userId),
+                        builder: (context, wishlistSnapshot) {
+                          if (wishlistSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          if (!wishlistSnapshot.hasData ||
+                              wishlistSnapshot.data!.isEmpty) {
+                            return Text('No wishlist found.');
+                          }
+                          final wishlistDocs = wishlistSnapshot.data!;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: wishlistDocs.map((doc) {
+                              final wData = doc.data() as Map<String, dynamic>;
+                              final albumName = wData['albumName'] ?? 'Unknown';
+                              // or any other fields: wData['artist'], etc.
+                              return Text('• $albumName');
+                            }).toList(),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Close'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -360,7 +480,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildOrderActions(
       Map<String, dynamic> order, String orderId, String userId) {
     // If the order is 'returned' but not confirmed, show "Confirm Return" button
-    if (order['status'] == 'returned' && (order['returnConfirmed'] ?? false) == false) {
+    if (order['status'] == 'returned' &&
+        (order['returnConfirmed'] ?? false) == false) {
       return ElevatedButton(
         onPressed: () {
           _confirmReturn(orderId);
@@ -500,7 +621,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       albumId = albumRef.id;
     }
 
-    // Update order with top-level and details.albumId
     await _firestoreService.updateOrderWithAlbum(orderId, albumId);
     setState(() {});
   }

@@ -25,13 +25,13 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
       'icon': Icons.person,
       'title': 'Tell Us About Yourself',
       'description':
-          'Fill out a quick form about your musical preferences—your favorite genres and how adventurous you want your discovery to be.',
+          'Fill out a quick form about your musical preferences-your favorite genres and how adventurous you want your discovery to be.',
     },
     {
       'icon': Icons.local_shipping,
       'title': 'Receive a Handpicked CD',
       'description':
-          'Our music lover curators select a CD tailored just for you and send it straight to your door at no cost.',
+          'Make an order and our music lover curators select a CD tailored just for you and send it straight to your door.',
     },
     {
       'icon': Icons.headset,
@@ -43,7 +43,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
       'icon': Icons.swap_horiz,
       'title': 'Keep It or Return It',
       'description':
-          'Love it? Keep it for a small payment. If not, use the prepaid shipping label to send it back, no costs involved.',
+          'Love it? Keep it! If not, use the prepaid shipping label to send it back, and your next order will be free!',
     },
   ];
 
