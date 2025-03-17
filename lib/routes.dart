@@ -13,6 +13,8 @@ const String returnAlbumRoute = '/return_album';
 const String paymentRoute = '/payment';
 const String feedRoute = '/feed';
 const String wishlistRoute = '/wishlist';
+const String personalProfileRoute = '/personal_profile';
+
 
 
 

@@ -286,6 +286,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         final newestNewOrder =
                             newOrders.isNotEmpty ? newOrders.first : null;
 
+                        // The rest are older orders
                         final olderOrders = <DocumentSnapshot>[];
                         for (final order in orders) {
                           if (newestNewOrder != null &&
@@ -304,7 +305,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           final orderId = newestNewOrder.id;
                           final currentAddress = orderData['address'] ?? 'N/A';
 
-                          // find last known address from olderOrders
+                          // find last known address from older orders
                           olderOrders.sort((a, b) {
                             final aTs =
                                 (a.data() as Map<String, dynamic>)['timestamp']
@@ -333,17 +334,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                           orderWidgets.add(
                             ListTile(
-                              title: Row(
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 8,
+                              ),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Address: $currentAddress'),
-                                  if (addressDiffers) ...[
-                                    SizedBox(width: 6),
-                                    Icon(Icons.warning, color: Colors.red),
-                                  ],
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text('Address: $currentAddress'),
+                                      ),
+                                      if (addressDiffers)
+                                        Icon(Icons.warning, color: Colors.red),
+                                    ],
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
                                 ],
                               ),
-                              subtitle:
-                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
                               trailing: _buildOrderActions(
                                 orderData,
                                 orderId,
@@ -353,48 +363,75 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           );
                         }
 
-                        // Minimal info for older orders
+                        // Show minimal info for older orders
                         olderOrders.forEach((orderDoc) {
                           final data = orderDoc.data() as Map<String, dynamic>;
                           final albumId = data['albumId'] as String?;
                           final status = data['status'] ?? 'N/A';
+                          final isReturned =
+                              (status == 'returned') && !(data['returnConfirmed'] ?? false);
 
-                          orderWidgets.add(
-                            FutureBuilder<DocumentSnapshot?>(
-                              future: (albumId != null && albumId.isNotEmpty)
-                                  ? _firestoreService.getAlbumById(albumId)
-                                  : Future.value(null),
-                              builder: (context, albumSnapshot) {
-                                if (albumSnapshot.connectionState ==
-                                    ConnectionState.waiting) {
+                          // If the order is returned but NOT confirmed,
+                          // skip showing album info, show address + confirm button
+                          if (isReturned) {
+                            // Show the address + 'Confirm Return'
+                            final address = data['address'] ?? 'N/A';
+                            orderWidgets.add(
+                              ListTile(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 8,
+                                ),
+                                title: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Address: $address'),
+                                    SizedBox(height: 4),
+                                    Text('Status: returned'),
+                                  ],
+                                ),
+                                trailing: ElevatedButton(
+                                  onPressed: () => _confirmReturn(orderDoc.id),
+                                  child: Text('Confirm Return'),
+                                ),
+                              ),
+                            );
+                          } else {
+                            // Otherwise, load the album doc as normal
+                            orderWidgets.add(
+                              FutureBuilder<DocumentSnapshot?>(
+                                future: (albumId != null && albumId.isNotEmpty)
+                                    ? _firestoreService.getAlbumById(albumId)
+                                    : Future.value(null),
+                                builder: (context, albumSnapshot) {
+                                  if (albumSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return ListTile(
+                                      title: Text('Loading album info...'),
+                                    );
+                                  }
+                                  if (albumSnapshot.data == null ||
+                                      !albumSnapshot.data!.exists) {
+                                    return ListTile(
+                                      title: Text('Older Order (No album assigned)'),
+                                      subtitle: Text('Status: $status'),
+                                    );
+                                  }
+                                  final albumData = albumSnapshot.data!.data()
+                                      as Map<String, dynamic>;
+                                  final artist = albumData['artist'] ?? 'Unknown';
+                                  final name = albumData['albumName'] ?? 'Unknown';
                                   return ListTile(
-                                    title: Text('Loading album info...'),
-                                  );
-                                }
-                                if (albumSnapshot.data == null ||
-                                    !albumSnapshot.data!.exists) {
-                                  return ListTile(
-                                    title:
-                                        Text('Older Order (No album assigned)'),
+                                    title: Text('$artist - $name'),
                                     subtitle: Text('Status: $status'),
                                   );
-                                }
-                                final albumData =
-                                    albumSnapshot.data!.data() as Map<String, dynamic>;
-                                final artist = albumData['artist'] ?? 'Unknown';
-                                final name = albumData['albumName'] ?? 'Unknown';
-                                return ListTile(
-                                  title: Text('$artist - $name'),
-                                  subtitle: Text('Status: $status'),
-                                );
-                              },
-                            ),
-                          );
+                                },
+                              ),
+                            );
+                          }
                         });
 
-                        return Column(
-                          children: orderWidgets,
-                        );
+                        return Column(children: orderWidgets);
                       },
                     ),
                     SizedBox(height: 20),
@@ -426,7 +463,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             children: wishlistDocs.map((doc) {
                               final wData = doc.data() as Map<String, dynamic>;
                               final albumName = wData['albumName'] ?? 'Unknown';
-                              // or any other fields: wData['artist'], etc.
                               return Text('• $albumName');
                             }).toList(),
                           );
@@ -479,9 +515,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildOrderActions(
       Map<String, dynamic> order, String orderId, String userId) {
-    // If the order is 'returned' but not confirmed, show "Confirm Return" button
-    if (order['status'] == 'returned' &&
-        (order['returnConfirmed'] ?? false) == false) {
+    // If the order is 'returned' => "Confirm Return" button
+    if (order['status'] == 'returned') {
       return ElevatedButton(
         onPressed: () {
           _confirmReturn(orderId);
@@ -489,7 +524,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Text('Confirm Return'),
       );
     }
-    // If the order is 'new', show "Send Album" button
+    // If the order is 'new' => "Send Album" button
     else if (order['status'] == 'new') {
       return ElevatedButton(
         onPressed: () {
@@ -498,7 +533,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Text('Send Album'),
       );
     }
-    // Otherwise, no action needed
+    // Otherwise no action
     else {
       return Text('No action needed');
     }
@@ -643,6 +678,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _confirmReturn(String orderId) async {
+    // Mark the order doc, e.g. set `returnConfirmed = true` or `status=returnedConfirmed`
     await _firestoreService.confirmReturn(orderId);
     setState(() {});
   }

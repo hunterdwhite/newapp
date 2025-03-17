@@ -1,239 +1,484 @@
-import 'package:dissonantapp2/screens/welcome_screen.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/firestore_service.dart';
-import 'admin_dashboard_screen.dart';
-import '../widgets/grainy_background_widget.dart'; 
-import '../widgets/stats_bar_widget.dart'; 
-import '../widgets/retro_button_widget.dart'; 
-import '../widgets/retro_form_container_widget.dart';
-import 'wishlist_screen.dart'; 
-import 'options_screen.dart'; 
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-// <-- Import your new PersonalProfileScreen here.
-import 'personal_profile_screen.dart';
+// If you have separate screens for these, import them:
+import 'my_music_library_screen.dart';
+import 'wishlist_screen.dart';
+import 'options_screen.dart';
+
+// Import your custom grainy background widget:
+import '../widgets/grainy_background_widget.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
 
+/// A personal-profile flow for the currently logged-in user,
+/// featuring stats, My Music, and Wishlist.
 class _ProfileScreenState extends State<ProfileScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
-  User? _user;
-  bool _isAdmin = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Basic user info
+  String _username = '';
+  String? _profilePictureUrl;
+
+  // Stats
   int _albumsSentBack = 0;
   int _albumsKept = 0;
+
+  // For "My Music" and "Wishlist"
+  List<String> _historyCoverUrls = [];
+  List<String> _wishlistCoverUrls = [];
+
   bool _isLoading = true;
-  bool _isUpdatingOrders = false; // State for the update button
-  String? _userName;
+  bool _isOwnProfile = false;
 
   @override
   void initState() {
     super.initState();
-    _user = FirebaseAuth.instance.currentUser;
-    _checkAdminStatus();
-    _fetchUserStats();
-    _fetchUserName();
+    _fetchProfileData();
   }
 
-  Future<void> _checkAdminStatus() async {
-    if (_user != null) {
-      bool isAdmin = await _firestoreService.isAdmin(_user!.uid);
-      setState(() {
-        _isAdmin = isAdmin;
-      });
-    }
-  }
-
-  Future<void> _fetchUserStats() async {
-    if (_user != null) {
-      final stats = await _firestoreService.getUserAlbumStats(_user!.uid);
-      setState(() {
-        _albumsSentBack = stats['albumsSentBack'] ?? 0;
-        _albumsKept = stats['albumsKept'] ?? 0;
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _fetchUserName() async {
-    if (_user != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_user!.uid)
-          .get();
-      setState(() {
-        _userName = userDoc['username'];
-      });
-    }
-  }
-
-  /// Admin function to update orders with missing `updatedAt`
-  Future<void> _updateOrdersWithTimestamps() async {
-    setState(() {
-      _isUpdatingOrders = true;
-    });
-
+  /// Fetch user doc, orders, wishlist for the currently logged-in user
+  Future<void> _fetchProfileData() async {
     try {
-      final QuerySnapshot ordersSnapshot = await FirebaseFirestore.instance
-          .collection('orders')
-          .where('updatedAt', isEqualTo: null)
-          .get();
-
-      if (ordersSnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No orders found without updatedAt!')),
-        );
-        setState(() {
-          _isUpdatingOrders = false;
-        });
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
         return;
       }
 
-      final WriteBatch batch = FirebaseFirestore.instance.batch();
+      final userId = currentUser.uid;
+      _isOwnProfile = true;
 
+      // 1) Get user doc
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      if (!userDoc.exists) throw Exception('User not found');
+
+      final userData = userDoc.data()!;
+      _username = userData['username'] ?? 'Unknown User';
+      _profilePictureUrl = userData['profilePictureUrl'];
+
+      // 2) Orders: 'kept', 'returned', 'returnedConfirmed'
+      final ordersSnapshot = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('userId', isEqualTo: userId)
+          .where('status', whereIn: ['kept', 'returned', 'returnedConfirmed'])
+          .get();
+
+      final keptAlbumIds = <String>[];
+      final returnedAlbumIds = <String>[];
       for (final doc in ordersSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final Timestamp? existingTimestamp = data['timestamp'] as Timestamp?;
+        final data = doc.data();
+        final status = data['status'] as String?;
+        final albumId = data['albumId'] ?? data['details']?['albumId'];
+        if (albumId == null || status == null) continue;
 
-        if (existingTimestamp != null) {
-          print('Updating order ${doc.id} with timestamp: $existingTimestamp');
-          batch.update(doc.reference, {'updatedAt': existingTimestamp});
+        if (status == 'kept') {
+          keptAlbumIds.add(albumId);
         } else {
-          print('Updating order ${doc.id} with serverTimestamp');
-          batch.update(doc.reference, {'updatedAt': FieldValue.serverTimestamp()});
+          returnedAlbumIds.add(albumId);
         }
       }
+      _albumsKept = keptAlbumIds.length;
+      _albumsSentBack = returnedAlbumIds.length;
 
-      await batch.commit();
+      // Gather up to 3 covers for "My Music"
+      final allAlbumIds = [...keptAlbumIds, ...returnedAlbumIds].toSet();
+      final historyCovers = <String>[];
+      for (final albumId in allAlbumIds) {
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(albumId)
+            .get();
+        if (albumDoc.exists) {
+          final aData = albumDoc.data();
+          final coverUrl = aData?['coverUrl'];
+          if (coverUrl != null) {
+            historyCovers.add(coverUrl as String);
+          }
+        }
+      }
+      _historyCoverUrls = historyCovers;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Updated ${ordersSnapshot.docs.length} orders!')),
-      );
-    } catch (error) {
-      print('Error updating orders: $error');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating orders: $error')),
-      );
-    } finally {
-      setState(() {
-        _isUpdatingOrders = false;
-      });
+      // 3) Wishlist
+      final wishlistSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('wishlist')
+          .orderBy('dateAdded', descending: true)
+          .get();
+
+      final wishlistAlbumIds = <String>[];
+      for (final wDoc in wishlistSnapshot.docs) {
+        final wData = wDoc.data();
+        final albumId = wData['albumId'] ?? wDoc.id;
+        wishlistAlbumIds.add(albumId);
+      }
+      final uniqueWishIds = wishlistAlbumIds.toSet();
+      final wishlistCovers = <String>[];
+      for (final albumId in uniqueWishIds) {
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(albumId)
+            .get();
+        if (albumDoc.exists) {
+          final aData = albumDoc.data();
+          final coverUrl = aData?['coverUrl'];
+          if (coverUrl != null) {
+            wishlistCovers.add(coverUrl as String);
+          }
+        }
+      }
+      _wishlistCoverUrls = wishlistCovers;
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print('Error in _fetchProfileData: $e');
+      setState(() => _isLoading = false);
     }
   }
+
+Future<void> _onAddProfilePhoto() async {
+  try {
+    print('Entered _onAddProfilePhoto');
+    if (!_isOwnProfile) {
+      print('Not own profile, returning');
+      return;
+    }
+    final picker = ImagePicker();
+    final pickedImage = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedImage == null) {
+      print('No image picked');
+      return;
+    }
+
+    final file = File(pickedImage.path);
+    print('Uploading file as: profilePictures/${_auth.currentUser!.uid}.jpg');
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('profilePictures/${_auth.currentUser!.uid}.jpg');
+
+    await storageRef.putFile(file);
+    final downloadUrl = await storageRef.getDownloadURL();
+
+    final bustCacheUrl =
+        '$downloadUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_auth.currentUser!.uid)
+        .update({'profilePictureUrl': bustCacheUrl});
+
+    setState(() => _profilePictureUrl = bustCacheUrl);
+  } catch (e) {
+    print('Error updating profile photo: $e');
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: 20),
-              Text(
-                'Welcome, ${_userName ?? 'User'}!',
-                style: TextStyle(fontSize: 32, color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 20),
-              if (_isLoading)
-                Center(child: CircularProgressIndicator())
-              else
-                RetroFormContainerWidget(
-                  width: double.infinity,
-                  child: StatsBar(
-                    albumsSentBack: _albumsSentBack,
-                    albumsKept: _albumsKept,
+      backgroundColor: Colors.black,
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator(color: Colors.white))
+          : BackgroundWidget( // <--- The grainy background
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeaderRow(),
+                      SizedBox(height: 16),
+                      Center(child: _buildProfileAvatar()),
+                      SizedBox(height: 24),
+                      _buildStatsSection(),
+                      SizedBox(height: 24),
+                      _buildMusicRow(context),
+                      SizedBox(height: 24),
+                      _buildWishlistRow(context),
+                      SizedBox(height: 30),
+                    ],
                   ),
                 ),
-              SizedBox(height: 20),
-              RetroButton(
-                text: 'Wishlist',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => WishlistScreen()),
-                  );
-                },
-                color: Color(0xFFFFA500),
-                fixedHeight: true,
               ),
-              SizedBox(height: 20),
-              RetroButton(
-                text: 'Options',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => OptionsScreen()),
-                  );
-                },
-                color: Color(0xFFFFA500),
-                fixedHeight: true,
-              ),
+            ),
+    );
+  }
 
-              // Only admins see these buttons
-              if (_isAdmin) ...[
-                SizedBox(height: 20),
-                RetroButton(
-                  text: 'Admin Dashboard',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => AdminDashboardScreen()),
-                    );
-                  },
-                  color: Color(0xFFFFA500),
-                  fixedHeight: true,
-                ),
-                SizedBox(height: 20),
-                // -------------- NEW BUTTON FOR ADMINS ONLY --------------
-                RetroButton(
-                  text: 'View New Profile Screen',
-                  onPressed: () {
-                    // Navigate to your new personal profile, passing the admin's userId
-                    // or the user ID you'd like to inspect
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PersonalProfileScreen(userId: _user!.uid),
-                      ),
-                    );
-                  },
-                  color: Color(0xFFFFA500),
-                  fixedHeight: true,
-                ),
-                // --------------------------------------------------------
-              ],
-
-              Spacer(),
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: Text(
-                  "Have questions or having issues with Dissonant? Email dissonant.helpdesk@gmail.com and we'll get right back to you!",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              if (_isAdmin)
-                RetroButton(
-                  text: 'Logout',
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => WelcomeScreen()),
-                    );
-                  },
-                  color: Colors.red,
-                  fixedHeight: true,
-                ),
-            ],
+  Widget _buildHeaderRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Show the user's Firestore "username"
+        Text(
+          _username,
+          style: TextStyle(
+            color: Colors.white, // was orange, now white
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
           ),
         ),
+        // If it's their own profile, show a white settings icon
+        if (_isOwnProfile)
+          IconButton(
+            icon: Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => OptionsScreen()),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProfileAvatar() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3), // was orange
+          ),
+          child: ClipOval(
+            child: (_profilePictureUrl == null || _profilePictureUrl!.isEmpty)
+                ? Container(
+                    color: Colors.grey[800],
+                    child: Icon(Icons.person, color: Colors.white54, size: 60),
+                  )
+                : Image.network(_profilePictureUrl!, fit: BoxFit.cover),
+          ),
+        ),
+        if (_isOwnProfile)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: _onAddProfilePhoto,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white,   // was orange
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 1.5),
+                ),
+                child: Icon(Icons.camera_alt, color: Colors.black, size: 18),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+Widget _buildStatsSection() {
+  final kept = _albumsKept;
+  final returned = _albumsSentBack;
+  final total = kept + returned;
+  if (total == 0) {
+    return Center(
+      child: Text('No stats to show.', style: TextStyle(color: Colors.white60)),
+    );
+  }
+  return Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start, // Ensures left alignment inside
+      children: [
+        Text(
+          'My Stats',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: 12),
+        Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'Kept: $kept, Returned: $returned',
+            textAlign: TextAlign.left,
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+
+
+
+  /// Up to 3 "My Music" covers
+  Widget _buildMusicRow(BuildContext context) {
+    final recentMusic = _historyCoverUrls.take(3).toList();
+
+    return GestureDetector(
+      onTap: () {
+        // Full library
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => MyMusicLibraryScreen()),
+        ).then((_) {
+          // If you want to refresh:
+          // _fetchProfileData();
+        });
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Music',
+            style: TextStyle(
+              color: Colors.white, // was orange
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          if (recentMusic.isEmpty)
+            Text(
+              'No albums found in your history.',
+              style: TextStyle(color: Colors.white60),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentMusic.isNotEmpty)
+                        ? Image.network(
+                            recentMusic[0],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentMusic.length > 1)
+                        ? Image.network(
+                            recentMusic[1],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentMusic.length > 2)
+                        ? Image.network(
+                            recentMusic[2],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Up to 3 "Wishlist" covers
+  Widget _buildWishlistRow(BuildContext context) {
+    final recentWishlist = _wishlistCoverUrls.take(3).toList();
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => WishlistScreen()),
+        ).then((_) {
+          // If you want to refresh:
+          // _fetchProfileData();
+        });
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Wishlist',
+            style: TextStyle(
+              color: Colors.white, // was orange
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          if (recentWishlist.isEmpty)
+            Text(
+              'No albums in your wishlist.',
+              style: TextStyle(color: Colors.white60),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentWishlist.isNotEmpty)
+                        ? Image.network(
+                            recentWishlist[0],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentWishlist.length > 1)
+                        ? Image.network(
+                            recentWishlist[1],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (recentWishlist.length > 2)
+                        ? Image.network(
+                            recentWishlist[2],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

@@ -39,9 +39,10 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
   String? _userReviewDocId;
   Map<String, int> _genreVotes = {};
 
-  Set<String> expandedReviews = {}; // Track which reviews are expanded
+  // Which reviews are expanded
+  Set<String> expandedReviews = {};
 
-  // Add a cache for usernames
+  // Cache for usernames
   Map<String, String> _usernamesCache = {};
 
   @override
@@ -50,6 +51,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     _currentUserId = _auth.currentUser?.uid;
     _fetchGenreData();
     _checkUserReview();
+
     // Evict the image from cache to ensure fresh loading
     CachedNetworkImage.evictFromCache(widget.album.albumImageUrl);
   }
@@ -68,9 +70,8 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
   }
 
   Future<void> _fetchGenreData() async {
-    final albumRef = FirebaseFirestore.instance
-        .collection('albums')
-        .doc(widget.album.albumId);
+    final albumRef =
+        FirebaseFirestore.instance.collection('albums').doc(widget.album.albumId);
 
     DocumentSnapshot albumDoc = await albumRef.get();
 
@@ -80,13 +81,11 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
       _genreVotes = votesMap.map((key, value) => MapEntry(key, value as int));
 
       if (_currentUserId != null) {
-        String? userGenreVote =
-            await _firestoreService.getUserGenreVote(widget.album.albumId, _currentUserId!);
-        if (userGenreVote != null) {
-          _hasVoted = true;
-        } else {
-          _hasVoted = false;
-        }
+        String? userGenreVote = await _firestoreService.getUserGenreVote(
+          widget.album.albumId,
+          _currentUserId!,
+        );
+        _hasVoted = (userGenreVote != null);
       }
     } else {
       // Album document does not exist
@@ -166,108 +165,108 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     }
   }
 
-Future<void> _showReviewDialog({String initialComment = ''}) async {
-  // If user is not logged in or userId is null, just return.
-  if (_currentUserId == null) return;
+  Future<void> _showReviewDialog({String initialComment = ''}) async {
+    // If user is not logged in or userId is null, just return.
+    if (_currentUserId == null) return;
 
-  // Decide whether to show the "Delete" button (if the user already has a review).
-  bool showDelete = _hasUserReview && _userReviewDocId != null;
+    // Decide whether to show the "Delete" button (if the user already has a review).
+    bool showDelete = _hasUserReview && _userReviewDocId != null;
 
-  final dialogResult = await showDialog<String>(
-    context: context,
-    builder: (context) => ReviewDialog(
-      initialComment: initialComment,
-      showDeleteButton: showDelete,
-    ),
-  );
+    final dialogResult = await showDialog<String>(
+      context: context,
+      builder: (context) => ReviewDialog(
+        initialComment: initialComment,
+        showDeleteButton: showDelete,
+      ),
+    );
 
-  // If the user canceled or closed the dialog, dialogResult will be null.
-  if (dialogResult == null) {
-    return;
-  }
+    // If the user canceled or closed the dialog, dialogResult will be null.
+    if (dialogResult == null) {
+      return;
+    }
 
-  // Check if the user tapped "Delete"
-  if (dialogResult == '__DELETE_REVIEW__') {
-    // Safeguard: Only delete if we actually have a review
+    // Check if the user tapped "Delete"
+    if (dialogResult == '__DELETE_REVIEW__') {
+      // Safeguard: Only delete if we actually have a review
+      if (_hasUserReview && _userReviewDocId != null) {
+        try {
+          await _firestoreService.deleteReview(
+            albumId: widget.album.albumId,
+            reviewId: _userReviewDocId!,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Review deleted successfully!')),
+          );
+          // Update local state
+          await _checkUserReview();
+          setState(() {});
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting review: $e')),
+          );
+        }
+      }
+      return; // End here because we processed a deletion
+    }
+
+    // Otherwise, we have a new or updated comment
+    final newComment = dialogResult.trim();
+    if (newComment.isEmpty) {
+      // Extra safeguard
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Review cannot be blank.')),
+      );
+      return;
+    }
+
+    // If the user already has a review, update it. Otherwise, create new
     if (_hasUserReview && _userReviewDocId != null) {
       try {
-        await _firestoreService.deleteReview(
+        await _firestoreService.updateReview(
           albumId: widget.album.albumId,
           reviewId: _userReviewDocId!,
+          comment: newComment,
         );
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Review deleted successfully!')),
+          SnackBar(content: Text('Review updated successfully!')),
         );
-        // Update local state
-        await _checkUserReview();
-        setState(() {});
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting review: $e')),
+          SnackBar(content: Text('Error updating review: $e')),
+        );
+      }
+    } else {
+      try {
+        // Optionally find an order to link
+        final orders = await FirebaseFirestore.instance
+            .collection('orders')
+            .where('userId', isEqualTo: _currentUserId)
+            .where('details.albumId', isEqualTo: widget.album.albumId)
+            .limit(1)
+            .get();
+
+        String orderId = orders.docs.isNotEmpty ? orders.docs.first.id : 'no_order';
+
+        await _firestoreService.addReview(
+          albumId: widget.album.albumId,
+          userId: _currentUserId!,
+          orderId: orderId,
+          comment: newComment,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Review submitted successfully!')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error submitting review: $e')),
         );
       }
     }
-    return; // End here because we processed a deletion
+
+    // Refresh local state
+    await _checkUserReview();
+    setState(() {});
   }
-
-  // Otherwise, we have a new or updated comment from the user
-  final newComment = dialogResult.trim();
-  if (newComment.isEmpty) {
-    // Extra safeguard (the dialog already blocks empty reviews, but just in case)
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Review cannot be blank.')),
-    );
-    return;
-  }
-
-  // If the user already has a review, update it. Otherwise, create a new one.
-  if (_hasUserReview && _userReviewDocId != null) {
-    try {
-      await _firestoreService.updateReview(
-        albumId: widget.album.albumId,
-        reviewId: _userReviewDocId!,
-        comment: newComment,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Review updated successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating review: $e')),
-      );
-    }
-  } else {
-    try {
-      // Optionally find an order to link. If you track whether the user has received this album, you can do so here.
-      final orders = await FirebaseFirestore.instance
-          .collection('orders')
-          .where('userId', isEqualTo: _currentUserId)
-          .where('details.albumId', isEqualTo: widget.album.albumId)
-          .limit(1)
-          .get();
-
-      String orderId = orders.docs.isNotEmpty ? orders.docs.first.id : 'no_order';
-
-      await _firestoreService.addReview(
-        albumId: widget.album.albumId,
-        userId: _currentUserId!,
-        orderId: orderId,
-        comment: newComment,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Review submitted successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting review: $e')),
-      );
-    }
-  }
-
-  // Refresh local state and rebuild UI
-  await _checkUserReview();
-  setState(() {});
-}
 
   Widget _buildGenresSection() {
     if (_isLoadingGenres) {
@@ -275,9 +274,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
     }
 
     // Filter out genres with 0 votes
-    final filteredGenres = _genreVotes.entries
-        .where((entry) => entry.value > 0)
-        .toList()
+    final filteredGenres = _genreVotes.entries.where((entry) => entry.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     List<MapEntry<String, int>> topGenres = filteredGenres.take(2).toList();
 
@@ -318,7 +315,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         color: Color(0xFFC0C0C0),
         border: Border.all(color: Colors.black),
         boxShadow: [
-          // Depth shadow to mimic Windows95 depth effect
+          // Depth shadow to mimic Windows95 effect
           BoxShadow(
             color: Colors.white,
             offset: Offset(-2, -2),
@@ -349,7 +346,10 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         onTap: _hasVoted
             ? () async {
                 // Fetch current genre to pass to the dialog
-                String? currentGenre = await _firestoreService.getUserGenreVote(widget.album.albumId, _currentUserId!);
+                String? currentGenre = await _firestoreService.getUserGenreVote(
+                  widget.album.albumId,
+                  _currentUserId!,
+                );
                 _showGenreSelectionDialog(currentGenre: currentGenre);
               }
             : _showGenreSelectionDialog,
@@ -360,7 +360,6 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
             color: Color(0xFFC0C0C0),
             border: Border.all(color: Colors.black),
             boxShadow: [
-              // Add Windows95 shadow
               BoxShadow(
                 color: Colors.white,
                 offset: Offset(-2, -2),
@@ -375,7 +374,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
           ),
           alignment: Alignment.center,
           child: Text(
-            _hasVoted ? 'E' : '+', // Toggle between '+' and 'E' based on vote status
+            _hasVoted ? 'E' : '+', // Toggle between '+' and 'E'
             style: TextStyle(
               color: Colors.black,
               fontWeight: FontWeight.bold,
@@ -394,21 +393,13 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Text(
-            'Error: ${snapshot.error}',
-            style: TextStyle(color: Colors.red),
-          );
+          return Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red));
         }
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
         }
-
         if (!snapshot.data!.exists) {
-          return Text(
-            'Album not found.',
-            style: TextStyle(color: Colors.red),
-          );
+          return Text('Album not found.', style: TextStyle(color: Colors.red));
         }
 
         Map<String, dynamic> data = snapshot.data!.data() as Map<String, dynamic>;
@@ -417,10 +408,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
           genreVotes = Map<String, dynamic>.from(data['genreVotes']);
         }
 
-        // Calculate 'Kept' and 'Returned' counts
-        // Assuming 'orders' collection is separate and not part of 'genreVotes'
-        // Hence, maintaining separate counts from orders
-
+        // Now fetch kept/returned from orders
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('orders')
@@ -429,19 +417,15 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
               .snapshots(),
           builder: (context, orderSnapshot) {
             if (orderSnapshot.hasError) {
-              return Text(
-                'Error: ${orderSnapshot.error}',
-                style: TextStyle(color: Colors.red),
-              );
+              return Text('Error: ${orderSnapshot.error}',
+                  style: TextStyle(color: Colors.red));
             }
-
             if (orderSnapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
             }
 
             int keptCount = 0;
             int returnedCount = 0;
-
             for (var doc in orderSnapshot.data!.docs) {
               String status = doc['status'];
               if (status == 'kept') {
@@ -472,7 +456,6 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         color: Color(0xFFC0C0C0),
         border: Border.all(color: Colors.black),
         boxShadow: [
-          // Add Windows95 shadow
           BoxShadow(
             color: Colors.white,
             offset: Offset(-2, -2),
@@ -535,7 +518,8 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
     return GestureDetector(
       onTap: () {
         _showReviewDialog(
-          initialComment: _hasUserReview && _userReviewDocId != null ? '...' : '',
+          initialComment:
+              _hasUserReview && _userReviewDocId != null ? '...' : '',
         );
       },
       child: Container(
@@ -545,7 +529,6 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
           color: Color(0xFFC0C0C0),
           border: Border.all(color: Colors.black),
           boxShadow: [
-            // Add Windows95 shadow
             BoxShadow(
               color: Colors.white,
               offset: Offset(-2, -2),
@@ -560,7 +543,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         ),
         alignment: Alignment.center,
         child: Text(
-          _hasUserReview ? 'E' : '+', // Toggle between '+' and 'E' based on review status
+          _hasUserReview ? 'E' : '+', // Toggle between '+' and 'E' if user has review
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -570,6 +553,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
     );
   }
 
+  // -- CHANGED: Removed SingleChildScrollView from inside here --
   Widget _buildUserReviewsSection() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -600,131 +584,133 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
           );
         }
 
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, // Ensure left alignment
-            children: snapshot.data!.docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              String comment = data['comment'] ?? '';
-              Timestamp? ts = data['timestamp'];
-              DateTime? dt = ts?.toDate();
-              String dateStr = dt != null ? DateFormat('MMM dd, yyyy').format(dt) : '';
+        // Just return a Column; we'll wrap this in a scroll view in build()
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            String comment = data['comment'] ?? '';
+            Timestamp? ts = data['timestamp'];
+            DateTime? dt = ts?.toDate();
+            String dateStr = dt != null ? DateFormat('MMM dd, yyyy').format(dt) : '';
 
-              String userId = data['userId'];
-              String orderId = data['orderId'] ?? 'no_order';
+            String userId = data['userId'];
+            String orderId = data['orderId'] ?? 'no_order';
 
-              bool expanded = expandedReviews.contains(doc.id);
-              bool needsMore = comment.length > 120 && !expanded;
-              String displayComment = expanded || !needsMore ? comment : (comment.substring(0, 120) + '...');
+            bool expanded = expandedReviews.contains(doc.id);
+            bool needsMore = comment.length > 120 && !expanded;
+            String displayComment =
+                expanded || !needsMore ? comment : (comment.substring(0, 120) + '...');
 
-              return FutureBuilder<Map<String, String>>(
-                future: _fetchUserAndStatusForReview(userId, orderId),
-                builder: (context, userSnapshot) {
-                  if (userSnapshot.connectionState == ConnectionState.waiting) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Text(
-                        'Loading user info...',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                    );
-                  }
-
-                  if (userSnapshot.hasError || userSnapshot.data == null) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Text(
-                        'Error loading user info',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    );
-                  }
-
-                  String username = userSnapshot.data!['username'] ?? 'Unknown User';
-                  String statusNote = userSnapshot.data!['statusNote'] ?? '(hasn\'t received this album)';
-
+            return FutureBuilder<Map<String, String>>(
+              future: _fetchUserAndStatusForReview(userId, orderId),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, // Ensure left alignment
-                      children: [
-                        // Username
-                        Text(
-                          username,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        // Status Note
-                        Text(
-                          statusNote,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        // Date
-                        Text(
-                          dateStr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        // Comment with optional 'more'
-                        Text(
-                          displayComment,
-                          style: TextStyle(color: Colors.black),
-                          maxLines: expanded ? null : 2,
-                          overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                          textAlign: TextAlign.left, // Ensure left alignment
-                        ),
-                        if (needsMore)
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                expandedReviews.add(doc.id);
-                              });
-                            },
-                            child: Text(
-                              'more',
-                              style: TextStyle(
-                                color: Colors.blue,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        SizedBox(height: 8),
-                      ],
+                    child: Text(
+                      'Loading user info...',
+                      style: TextStyle(color: Colors.black),
                     ),
                   );
-                },
-              );
-            }).toList(),
-          ),
+                }
+
+                if (userSnapshot.hasError || userSnapshot.data == null) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Text(
+                      'Error loading user info',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+
+                String username = userSnapshot.data!['username'] ?? 'Unknown User';
+                String statusNote =
+                    userSnapshot.data!['statusNote'] ?? '(hasn\'t received this album)';
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Username
+                      Text(
+                        username,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      // Status note
+                      Text(
+                        statusNote,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      // Date
+                      Text(
+                        dateStr,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      // Comment
+                      Text(
+                        displayComment,
+                        style: TextStyle(color: Colors.black),
+                        maxLines: expanded ? null : 2,
+                        overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                        textAlign: TextAlign.left,
+                      ),
+                      // "more" link
+                      if (needsMore)
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              expandedReviews.add(doc.id);
+                            });
+                          },
+                          child: Text(
+                            'more',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      SizedBox(height: 8),
+                    ],
+                  ),
+                );
+              },
+            );
+          }).toList(),
         );
       },
     );
   }
 
-  Future<Map<String, String>> _fetchUserAndStatusForReview(String userId, String orderId) async {
+  Future<Map<String, String>> _fetchUserAndStatusForReview(
+      String userId, String orderId) async {
     Map<String, String> result = {};
-    
-    // Check if username is already in cache
+
+    // Check cache first
     String username;
     if (_usernamesCache.containsKey(userId)) {
       username = _usernamesCache[userId]!;
     } else {
-      // Fetch username from public profile
       final userProfile = await _firestoreService.getUserPublicProfile(userId);
       username = userProfile?['username'] ?? 'Unknown User';
-      // Add to cache
+      // Cache it
       _usernamesCache[userId] = username;
     }
-    
-    // Determine status note based on orderId
+
+    // Show if user kept or returned
     String statusNote = '(hasn\'t received this album)';
     if (orderId != 'no_order') {
       final orderDoc = await _firestoreService.getOrderById(orderId);
@@ -738,7 +724,7 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         }
       }
     }
-    
+
     result['username'] = username;
     result['statusNote'] = statusNote;
     return result;
@@ -752,23 +738,23 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
         child: SafeArea(
           child: Column(
             children: [
-              // Top window containing album cover and details
+              // Top window: album cover & details
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Windows95Window(
-                  showTitleBar: true, // Show the title bar for main album details
-                  title: 'Album Details', // Title for the main window
-                  contentBackgroundColor: Color(0xFFC0C0C0), // Grey background
+                  showTitleBar: true,
+                  title: 'Album Details',
+                  contentBackgroundColor: Color(0xFFC0C0C0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Album Cover Window without Title Bar
+                      // Album Cover (no title bar)
                       Expanded(
                         flex: 1,
                         child: Windows95Window(
-                          showTitleBar: false, // No title bar for album cover
+                          showTitleBar: false,
                           contentPadding: EdgeInsets.zero,
-                          contentBackgroundColor: Color(0xFFC0C0C0), // Grey background to match
+                          contentBackgroundColor: Color(0xFFC0C0C0),
                           child: CustomAlbumImage(
                             imageUrl: widget.album.albumImageUrl,
                             fit: BoxFit.contain,
@@ -776,14 +762,14 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
                         ),
                       ),
                       SizedBox(width: 8.0),
-                      // Album Details (Artist, Album Name, Release Year)
+                      // Album details (artist, name, etc.)
                       Expanded(
                         flex: 1,
                         child: Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start, // Ensure left alignment
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _buildLabelValue('Artist:', widget.album.artist),
@@ -800,19 +786,19 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
                 ),
               ),
 
-              // Genres and Counter sections
+              // Genres & Counter
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Genres Window
+                      // Genres window
                       Expanded(
                         child: Windows95Window(
                           showTitleBar: true,
                           title: 'Genres',
-                          contentBackgroundColor: Color(0xFFC0C0C0), // Grey background
+                          contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: _buildGenresSection(),
@@ -820,12 +806,12 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
                         ),
                       ),
                       SizedBox(width: 8.0),
-                      // Counter Window
+                      // Counter window
                       Expanded(
                         child: Windows95Window(
                           showTitleBar: true,
                           title: 'Counter',
-                          contentBackgroundColor: Color(0xFFC0C0C0), // Grey background
+                          contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: _buildCounter(),
@@ -837,12 +823,12 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
                 ),
               ),
 
-              // User Reviews section
+              // Reviews
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Windows95Window(
-                    showTitleBar: true, // Retain title bar for User Reviews
+                    showTitleBar: true,
                     titleWidget: Row(
                       children: [
                         Expanded(
@@ -855,8 +841,12 @@ Future<void> _showReviewDialog({String initialComment = ''}) async {
                         _buildReviewActionButton(),
                       ],
                     ),
-                    contentBackgroundColor: Color(0xFFC0C0C0), // Grey background
-                    child: _buildUserReviewsSection(),
+                    contentBackgroundColor: Color(0xFFC0C0C0),
+
+                    // Wrap _buildUserReviewsSection in SingleChildScrollView
+                    child: SingleChildScrollView(
+                      child: _buildUserReviewsSection(),
+                    ),
                   ),
                 ),
               ),

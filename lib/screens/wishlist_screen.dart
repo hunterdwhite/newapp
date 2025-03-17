@@ -1,10 +1,10 @@
-// lib/screens/wishlist_screen.dart
-
 import 'package:dissonantapp2/widgets/grainy_background_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
+import '../models/album.dart';
+import '../screens/album_detail_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   @override
@@ -15,7 +15,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   List<Map<String, dynamic>> _wishlistItems = [];
   bool _isLoading = true;
-  bool _isEditMode = false; // Variable to track edit mode
+  bool _isEditMode = false; // For edit mode
 
   @override
   void initState() {
@@ -37,8 +37,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         return {
           'albumId': doc.id,
-          'albumName': data['albumName'],
-          'albumImageUrl': data['albumImageUrl'],
+          'albumName': data['albumName'] ?? 'Unknown Album',
+          'albumImageUrl': data['albumImageUrl'] ?? '',
+          // You can add defaults for artist and releaseYear if needed:
+          'artist': data['artist'] ?? '',
+          'releaseYear': data['releaseYear']?.toString() ?? '',
         };
       }).toList();
 
@@ -125,17 +128,30 @@ class _WishlistScreenState extends State<WishlistScreen> {
                         child: GridView.builder(
                           padding: EdgeInsets.only(top: 8.0, bottom: 8.0),
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2, // Two columns
+                            crossAxisCount: 2,
                             crossAxisSpacing: 8.0,
                             mainAxisSpacing: 8.0,
-                            childAspectRatio: 1.0, // For square images
+                            childAspectRatio: 1.0,
                           ),
                           itemCount: _wishlistItems.length,
                           itemBuilder: (context, index) {
                             final item = _wishlistItems[index];
                             return GestureDetector(
                               onTap: () {
-                                // You can add an action here if needed
+                                // Create an Album instance using the data from wishlist
+                                final album = Album(
+                                  albumId: item['albumId'],
+                                  albumName: item['albumName'],
+                                  artist: item['artist'],
+                                  releaseYear: item['releaseYear'],
+                                  albumImageUrl: item['albumImageUrl'],
+                                );
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AlbumDetailsScreen(album: album),
+                                  ),
+                                );
                               },
                               child: Container(
                                 decoration: BoxDecoration(
@@ -147,7 +163,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                       ? Center(
                                           child: Image.network(
                                             item['albumImageUrl'],
-                                            fit: BoxFit.contain, // Ensure full image is visible
+                                            fit: BoxFit.contain,
                                           ),
                                         )
                                       : Icon(Icons.album, size: 50),

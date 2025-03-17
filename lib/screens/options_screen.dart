@@ -8,6 +8,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Add this import
 
+import 'admin_dashboard_screen.dart'; // <-- For Admin Dashboard
+import 'welcome_screen.dart';         // <-- For Logout
+
 class OptionsScreen extends StatefulWidget {
   @override
   _OptionsScreenState createState() => _OptionsScreenState();
@@ -16,11 +19,22 @@ class OptionsScreen extends StatefulWidget {
 class _OptionsScreenState extends State<OptionsScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   User? _user;
+  bool _isAdmin = false; // <-- Track admin status
 
   @override
   void initState() {
     super.initState();
     _user = FirebaseAuth.instance.currentUser;
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    if (_user != null) {
+      bool isAdmin = await _firestoreService.isAdmin(_user!.uid);
+      setState(() {
+        _isAdmin = isAdmin;
+      });
+    }
   }
 
   Future<void> _deleteAccount() async {
@@ -140,6 +154,14 @@ class _OptionsScreenState extends State<OptionsScreen> {
     );
   }
 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => WelcomeScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,37 +181,64 @@ class _OptionsScreenState extends State<OptionsScreen> {
             padding: EdgeInsets.all(16.0),
             child: Stack(
               children: [
-                // Centered Column for the buttons
+                // Centered Column for the main buttons
                 Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min, // Shrink to fit children
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(height: 20),
-                      RetroButton(
-                        text: 'Edit Taste Profile',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => TasteProfileScreen()),
-                          );
-                        },
-                        color: Color(0xFFFFA500),
-                        fixedHeight: true,
-                      ),
-                      SizedBox(height: 20),
-                      RetroButton(
-                        text: 'Change Password',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => ChangePasswordScreen()),
-                          );
-                        },
-                        color: Color(0xFFFFA500),
-                        fixedHeight: true,
-                      ),
-                    ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min, // Shrink to fit children
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: 20),
+                        // Edit Taste Profile
+                        RetroButton(
+                          text: 'Edit Taste Profile',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => TasteProfileScreen()),
+                            );
+                          },
+                          color: Color(0xFFFFA500),
+                          fixedHeight: true,
+                        ),
+                        SizedBox(height: 20),
+                        // Change Password
+                        RetroButton(
+                          text: 'Change Password',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ChangePasswordScreen()),
+                            );
+                          },
+                          color: Color(0xFFFFA500),
+                          fixedHeight: true,
+                        ),
+                        SizedBox(height: 20),
+                        // If admin, show Admin Dashboard button
+                        if (_isAdmin) ...[
+                          RetroButton(
+                            text: 'Admin Dashboard',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => AdminDashboardScreen()),
+                              );
+                            },
+                            color: Color(0xFFFFA500),
+                            fixedHeight: true,
+                          ),
+                          SizedBox(height: 20),
+                        ],
+                        // Logout button for everyone
+                        RetroButton(
+                          text: 'Logout',
+                          onPressed: _logout,
+                          color: Colors.red,
+                          fixedHeight: true,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 // Positioned Delete Account button
@@ -202,7 +251,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                       onPressed: _deleteAccount,
                       child: Text(
                         'Delete My Account',
-                        style: TextStyle(color: Colors.white), // Text color changed to white
+                        style: TextStyle(color: Colors.white), // White text
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red, // Red color for delete button

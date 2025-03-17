@@ -227,7 +227,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 SizedBox(width: 8.0),
                 Expanded(
                   child: Text(
-                    'Price: $priceInfo',
+                    '$priceInfo',
                     style: TextStyle(fontSize: 18, color: Colors.white),
                   ),
                 ),
