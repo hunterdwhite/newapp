@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/retro_button_widget.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_form_container_widget.dart';
+import 'link_discogs_screen.dart';
 import 'taste_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -213,6 +214,26 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           },
                           color: Color(0xFFFFA500),
                           fixedHeight: true,
+                        ),
+                        SizedBox(height: 20),
+                        RetroButton(
+                          text: 'Link Discogs',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => LinkDiscogsScreen()),
+                            );
+                          },
+                          color: Color(0xFF333333), // Discogs grey
+                          fixedHeight: true,
+                          leading: Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Image.asset(
+                              'assets/discogs_logo.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
                         ),
                         SizedBox(height: 20),
                         // If admin, show Admin Dashboard button

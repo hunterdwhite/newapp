@@ -437,21 +437,18 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
   }
 
   Future<void> addToWishlist({
-    required String userId,
-    required String albumId,
-    required String albumName,
-    required String albumImageUrl,
+  required String userId,
+  required String albumId,
   }) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('wishlist')
-        .doc(albumId)
-        .set({
-      'albumName': albumName,
-      'albumImageUrl': albumImageUrl,
-      'dateAdded': FieldValue.serverTimestamp(),
-    });
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('wishlist')
+      .doc(albumId)
+      .set({
+    'albumId': albumId,                // minimal pointer
+    'dateAdded': FieldValue.serverTimestamp(),
+  });
   }
 
   Future<DocumentSnapshot> getAlbumById(String albumId) async {

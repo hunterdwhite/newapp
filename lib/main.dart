@@ -8,7 +8,6 @@ import 'routes.dart';
 import 'screens/home_screen.dart';
 import 'screens/mymusic_screen.dart';
 import 'screens/order_screen.dart';
-import 'screens/personal_profile_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/emailverification_screen.dart';
@@ -160,7 +159,6 @@ class _MyHomePageState extends State<MyHomePage> {
     OrderScreen(),
     MyMusicScreen(),
     ProfileScreen(),
-    PersonalProfileScreen(userId: FirebaseAuth.instance.currentUser?.uid ?? ''),
   ];
 
   void _onItemTapped(int index) {

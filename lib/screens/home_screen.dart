@@ -8,6 +8,7 @@ import '../widgets/retro_button_widget.dart';
 import '../models/album.dart';
 import '../models/feed_item.dart';
 import 'album_detail_screen.dart';
+import 'public_profile_screen.dart'; // <--- Import your personal profile page
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -223,8 +224,10 @@ class _HomeScreenState extends State<HomeScreen> {
         continue; // skip if not a supported image
       }
 
+      // IMPORTANT: Provide userId to the FeedItem
       FeedItem feedItem = FeedItem(
         username: username,
+        userId: userId, // <--- store the userId
         status: data['status'],
         album: album,
       );
@@ -249,14 +252,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Add album to wishlist
   Future<void> _addToWishlist(
-      String albumId, String albumName, String albumImageUrl) async {
+    String albumId,
+  ) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       await _firestoreService.addToWishlist(
         userId: currentUser.uid,
         albumId: albumId,
-        albumName: albumName,
-        albumImageUrl: albumImageUrl,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -288,14 +290,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${item.username}',
-                          style: TextStyle(
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        // Made the username clickable => personal profile
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PublicProfileScreen(
+                                userId: item.userId, // <-- The user ID from your feed
+                              ),
+                            ),
+                          );
+                        },
+                          child: Text(
+                            item.username,
+                            style: TextStyle(
+                              fontSize: 18.0,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.left,
                           ),
-                          textAlign: TextAlign.left,
                         ),
                         SizedBox(height: 4.0),
                         Text(
@@ -313,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     flex: 1,
                     child: Text(
-                      '${item.album.albumName}',
+                      item.album.albumName,
                       style: TextStyle(
                         fontSize: 16.0,
                         fontWeight: FontWeight.bold,
@@ -383,8 +398,6 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 _addToWishlist(
                   item.album.albumId,
-                  item.album.albumName,
-                  item.album.albumImageUrl,
                 );
               },
               color: Colors.white,
@@ -441,8 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 double offsetFromCurrent = page - _currentIndex;
                 double bottomOffset = (maxSpines - i - 1) * spineHeight +
                     offsetFromCurrent * spineHeight;
-                double scale =
-                    (1.0 - i * 0.05 - offsetFromCurrent * 0.02).clamp(0.0, 1.0);
+                double scale = (1.0 - i * 0.05 - offsetFromCurrent * 0.02)
+                    .clamp(0.0, 1.0);
                 double opacity = (1.0 - i * 0.3 - offsetFromCurrent * 0.1)
                     .clamp(0.0, 1.0);
 

@@ -41,6 +41,11 @@ class _OrderScreenState extends State<OrderScreen> {
   String _mostRecentOrderStatus = '';
   bool _hasFreeOrder = false;
 
+  // Payment option state:
+  // Default payment amount is 11.99, but the user hasn't selected one until they tap.
+  double _selectedPaymentAmount = 11.99;
+  bool _hasSelectedPrice = false;
+
   List<String> _previousAddresses = [];
 
   final List<String> _states = [
@@ -55,7 +60,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   final FocusNode _zipcodeFocusNode = FocusNode();
 
-  // Replace this with your actual USPS Web Tools USERID:
+  // Replace with your actual USPS Web Tools USERID:
   final String _uspsUserId = '1933R3DISSO13';
 
   @override
@@ -66,7 +71,6 @@ class _OrderScreenState extends State<OrderScreen> {
     _loadUserData();
   }
 
-  // Loads the freeOrder flag from the user document.
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -93,7 +97,6 @@ class _OrderScreenState extends State<OrderScreen> {
     super.dispose();
   }
 
-  // Retrieves the most recent order status.
   Future<void> _fetchMostRecentOrderStatus() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -123,7 +126,6 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
-  // Loads previous addresses from recent orders.
   Future<void> _loadPreviousAddresses() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -145,7 +147,6 @@ class _OrderScreenState extends State<OrderScreen> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -194,14 +195,17 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   Widget _buildOrderForm(User? user) {
-    final priceInfo = _hasFreeOrder ? "FREE" : "\$11.99";
+    final priceInfo = _hasFreeOrder
+        ? "FREE"
+        : (_hasSelectedPrice
+            ? "\$${_selectedPaymentAmount.toStringAsFixed(2)}"
+            : "Choose your price");
 
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Screen title
           Text(
             'Order Your CD',
             style: TextStyle(
@@ -212,8 +216,6 @@ class _OrderScreenState extends State<OrderScreen> {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 8.0),
-
-          // Price display row with disc icon and info button
           Container(
             margin: EdgeInsets.symmetric(vertical: 8.0),
             padding: EdgeInsets.all(12.0),
@@ -226,9 +228,12 @@ class _OrderScreenState extends State<OrderScreen> {
                 Icon(Icons.album, color: Colors.orangeAccent),
                 SizedBox(width: 8.0),
                 Expanded(
-                  child: Text(
-                    '$priceInfo',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  child: InkWell(
+                    onTap: !_hasFreeOrder ? _showPaymentOptionsDialog : null,
+                    child: Text(
+                      '$priceInfo',
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
                   ),
                 ),
                 IconButton(
@@ -238,12 +243,14 @@ class _OrderScreenState extends State<OrderScreen> {
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.0)),
                           title: Text('New Process'),
                           content: Text(
                             "We've changed our process to make it easier for everyone as we grow.\n"
                             "Now you pay to make your initial order.\n"
                             "Keep/Return will remain the same except you don't pay anything to keep,\n"
-                            "and returning makes your next order free!"
+                            "and returning makes your next order free!",
                           ),
                           actions: [
                             TextButton(
@@ -259,8 +266,6 @@ class _OrderScreenState extends State<OrderScreen> {
               ],
             ),
           ),
-
-          // Free credit info
           if (_hasFreeOrder) ...[
             SizedBox(height: 8.0),
             Container(
@@ -284,8 +289,6 @@ class _OrderScreenState extends State<OrderScreen> {
               ),
             ),
           ],
-
-          // Previous address dropdown
           SizedBox(height: 16.0),
           if (_previousAddresses.isNotEmpty) ...[
             Text(
@@ -301,7 +304,6 @@ class _OrderScreenState extends State<OrderScreen> {
               items: _previousAddresses.map((address) {
                 return DropdownMenuItem<String>(
                   value: address,
-                  // Using white text on black background for each item
                   child: Text(address, style: TextStyle(color: Colors.white)),
                 );
               }).toList(),
@@ -328,8 +330,6 @@ class _OrderScreenState extends State<OrderScreen> {
             ),
           ],
           SizedBox(height: 16.0),
-
-          // Text fields for order details
           _buildTextField(controller: _firstNameController, label: 'First Name'),
           SizedBox(height: 16.0),
           _buildTextField(controller: _lastNameController, label: 'Last Name'),
@@ -338,8 +338,6 @@ class _OrderScreenState extends State<OrderScreen> {
           SizedBox(height: 16.0),
           _buildTextField(controller: _cityController, label: 'City'),
           SizedBox(height: 16.0),
-
-          // State selector (white text on black background)
           DropdownButtonFormField<String>(
             decoration: InputDecoration(
               labelText: 'State',
@@ -347,15 +345,15 @@ class _OrderScreenState extends State<OrderScreen> {
               filled: true,
               fillColor: Colors.white10,
             ),
-            style: TextStyle(color: Colors.white), // Selected item text color
-            dropdownColor: Colors.black87,         // Dropdown menu background color
+            style: TextStyle(color: Colors.white),
+            dropdownColor: Colors.black87,
             value: _state.isNotEmpty ? _state : null,
             items: _states.map((String state) {
               return DropdownMenuItem<String>(
                 value: state,
                 child: Text(
                   state,
-                  style: TextStyle(color: Colors.white), // Item text color
+                  style: TextStyle(color: Colors.white),
                 ),
               );
             }).toList(),
@@ -368,7 +366,6 @@ class _OrderScreenState extends State<OrderScreen> {
                 value == null || value.isEmpty ? 'Please select your state' : null,
           ),
           SizedBox(height: 16.0),
-
           _buildTextField(
             controller: _zipcodeController,
             label: 'Zipcode',
@@ -376,7 +373,6 @@ class _OrderScreenState extends State<OrderScreen> {
             keyboardType: TextInputType.number,
           ),
           SizedBox(height: 24.0),
-          // Place Order button that triggers payment and order creation
           _isProcessing
               ? Center(child: CircularProgressIndicator())
               : RetroButton(
@@ -386,9 +382,6 @@ class _OrderScreenState extends State<OrderScreen> {
                       : () async {
                           FocusScope.of(context).unfocus();
                           if (_formKey.currentState?.validate() ?? false) {
-                            // If you want to *force* address verification here,
-                            // you could call _verifyAddress() first and check for errors,
-                            // then proceed only if successful.
                             await _handlePlaceOrder(user.uid);
                           }
                         },
@@ -399,7 +392,6 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  // Helper for building text fields with consistent style.
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -423,7 +415,101 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  // Fixed payment and order creation handler using the correct Firestore methods.
+  // Updated payment options dialog with refined styling.
+ void _showPaymentOptionsDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+          backgroundColor: Colors.black87, // Ensure the background is dark.
+          title: Text(
+            'Select Payment Option',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: [
+                ListTile(
+                  onTap: () {
+                    setState(() {
+                      _selectedPaymentAmount = 8.99;
+                      _hasSelectedPrice = true;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                  title: Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 16.0, color: Colors.white),
+                      children: [
+                        TextSpan(
+                          text: "\$8.99",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: " - I can't afford a full price album right now",
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(color: Colors.white70),
+                ListTile(
+                  onTap: () {
+                    setState(() {
+                      _selectedPaymentAmount = 11.99;
+                      _hasSelectedPrice = true;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                  title: Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 16.0, color: Colors.white),
+                      children: [
+                        TextSpan(
+                          text: "\$11.99",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: " - I'll buy at full price!",
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(color: Colors.white70),
+                ListTile(
+                  onTap: () {
+                    setState(() {
+                      _selectedPaymentAmount = 14.99;
+                      _hasSelectedPrice = true;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                  title: Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 16.0, color: Colors.white),
+                      children: [
+                        TextSpan(
+                          text: "\$14.99",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: " - I want to pay full price and help contribute so others don't have to pay full price!",
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
   Future<void> _handlePlaceOrder(String uid) async {
     setState(() {
       _isProcessing = true;
@@ -432,14 +518,8 @@ class _OrderScreenState extends State<OrderScreen> {
     try {
       final fullAddress = _buildAddressString();
 
-      // If order is free, use the free order credit directly
       if (_hasFreeOrder) {
-        await _firestoreService.addOrder(
-          uid,
-          fullAddress,
-          flowVersion: 2,
-        );
-
+        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
         await _firestoreService.updateUserDoc(uid, {'freeOrder': false});
 
         if (!mounted) return;
@@ -455,11 +535,11 @@ class _OrderScreenState extends State<OrderScreen> {
         return;
       }
 
-      // Otherwise process payment before adding the order
-      print('Creating PaymentIntent...');
+      int amountInCents = (_selectedPaymentAmount * 100).round();
+      print('Creating PaymentIntent for $amountInCents cents...');
       final response = await http.post(
         Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
-        body: jsonEncode({'amount': 1199}),
+        body: jsonEncode({'amount': amountInCents}),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -475,11 +555,7 @@ class _OrderScreenState extends State<OrderScreen> {
         await _paymentService.presentPaymentSheet();
 
         print('Payment completed successfully.');
-        await _firestoreService.addOrder(
-          uid,
-          fullAddress,
-          flowVersion: 2,
-        );
+        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
 
         if (!mounted) return;
         setState(() {
@@ -519,14 +595,12 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
-  // Builds a multiline address string from input fields.
   String _buildAddressString() {
     return '${_firstNameController.text} ${_lastNameController.text}\n'
         '${_addressController.text}\n'
         '${_cityController.text}, $_state ${_zipcodeController.text}';
   }
 
-  // Keyboard actions config for the zipcode field.
   KeyboardActionsConfig _buildKeyboardActionsConfig() {
     return KeyboardActionsConfig(
       keyboardActionsPlatform: KeyboardActionsPlatform.ALL,
@@ -552,7 +626,6 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  // Populates fields from a selected previous address.
   void _populateFieldsFromSelectedAddress(String address) {
     List<String> parts = address.split('\n');
     if (parts.length == 3) {
@@ -575,3 +648,4 @@ class _OrderScreenState extends State<OrderScreen> {
     setState(() {});
   }
 }
+

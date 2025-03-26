@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 import 'home_screen.dart';
+import 'public_profile_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   @override
@@ -239,8 +240,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, setState) {
             return AlertDialog(
-              title: Text(user['username'] ?? 'User Details'),
-              content: SingleChildScrollView(
+            title: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PublicProfileScreen(userId: userId),
+                  ),
+                );
+              },
+              child: Text(
+                user['username'] ?? 'Unknown',
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  decoration: TextDecoration.underline, // Optional visual indication
+                ),
+              ),
+            ),              content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

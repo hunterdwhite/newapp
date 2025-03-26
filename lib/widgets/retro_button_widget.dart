@@ -6,6 +6,7 @@ class RetroButton extends StatelessWidget {
   final Color color;
   final bool fixedHeight;
   final Color shadowColor; // Custom shadow color
+  final Widget? leading; // Optional leading icon or widget
 
   const RetroButton({
     Key? key,
@@ -14,6 +15,7 @@ class RetroButton extends StatelessWidget {
     this.color = const Color(0xFFD24407),
     this.fixedHeight = false,
     this.shadowColor = Colors.black,
+    this.leading,
   }) : super(key: key);
 
   @override
@@ -52,13 +54,22 @@ class RetroButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               alignment: Alignment.center,
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leading != null) ...[
+                    leading!,
+                    SizedBox(width: 8),
+                  ],
+                  Text(
+                    text,
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

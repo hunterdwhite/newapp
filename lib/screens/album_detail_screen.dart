@@ -16,6 +16,7 @@ import '../widgets/windows95_window.dart';
 import '../widgets/retro_button_widget.dart';
 import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
+import 'public_profile_screen.dart';
 
 class AlbumDetailsScreen extends StatefulWidget {
   final Album album;
@@ -635,13 +636,24 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Username
-                      Text(
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PublicProfileScreen(userId: userId),
+                          ),
+                        );
+                      },
+                      child: Text(
                         username,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
+                          decoration: TextDecoration.underline, // Optional, visual indication it's clickable
                         ),
                       ),
+                    ),
                       // Status note
                       Text(
                         statusNote,

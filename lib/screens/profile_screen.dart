@@ -31,12 +31,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _albumsSentBack = 0;
   int _albumsKept = 0;
 
-  // For "My Music" and "Wishlist"
+  // Covers for "My Music" and "Wishlist"
   List<String> _historyCoverUrls = [];
   List<String> _wishlistCoverUrls = [];
 
   bool _isLoading = true;
   bool _isOwnProfile = false;
+
+  // We'll store the current user's ID so we can pass it to the library/wishlist screens
+  String? _myUserId;
 
   @override
   void initState() {
@@ -53,13 +56,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      final userId = currentUser.uid;
+      _myUserId = currentUser.uid;
       _isOwnProfile = true;
 
       // 1) Get user doc
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(userId)
+          .doc(_myUserId)
           .get();
       if (!userDoc.exists) throw Exception('User not found');
 
@@ -70,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 2) Orders: 'kept', 'returned', 'returnedConfirmed'
       final ordersSnapshot = await FirebaseFirestore.instance
           .collection('orders')
-          .where('userId', isEqualTo: userId)
+          .where('userId', isEqualTo: _myUserId)
           .where('status', whereIn: ['kept', 'returned', 'returnedConfirmed'])
           .get();
 
@@ -92,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _albumsSentBack = returnedAlbumIds.length;
 
       // Gather up to 3 covers for "My Music"
-      final allAlbumIds = [...keptAlbumIds, ...returnedAlbumIds].toSet();
+      final allAlbumIds = {...keptAlbumIds, ...returnedAlbumIds};
       final historyCovers = <String>[];
       for (final albumId in allAlbumIds) {
         final albumDoc = await FirebaseFirestore.instance
@@ -112,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 3) Wishlist
       final wishlistSnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(userId)
+          .doc(_myUserId)
           .collection('wishlist')
           .orderBy('dateAdded', descending: true)
           .get();
@@ -147,67 +150,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-Future<void> _onAddProfilePhoto() async {
-  try {
-    print('Entered _onAddProfilePhoto');
-    if (!_isOwnProfile) {
-      print('Not own profile, returning');
-      return;
+  Future<void> _onAddProfilePhoto() async {
+    try {
+      print('Entered _onAddProfilePhoto');
+      if (!_isOwnProfile) {
+        print('Not own profile, returning');
+        return;
+      }
+      final picker = ImagePicker();
+      final pickedImage = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedImage == null) {
+        print('No image picked');
+        return;
+      }
+
+      final file = File(pickedImage.path);
+      print('Uploading file as: profilePictures/${_auth.currentUser!.uid}.jpg');
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profilePictures/${_auth.currentUser!.uid}.jpg');
+
+      await storageRef.putFile(file);
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      final bustCacheUrl =
+          '$downloadUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_auth.currentUser!.uid)
+          .update({'profilePictureUrl': bustCacheUrl});
+
+      setState(() => _profilePictureUrl = bustCacheUrl);
+    } catch (e) {
+      print('Error updating profile photo: $e');
     }
-    final picker = ImagePicker();
-    final pickedImage = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedImage == null) {
-      print('No image picked');
-      return;
-    }
-
-    final file = File(pickedImage.path);
-    print('Uploading file as: profilePictures/${_auth.currentUser!.uid}.jpg');
-
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('profilePictures/${_auth.currentUser!.uid}.jpg');
-
-    await storageRef.putFile(file);
-    final downloadUrl = await storageRef.getDownloadURL();
-
-    final bustCacheUrl =
-        '$downloadUrl?v=${DateTime.now().millisecondsSinceEpoch}';
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_auth.currentUser!.uid)
-        .update({'profilePictureUrl': bustCacheUrl});
-
-    setState(() => _profilePictureUrl = bustCacheUrl);
-  } catch (e) {
-    print('Error updating profile photo: $e');
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: Colors.white))
-          : BackgroundWidget( // <--- The grainy background
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : BackgroundWidget(
               child: SafeArea(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeaderRow(),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Center(child: _buildProfileAvatar()),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       _buildStatsSection(),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       _buildMusicRow(context),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       _buildWishlistRow(context),
-                      SizedBox(height: 30),
+                      const SizedBox(height: 30),
                     ],
                   ),
                 ),
@@ -223,8 +226,8 @@ Future<void> _onAddProfilePhoto() async {
         // Show the user's Firestore "username"
         Text(
           _username,
-          style: TextStyle(
-            color: Colors.white, // was orange, now white
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -232,7 +235,7 @@ Future<void> _onAddProfilePhoto() async {
         // If it's their own profile, show a white settings icon
         if (_isOwnProfile)
           IconButton(
-            icon: Icon(Icons.settings, color: Colors.white),
+            icon: const Icon(Icons.settings, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
@@ -253,13 +256,13 @@ Future<void> _onAddProfilePhoto() async {
           height: 120,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3), // was orange
+            border: Border.all(color: Colors.white, width: 3),
           ),
           child: ClipOval(
             child: (_profilePictureUrl == null || _profilePictureUrl!.isEmpty)
                 ? Container(
                     color: Colors.grey[800],
-                    child: Icon(Icons.person, color: Colors.white54, size: 60),
+                    child: const Icon(Icons.person, color: Colors.white54, size: 60),
                   )
                 : Image.network(_profilePictureUrl!, fit: BoxFit.cover),
           ),
@@ -274,11 +277,11 @@ Future<void> _onAddProfilePhoto() async {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: Colors.white,   // was orange
+                  color: Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.black, width: 1.5),
                 ),
-                child: Icon(Icons.camera_alt, color: Colors.black, size: 18),
+                child: const Icon(Icons.camera_alt, color: Colors.black, size: 18),
               ),
             ),
           ),
@@ -286,60 +289,60 @@ Future<void> _onAddProfilePhoto() async {
     );
   }
 
-Widget _buildStatsSection() {
-  final kept = _albumsKept;
-  final returned = _albumsSentBack;
-  final total = kept + returned;
-  if (total == 0) {
+  Widget _buildStatsSection() {
+    final kept = _albumsKept;
+    final returned = _albumsSentBack;
+    final total = kept + returned;
+    if (total == 0) {
+      return Center(
+        child: Text('No stats to show.', style: const TextStyle(color: Colors.white60)),
+      );
+    }
     return Center(
-      child: Text('No stats to show.', style: TextStyle(color: Colors.white60)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'My Stats',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Kept: $kept, Returned: $returned',
+              textAlign: TextAlign.left,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
-  return Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start, // Ensures left alignment inside
-      children: [
-        Text(
-          'My Stats',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 12),
-        Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'Kept: $kept, Returned: $returned',
-            textAlign: TextAlign.left,
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      ],
-    ),
-  );
-}
 
-
-
-
-  /// Up to 3 "My Music" covers
+  /// “My Music” row => pass _myUserId to MyMusicLibraryScreen
   Widget _buildMusicRow(BuildContext context) {
     final recentMusic = _historyCoverUrls.take(3).toList();
 
     return GestureDetector(
       onTap: () {
         // Full library
+        if (_myUserId == null) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => MyMusicLibraryScreen()),
+          MaterialPageRoute(
+            builder: (_) => MyMusicLibraryScreen(userId: _myUserId!),
+          ),
         ).then((_) {
           // If you want to refresh:
           // _fetchProfileData();
@@ -348,17 +351,17 @@ Widget _buildStatsSection() {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'My Music',
             style: TextStyle(
-              color: Colors.white, // was orange
+              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           if (recentMusic.isEmpty)
-            Text(
+            const Text(
               'No albums found in your history.',
               style: TextStyle(color: Colors.white60),
             )
@@ -368,15 +371,13 @@ Widget _buildStatsSection() {
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
-                    child: (recentMusic.isNotEmpty)
-                        ? Image.network(
-                            recentMusic[0],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
+                    child: Image.network(
+                      recentMusic[0],
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -388,7 +389,7 @@ Widget _buildStatsSection() {
                         : Container(),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -407,15 +408,18 @@ Widget _buildStatsSection() {
     );
   }
 
-  /// Up to 3 "Wishlist" covers
+  /// “Wishlist” row => pass _myUserId to WishlistScreen
   Widget _buildWishlistRow(BuildContext context) {
     final recentWishlist = _wishlistCoverUrls.take(3).toList();
 
     return GestureDetector(
       onTap: () {
+        if (_myUserId == null) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => WishlistScreen()),
+          MaterialPageRoute(
+            builder: (_) => WishlistScreen(userId: _myUserId!),
+          ),
         ).then((_) {
           // If you want to refresh:
           // _fetchProfileData();
@@ -424,17 +428,17 @@ Widget _buildStatsSection() {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Wishlist',
             style: TextStyle(
-              color: Colors.white, // was orange
+              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           if (recentWishlist.isEmpty)
-            Text(
+            const Text(
               'No albums in your wishlist.',
               style: TextStyle(color: Colors.white60),
             )
@@ -444,15 +448,13 @@ Widget _buildStatsSection() {
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
-                    child: (recentWishlist.isNotEmpty)
-                        ? Image.network(
-                            recentWishlist[0],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
+                    child: Image.network(
+                      recentWishlist[0],
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -464,7 +466,7 @@ Widget _buildStatsSection() {
                         : Container(),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
