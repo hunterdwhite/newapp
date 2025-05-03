@@ -745,7 +745,6 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: 'DISSONANT'),
       body: BackgroundWidget(
         child: SafeArea(
           child: Column(

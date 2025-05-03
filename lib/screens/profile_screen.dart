@@ -331,157 +331,166 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// “My Music” row => pass _myUserId to MyMusicLibraryScreen
-  Widget _buildMusicRow(BuildContext context) {
-    final recentMusic = _historyCoverUrls.take(3).toList();
+Widget _buildMusicRow(BuildContext context) {
+  final recentMusic = _historyCoverUrls.take(3).toList();
 
-    return GestureDetector(
-      onTap: () {
-        // Full library
-        if (_myUserId == null) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MyMusicLibraryScreen(userId: _myUserId!),
-          ),
-        ).then((_) {
-          // If you want to refresh:
-          // _fetchProfileData();
-        });
-      },
+  return GestureDetector(
+    onTap: () {
+      if (_myUserId == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MyMusicLibraryScreen(userId: _myUserId!),
+        ),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'My Music',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: double.infinity,
+            height: 32,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/gradientbar.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'My Music',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          if (recentMusic.isEmpty)
-            const Text(
-              'No albums found in your history.',
-              style: TextStyle(color: Colors.white60),
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Image.network(
-                      recentMusic[0],
-                      fit: BoxFit.contain,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: List.generate(3, (index) {
+                if (index < recentMusic.length) {
+                  return Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black54),
+                        ),
+                        child: Image.network(
+                          recentMusic[index],
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: (recentMusic.length > 1)
-                        ? Image.network(
-                            recentMusic[1],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: (recentMusic.length > 2)
-                        ? Image.network(
-                            recentMusic[2],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
-                  ),
-                ),
-              ],
+                  );
+                } else {
+                  return const Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: SizedBox.shrink(),
+                    ),
+                  );
+                }
+              }),
             ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 
   /// “Wishlist” row => pass _myUserId to WishlistScreen
-  Widget _buildWishlistRow(BuildContext context) {
-    final recentWishlist = _wishlistCoverUrls.take(3).toList();
+Widget _buildWishlistRow(BuildContext context) {
+  final recentWishlist = _wishlistCoverUrls.take(3).toList();
 
-    return GestureDetector(
-      onTap: () {
-        if (_myUserId == null) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WishlistScreen(userId: _myUserId!),
-          ),
-        ).then((_) {
-          // If you want to refresh:
-          // _fetchProfileData();
-        });
-      },
+  return GestureDetector(
+    onTap: () {
+      if (_myUserId == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WishlistScreen(userId: _myUserId!),
+        ),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Wishlist',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: double.infinity,
+            height: 32,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/gradientbar.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Wishlist',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          if (recentWishlist.isEmpty)
-            const Text(
-              'No albums in your wishlist.',
-              style: TextStyle(color: Colors.white60),
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Image.network(
-                      recentWishlist[0],
-                      fit: BoxFit.contain,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: List.generate(3, (index) {
+                if (index < recentWishlist.length) {
+                  return Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black54),
+                        ),
+                        child: Image.network(
+                          recentWishlist[index],
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: (recentWishlist.length > 1)
-                        ? Image.network(
-                            recentWishlist[1],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: (recentWishlist.length > 2)
-                        ? Image.network(
-                            recentWishlist[2],
-                            fit: BoxFit.contain,
-                          )
-                        : Container(),
-                  ),
-                ),
-              ],
+                  );
+                } else {
+                  return const Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: SizedBox.shrink(),
+                    ),
+                  );
+                }
+              }),
             ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 }

@@ -1,590 +1,693 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:dissonantapp2/widgets/grainy_background_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
-import '../services/firestore_service.dart';
+import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
+import '../services/firestore_service.dart';
 import '../models/album.dart';
 import '../models/feed_item.dart';
+import 'feed_screen.dart';
 import 'album_detail_screen.dart';
-import 'public_profile_screen.dart'; // <--- Import your personal profile page
+import '../main.dart'; // for MyHomePage.of(context)
+
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
+  /* ─────────────────────────  NEWS / ANNOUNCEMENTS  ─────────────────────── */
+  final PageController _newsController = PageController();
+  Timer? _autoScrollTimer;
+  List<Map<String, dynamic>> _newsItems = [];
+  bool _newsLoading = true;
+  int _currentPage = 0;
+  bool _pageReady = false;
 
-  // Our paginated feed items
-  List<FeedItem> _feedItems = [];
 
-  // Loading states
-  bool _isLoading = true;         // initial load
-  bool _isFetchingMore = false;   // when loading the next chunk
-  bool _hasMoreData = true;       // whether more data might be available
 
-  // Firestore pagination helpers
-  DocumentSnapshot? _lastDocument;
-  final int _pageSize = 10;       // how many docs to fetch in each chunk
+  /* ─────────────────────────  LATEST ALBUMS STRIP  ─────────────────────── */
+  final FirestoreService _firestore = FirestoreService();
+  final int _latestLimit = 10;
+  List<FeedItem> _latestFeedItems = [];
+  bool _latestLoading = true;
 
-  // PageView controller and state
-  PageController _pageController = PageController();
-  int _currentIndex = 0;
+  /* ─────────────────────────  USERNAME  ─────────────────────── */
+  String? _username;
 
-  // Spine settings for the “stacked” UI
-  final double spineHeight = 45.0;
-  final int maxSpines = 3;
+  late VideoPlayerController _videoController;
+  bool _videoInitialized = false;
 
   @override
   void initState() {
+    _newsController.addListener(() {
+      final page = _newsController.page?.round() ?? 0;
+      if (_currentPage != page) {
+        setState(() {
+          _currentPage = page;
+        });
+      }
+    });
     super.initState();
-    _fetchInitialFeedItems();
-    _pageController.addListener(_onPageChanged);
+    _loadAnnouncements();
+    _fetchLatestAlbums();
+    _startAutoScroll();
+    _videoController = VideoPlayerController.asset('assets/littleguy.mp4')
+      ..setLooping(true)
+      ..setVolume(0)
+      ..initialize().then((_) {
+        setState(() {
+          _videoInitialized = true;
+          _videoController.play();
+        });
+      });
   }
 
   @override
   void dispose() {
-    _pageController.removeListener(_onPageChanged);
-    _pageController.dispose();
+    _autoScrollTimer?.cancel();
+    _newsController.dispose();
     super.dispose();
   }
 
-  void _onPageChanged() {
-    if (!mounted) return;
-    int newIndex = _pageController.page!.round();
+  /* ==========  ANNOUNCEMENTS FLOW  ========== */
+  Future<void> _loadAnnouncements() async {
+  try {
+    _newsItems = [];
 
-    if (newIndex != _currentIndex && newIndex < _feedItems.length) {
-      setState(() {
-        _currentIndex = newIndex;
-      });
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
-      // If user is near the bottom (last or second-to-last item), try fetching more
-      if (newIndex >= _feedItems.length - 2 && _hasMoreData) {
-        _fetchMoreFeedItems();
-      }
-    }
-  }
+      if (userDoc.exists) {
+        final data = userDoc.data() ?? {};
 
-  /// Fetch the first chunk of documents
-  Future<void> _fetchInitialFeedItems() async {
-    setState(() {
-      _isLoading = true;
-    });
+        // Welcome card if user has never ordered
+        if (data['hasOrdered'] != true) {
+          _newsItems.add({
+            'title': 'Welcome to DISSONANT!',
+            'subtitle': 'Everyone remembers their first order... \n Don\'t forget to make yours!',
+            'imageUrl': '',
+            'iconPath': 'assets/icon/firstordericon.png',
+            'deeplink': '/order',
+          });
+        }
 
-    try {
-      Query query = FirebaseFirestore.instance
-          .collection('orders')
-          .where('status', whereIn: ['kept', 'returnedConfirmed'])
-          .orderBy('updatedAt', descending: true)
-          .limit(_pageSize);
-
-      QuerySnapshot ordersSnapshot = await query.get();
-      if (ordersSnapshot.docs.isNotEmpty) {
-        _lastDocument = ordersSnapshot.docs.last;
-      }
-
-      // Convert documents into feed items
-      List<FeedItem> newFeedItems = await _processOrderDocs(ordersSnapshot.docs);
-
-      if (mounted) {
-        setState(() {
-          _feedItems = newFeedItems;
-          _isLoading = false;
-          // If we got fewer than _pageSize docs, we won't have more to load
-          _hasMoreData = (ordersSnapshot.docs.length == _pageSize);
-        });
-
-        // Optionally prefetch the first image
-        if (_feedItems.isNotEmpty) {
-          precacheImage(
-            NetworkImage(_feedItems[0].album.albumImageUrl),
-            context,
-          ).catchError((error) {
-            print('Error precaching first image: $error');
+        // Free Order card
+        if (data['freeOrder'] == true) {
+          _newsItems.add({
+            'title': 'You have a Free Order',
+            'subtitle': 'Your next order is free! \n Redeem it now and discover new music!',
+            'iconPath': 'assets/icon/nextorderfreeicon.png',
+            'imageUrl': '',
+            'deeplink': '/order/free',
           });
         }
       }
-    } catch (e) {
-      print('Error fetching feed items: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading feed items: $e')),
-        );
+    }
+
+    // Wishlist leaderboard card
+    final leaderboardItems = await _fetchWishlistLeaderboardTop3();
+    if (leaderboardItems.isNotEmpty) {
+      _newsItems.add({
+        'title': 'Most Wishlisted Albums',
+        'subtitle': leaderboardItems.join(' • '),
+        'imageUrl': '',
+        'deeplink': '/wishlist/leaderboard',
+      });
+    }
+
+    // Propaganda cards
+    _newsItems.addAll([
+      {
+        'title': 'Get all your orders free!',
+        'subtitle': 'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
+        'imageUrl': '', // Upload this image
+        'iconPath': 'assets/icon/libraryicon.png',
+        'backgroundColor': Colors.deepOrange.shade700,
+      },
+      {
+        'title': 'Find that hidden gem',
+        'subtitle': 'Your favorite music is already out there, in a jewel case, buried in a crate at some dusty record store. \n Isn\'t that more exciting than a Spotify Playlist?',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/hiddengemicon.png',
+        'backgroundColor': Colors.blueGrey.shade700,
+      },
+      {
+        'title': 'Own your music',
+        'subtitle': 'In a throwaway culture it’s radical to share music in a way those corporations can\'t touch.',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/radicalsharemusicicon.png',
+        'backgroundColor': Colors.redAccent.shade700,
+      },
+      {
+        'title': 'Make a donation',
+        'subtitle': 'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/donate.png',
+        'backgroundColor': Colors.redAccent.shade700,
+      },
+      {
+        'title': 'Let’s Connect!',
+        'subtitle': 'Follow us and stay in the loop.',
+        'imageUrl': '',
+        'type': 'social',
+      },
+    ]);
+
+    setState(() {
+      _newsLoading = false;
+    });
+    _checkIfPageReady();
+  } catch (e) {
+    debugPrint('Error loading announcements: $e');
+    setState(() {
+      _newsLoading = false;
+    });
+    _checkIfPageReady();
+  }
+}
+
+
+  Future<List<String>> _fetchWishlistLeaderboardTop3() async {
+  final albumCounts = <String, int>{};
+
+  try {
+    final usersSnapshot = await FirebaseFirestore.instance.collection('users').get();
+    for (final userDoc in usersSnapshot.docs) {
+      final wishlistSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userDoc.id)
+          .collection('wishlist')
+          .get();
+
+      for (final wishlistItem in wishlistSnapshot.docs) {
+        final albumId = wishlistItem['albumId'] ?? wishlistItem.id;
+        if (albumId != null && albumId.isNotEmpty) {
+          albumCounts[albumId] = (albumCounts[albumId] ?? 0) + 1;
+        }
       }
+    }
+
+    // Sort by count
+    final sortedAlbums = albumCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Fetch top 3 album names
+    final topAlbumNames = <String>[];
+    for (final entry in sortedAlbums.take(3)) {
+      final albumDoc = await FirebaseFirestore.instance.collection('albums').doc(entry.key).get();
+      if (albumDoc.exists) {
+        final name = albumDoc.data()?['albumName'] ?? 'Unknown Album';
+        topAlbumNames.add(name);
+      }
+    }
+
+    return topAlbumNames;
+  } catch (e) {
+    debugPrint('Error fetching wishlist leaderboard: $e');
+    return [];
+  }
+}
+
+
+
+  Future<void> _addPersonalSlides() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = userDoc.data() ?? {};
+
+      if (data['freeOrder'] == true) {
+        _newsItems.insert(0, {
+          'title': 'Free Order Available!',
+          'subtitle': 'You have a free order. Place it now!',
+          'imageUrl': '',
+          'deeplink': '/order/free',
+        });
+      }
+    } catch (e) {
+      debugPrint('Error reading personal flags: $e');
     }
   }
 
-  /// Fetch the next chunk of documents
-  Future<void> _fetchMoreFeedItems() async {
-    // If we're already fetching or there's nothing left, do nothing
-    if (_isFetchingMore || !_hasMoreData) return;
-
-    setState(() {
-      _isFetchingMore = true;
+  void _startAutoScroll() {
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (!_newsController.hasClients || _newsItems.length < 2) return;
+      final next = (_newsController.page ?? 0).round() + 1;
+      final target = next >= _newsItems.length ? 0 : next;
+      _newsController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
     });
+  }
+
+  /* ==========  FETCH LATEST ALBUMS FLOW  ========== */
+  Future<void> _fetchLatestAlbums() async {
+    setState(() => _latestLoading = true);
 
     try {
-      Query query = FirebaseFirestore.instance
+      final qs = await FirebaseFirestore.instance
           .collection('orders')
           .where('status', whereIn: ['kept', 'returnedConfirmed'])
           .orderBy('updatedAt', descending: true)
-          .limit(_pageSize);
-
-      if (_lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
-
-      QuerySnapshot ordersSnapshot = await query.get();
-      if (ordersSnapshot.docs.isNotEmpty) {
-        _lastDocument = ordersSnapshot.docs.last;
-      }
-
-      List<FeedItem> moreFeedItems = await _processOrderDocs(ordersSnapshot.docs);
-
-      if (mounted) {
-        setState(() {
-          _feedItems.addAll(moreFeedItems);
-          _isFetchingMore = false;
-          _hasMoreData = (ordersSnapshot.docs.length == _pageSize);
-        });
-      }
-    } catch (e) {
-      print('Error fetching more feed items: $e');
-      if (mounted) {
-        setState(() {
-          _isFetchingMore = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading more feed items: $e')),
-        );
-      }
-    }
-  }
-
-  /// Process each order doc into a FeedItem by fetching user and album docs
-  Future<List<FeedItem>> _processOrderDocs(List<DocumentSnapshot> docs) async {
-    List<FeedItem> feedItems = [];
-
-    for (var doc in docs) {
-      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-      // Fetch user info
-      String userId = data['userId'] ?? '';
-      String username = 'Unknown User';
-
-      if (userId.isNotEmpty) {
-        DocumentSnapshot publicProfileDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('public')
-            .doc('profile')
-            .get();
-
-        if (publicProfileDoc.exists) {
-          Map<String, dynamic>? publicData =
-              publicProfileDoc.data() as Map<String, dynamic>?;
-          if (publicData != null) {
-            username = publicData['username'] ?? 'Unknown User';
-          }
-        }
-      }
-
-      // Fetch album info
-      String? albumId = data['details']?['albumId'];
-      if (albumId == null || albumId.isEmpty) {
-        // skip if no album ID
-        continue;
-      }
-
-      DocumentSnapshot albumDoc = await FirebaseFirestore.instance
-          .collection('albums')
-          .doc(albumId)
+          .limit(_latestLimit)
           .get();
 
-      if (!albumDoc.exists) {
-        print('Album with ID $albumId does not exist.');
-        continue;
+      final items = <FeedItem>[];
+      for (final doc in qs.docs) {
+        final data = doc.data();
+        final albumId = data['details']?['albumId'] as String?;
+        if (albumId == null || albumId.isEmpty) continue;
+
+        final albumDoc =
+            await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
+        if (!albumDoc.exists) continue;
+
+        final album = Album.fromDocument(albumDoc);
+
+        final userId = data['userId'] as String? ?? '';
+        var username = 'Unknown';
+        if (userId.isNotEmpty) {
+          final p = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('public')
+              .doc('profile')
+              .get();
+          username = (p.data() ?? {})['username'] ?? 'Unknown';
+        }
+
+        items.add(FeedItem(
+          username: username,
+          userId: userId,
+          status: data['status'],
+          album: album,
+        ));
       }
 
-      Album album = Album.fromDocument(albumDoc);
-
-      // Log the album image URL
-      print('Loading image URL: ${album.albumImageUrl}');
-
-      // Validate URL format
-      if (!isSupportedImageFormat(album.albumImageUrl)) {
-        print('Unsupported image format for album ${album.albumName}: '
-            '${album.albumImageUrl}');
-        continue; // skip if not a supported image
-      }
-
-      // IMPORTANT: Provide userId to the FeedItem
-      FeedItem feedItem = FeedItem(
-        username: username,
-        userId: userId, // <--- store the userId
-        status: data['status'],
-        album: album,
-      );
-      feedItems.add(feedItem);
-    }
-
-    return feedItems;
-  }
-
-  /// Check if a given image URL is a common format (jpg/png)
-  bool isSupportedImageFormat(String imageUrl) {
-    try {
-      Uri uri = Uri.parse(imageUrl);
-      String path = uri.path.toLowerCase();
-      String extension = path.split('.').last;
-      return (extension == 'jpg' || extension == 'jpeg' || extension == 'png');
+      setState(() {
+        _latestFeedItems = items;
+        _latestLoading = false;
+      });
     } catch (e) {
-      print('Error parsing image URL: $imageUrl, error: $e');
-      return false;
+      debugPrint('Error loading latest albums: $e');
+      setState(() => _latestLoading = false);
     }
+    _checkIfPageReady();
   }
 
-  /// Add album to wishlist
-  Future<void> _addToWishlist(
-    String albumId,
-  ) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      await _firestoreService.addToWishlist(
-        userId: currentUser.uid,
-        albumId: albumId,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Album added to your wishlist')),
-        );
-      }
-    }
+Widget _buildLittleGuyWidget() {
+  if (!_videoInitialized) {
+    return const SizedBox(height: 100);
   }
 
-  /// Build each visible feed item
-  Widget _buildFeedItem(FeedItem item) {
-    String actionText = item.status == 'kept' ? 'kept' : 'returned';
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Center(
+      child: Container(
+        width: 300,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE0E0E0),
+          border: Border(
+            top: BorderSide(color: Color(0xFF5E5E5E), width: 2),     // dark top
+            left: BorderSide(color: Color(0xFF5E5E5E), width: 2),    // dark left
+            bottom: BorderSide(color: Colors.white, width: 2),       // light bottom
+            right: BorderSide(color: Colors.white, width: 2),        // light right
+          ),
+        ),
+        child: ClipRect(
+          child: Align(
+            alignment: Alignment.center,
+            heightFactor: 0.7,
+            child: SizedBox(
+              height: 180,
+              width: 300,
+              child: AspectRatio(
+                aspectRatio: _videoController.value.aspectRatio,
+                child: VideoPlayer(_videoController),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Padding(
-        padding: EdgeInsets.only(top: 40.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Username & action & album name
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 1,
+
+
+
+
+  /* ==========  WIDGET BUILDERS  ========== */
+Widget _buildNewsCarousel() {
+  if (_newsLoading) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.30,
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  final double cardHeight = MediaQuery.of(context).size.height * 0.30;
+
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      SizedBox(
+        height: cardHeight,
+        child: PageView.builder(
+          controller: _newsController,
+          itemCount: _newsItems.length,
+          itemBuilder: (_, idx) {
+            final item = _newsItems[idx];
+            final hasImage = (item['imageUrl'] as String).isNotEmpty;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    // TODO: deeplink
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black, width: 0.5),
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Made the username clickable => personal profile
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PublicProfileScreen(
-                                userId: item.userId, // <-- The user ID from your feed
+                        Stack(
+                          children: [
+                            Container(
+                              height: 36,
+                              color: const Color(0xFFFFA12C),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                item['title'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          );
-                        },
-                          child: Text(
-                            item.username,
-                            style: TextStyle(
-                              fontSize: 18.0,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: Container(height: 3, color: Color(0xFFFFC278)),
                             ),
-                            textAlign: TextAlign.left,
-                          ),
+                            Positioned(
+                              top: 0,
+                              bottom: 0,
+                              left: 0,
+                              child: Container(width: 3, color: Color(0xFFFFC278)),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                alignment: Alignment.center,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFCBCACB),
+                                  border: Border(
+                                    top: BorderSide(color: Colors.white, width: 2),
+                                    left: BorderSide(color: Colors.white, width: 2),
+                                    bottom: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                                    right: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'X',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 4.0),
-                        Text(
-                          actionText,
-                          style: TextStyle(
-                            fontSize: 16.0,
-                            color: Colors.white,
+                        Container(height: 1, color: Colors.black),
+                        Expanded(
+                          child: Container(
+                            color: const Color(0xFFE0E0E0),
+                            width: double.infinity,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                if (item['iconPath'] != null && item['iconPath'].toString().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 24, right: 8),
+                                    child: Image.asset(
+                                      item['iconPath'],
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                    child: item['type'] == 'social'
+                                        ? Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              const Text(
+                                                'Connect with us on these platforms!',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  color: Colors.black,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  _buildSocialIcon('assets/icon/discord.png', 'https://discord.gg/Syr3HwunX3'),
+                                                  const SizedBox(width: 16),
+                                                  _buildSocialIcon('assets/icon/tiktok.png', 'https://tiktok.com/@dissonant.tt'),
+                                                  const SizedBox(width: 16),
+                                                  _buildSocialIcon('assets/icon/instagram.png', 'https://instagram.com/dissonant.ig'),
+                                                ],
+                                              ),
+                                            ],
+                                          )
+                                        : Text(
+                                            item['subtitle'] ?? '',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          textAlign: TextAlign.left,
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(width: 10.0),
-                  Expanded(
-                    flex: 1,
-                    child: Text(
-                      item.album.albumName,
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-
-            SizedBox(height: 16.0),
-
-            // Album image with navigation
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.35,
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AlbumDetailsScreen(
-                        album: item.album,
-                      ),
-                    ),
-                  );
-                },
-                child: (item.album.albumImageUrl.isNotEmpty &&
-                        isSupportedImageFormat(item.album.albumImageUrl))
-                    ? Image.network(
-                        item.album.albumImageUrl,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return Center(child: CircularProgressIndicator());
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error loading image '
-                              'from ${item.album.albumImageUrl}: $error');
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.error, size: 100, color: Colors.red),
-                              SizedBox(height: 8),
-                              Text(
-                                'Failed to load image.',
-                                style: TextStyle(color: Colors.red),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          );
-                        },
-                      )
-                    : Icon(
-                        Icons.album,
-                        size: 120,
-                      ),
-              ),
-            ),
-
-            SizedBox(height: 30.0),
-
-            // Add to Wishlist button
-            RetroButton(
-              text: 'Add to Wishlist',
-              onPressed: () {
-                _addToWishlist(
-                  item.album.albumId,
-                );
-              },
-              color: Colors.white,
-              fixedHeight: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Animate the active/nearby feed items in the vertical PageView
-  Widget _buildAnimatedFeedItem(FeedItem item, int index) {
-    return AnimatedBuilder(
-      animation: _pageController,
-      builder: (context, child) {
-        double opacity = 1.0;
-        if (_pageController.position.haveDimensions) {
-          double page =
-              _pageController.page ?? _pageController.initialPage.toDouble();
-          double difference = (index - page).abs();
-          // Simple fade-out effect as the item moves away from center
-          opacity = (1 - difference).clamp(0.0, 1.0);
-        }
-        return Opacity(
-          opacity: opacity,
-          child: _buildFeedItem(item),
-        );
-      },
-    );
-  }
-
-  /// Build the “stack” of spines at the bottom
-  Widget _buildSpines(double totalSpinesHeight) {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: SizedBox(
-        height: totalSpinesHeight,
-        child: AnimatedBuilder(
-          animation: _pageController,
-          builder: (context, child) {
-            List<Widget> spineWidgets = [];
-
-            double page =
-                _pageController.hasClients && _pageController.page != null
-                    ? _pageController.page!
-                    : _currentIndex.toDouble();
-
-            for (int i = 0; i < maxSpines; i++) {
-              int spineIndex = _currentIndex + i + 1;
-              if (spineIndex < _feedItems.length) {
-                double offsetFromCurrent = page - _currentIndex;
-                double bottomOffset = (maxSpines - i - 1) * spineHeight +
-                    offsetFromCurrent * spineHeight;
-                double scale = (1.0 - i * 0.05 - offsetFromCurrent * 0.02)
-                    .clamp(0.0, 1.0);
-                double opacity = (1.0 - i * 0.3 - offsetFromCurrent * 0.1)
-                    .clamp(0.0, 1.0);
-
-                Widget spine = Positioned(
-                  bottom: bottomOffset,
-                  left: 0,
-                  right: 0,
-                  child: Transform.scale(
-                    scale: scale,
-                    alignment: Alignment.bottomCenter,
-                    child: Opacity(
-                      opacity: opacity,
-                      child: _buildSpine(_feedItems[spineIndex]),
-                    ),
-                  ),
-                );
-
-                spineWidgets.add(spine);
-              }
-            }
-
-            return Stack(
-              clipBehavior: Clip.none,
-              children: spineWidgets,
             );
           },
         ),
       ),
+      const SizedBox(height: 6),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(_newsItems.length, (index) {
+          final bool isActive = _currentPage == index;
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFFB0C4DE) : Colors.grey,
+              borderRadius: BorderRadius.zero,
+            ),
+          );
+        }),
+      ),
+    ],
+  );
+}
+
+
+Widget _buildSocialIcon(String assetPath, String url) {
+  return GestureDetector(
+    onTap: () async {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    },
+    child: Image.asset(
+      assetPath,
+      width: 40,
+      height: 40,
+      fit: BoxFit.contain,
+    ),
+  );
+}
+
+
+Widget _buildLatestAlbumsStrip() {
+  if (_latestLoading) {
+    return const SizedBox(
+      height: 150,
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+  if (_latestFeedItems.isEmpty) {
+    return const SizedBox(
+      height: 150,
+      child: Center(child: Text('No albums yet')),
     );
   }
 
-  /// Build an individual spine “bar” representing an upcoming album
-  Widget _buildSpine(FeedItem item) {
-    String albumName = item.album.albumName;
-    if (albumName.length > 26) {
-      albumName = albumName.substring(0, 23) + '...';
-    }
+  final latestAlbums = _latestFeedItems.take(3).toList();
 
-    return Container(
-      height: spineHeight,
-      color: Colors.transparent,
-      child: Stack(
+  return GestureDetector(
+    onTap: () {
+      MyHomePage.of(context)?.pushInHomeTab(
+        MaterialPageRoute(builder: (_) => FeedScreen()),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/spineasset.png',
-            ),
-          ),
-          Positioned(
-            left: 60,
-            top: 0,
-            bottom: 0,
-            right: 10,
-            child: Container(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                albumName,
-                style: TextStyle(
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-                overflow: TextOverflow.ellipsis,
+          // Gradient bar with title and arrow
+          Container(
+            width: double.infinity,
+            height: 32,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/gradientbar.png'),
+                fit: BoxFit.cover,
               ),
             ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                const Text(
+                  'Latest Albums',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Image.asset(
+                  'assets/orangearrow.png',
+                  width: 10,
+                  height: 10,
+                  fit: BoxFit.contain,
+                ),
+              ],
+            ),
           ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: latestAlbums.map((feedItem) {
+              final album = feedItem.album;
+              return Container(
+                width: 98,
+                height: 98,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  border: Border.all(color: Colors.black, width: 0.5),
+                ),
+                child: Image.network(
+                  album.albumImageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
-    );
+    ),
+  );
+}
+
+void _checkIfPageReady() {
+  if (!_newsLoading && !_latestLoading) {
+    setState(() {
+      _pageReady = true;
+    });
   }
+}
+
+
+
+
+  /* ─────────────────────────  MAIN BUILD  ───────────────────────── */
 
   @override
   Widget build(BuildContext context) {
-    final double totalSpinesHeight = MediaQuery.of(context).size.height * 0.15;
-
     return Scaffold(
       body: BackgroundWidget(
-        child: _isLoading
-            ? Center(child: CircularProgressIndicator())
-            : SafeArea(
-                child: Stack(
-                  children: [
-                    // Bottom stacked spines
-                    _buildSpines(totalSpinesHeight),
-
-                    // The PageView itself
-                    Padding(
-                      padding: EdgeInsets.only(bottom: totalSpinesHeight),
-                      child: PageView.builder(
-                        controller: _pageController,
-                        scrollDirection: Axis.vertical,
-                        itemCount: _feedItems.length,
-                        itemBuilder: (context, index) {
-                          final item = _feedItems[index];
-                          return _buildAnimatedFeedItem(item, index);
-                        },
-                      ),
-                    ),
-
-                    // “My Feed” title
-                    Positioned(
-                      top: 5.0,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Text(
-                          'My Feed',
-                          style: TextStyle(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+        child: SafeArea(
+          child: _pageReady
+              ? SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 36),
+                      Center(
+                        child: SizedBox(
+                          width: 600,
+                          child: Column(
+                            children: [
+                              _buildNewsCarousel(),
+                              const SizedBox(height: 12),
+                              _buildLatestAlbumsStrip(),
+                              SizedBox(height: 12),
+                              _buildLittleGuyWidget(),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-
-                    // If desired, you could add a loading indicator at the bottom
-                    if (_isFetchingMore)
-                      Positioned(
-                        bottom: totalSpinesHeight + 20,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                  ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                )
+              : const Center(
+                  child: CircularProgressIndicator(), // show spinner until ready
                 ),
-              ),
+        ),
       ),
     );
   }

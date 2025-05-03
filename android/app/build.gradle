@@ -22,7 +22,7 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = '30'
+def flutterVersionCode = '31'
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }
@@ -34,7 +34,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.dissonant.dissonantapp2"
-    compileSdk 34
+    compileSdk 35
     //ndkVersion flutter.ndkVersion // Ensure flutter.ndkVersion is correctly set
 
     signingConfigs {

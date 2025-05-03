@@ -147,6 +147,12 @@ class AuthenticationWrapper extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
+    const MyHomePage({Key? key}) : super(key: key);
+
+  /// ⬇️  add this static helper HERE (not in the State class)
+  static _MyHomePageState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyHomePageState>();
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -154,24 +160,55 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    HomeScreen(),
+  // ─── NEW: navigator dedicated to the Home tab ────────────────
+  final GlobalKey<NavigatorState> _homeNavigatorKey =
+      GlobalKey<NavigatorState>();
+
+  final List<Widget> _plainPages = [
     OrderScreen(),
     MyMusicScreen(),
     ProfileScreen(),
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  // ─── NEW: helper so HomeScreen can push while keeping the bar ─
+  Future<T?> pushInHomeTab<T>(Route<T> route) {
+    return _homeNavigatorKey.currentState!.push(route);
   }
 
+  static _MyHomePageState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyHomePageState>();
+
+  void _onItemTapped(int index) {
+    if (index == _selectedIndex) {
+      // ▸ already on that tab
+      if (index == 0) {
+        // ▸ and it’s the Home tab → pop to its first route
+        _homeNavigatorKey.currentState
+            ?.popUntil((route) => route.isFirst);
+      }
+      // ▸ for other tabs we do nothing (leave as‑is)
+    } else {
+      // ▸ switching to a different tab
+      setState(() => _selectedIndex = index);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: 'DISSONANT'), // Use the custom AppBar
-      body: _pages[_selectedIndex],
+      appBar: CustomAppBar(title: 'DISSONANT'),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          // ── index 0: Home tab now owns its own Navigator ──
+          Navigator(
+            key: _homeNavigatorKey,
+            onGenerateRoute: (_) =>
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+          ),
+          // ── remaining tabs unchanged ────────────────────────
+          ..._plainPages,
+        ],
+      ),
       bottomNavigationBar: BottomNavigationWidget(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -179,3 +216,5 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
+

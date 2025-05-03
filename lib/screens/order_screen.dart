@@ -236,33 +236,6 @@ class _OrderScreenState extends State<OrderScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.info_outline, color: Colors.white),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0)),
-                          title: Text('New Process'),
-                          content: Text(
-                            "We've changed our process to make it easier for everyone as we grow.\n"
-                            "Now you pay to make your initial order.\n"
-                            "Keep/Return will remain the same except you don't pay anything to keep,\n"
-                            "and returning makes your next order free!",
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: Text('OK'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ),
               ],
             ),
           ),

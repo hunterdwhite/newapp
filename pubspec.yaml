@@ -55,6 +55,9 @@ dependencies:
   url_launcher: ^6.3.1
   oauth1: ^2.1.0
   webview_flutter: ^4.0.0
+  video_player: ^2.9.5  
+
+
 
 
 
@@ -112,6 +115,18 @@ flutter:
     - assets/spineasset.png
     - assets/waitlistwelcome.png
     - assets/discogs_logo.png
+    - assets/gradientbar.png
+    - assets/orangearrow.png
+    - assets/littleguy.mp4
+    - assets/icon/hiddengemicon.png
+    - assets/icon/firstordericon.png
+    - assets/icon/libraryicon.png
+    - assets/icon/nextorderfreeicon.png
+    - assets/icon/radicalsharemusicicon.png
+    - assets/icon/discord.png
+    - assets/icon/tiktok.png
+    - assets/icon/instagram.png
+    - assets/icon/donate.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

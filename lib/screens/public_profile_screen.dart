@@ -315,113 +315,160 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   /// Up to 3 covers for “My Music” or “Their Music”
-  Widget _buildMusicRow(BuildContext context) {
-    final recentMusic = _historyCoverUrls.take(3).toList();
-    final title = _isOwner ? 'My Music' : 'Their Music';
+Widget _buildMusicRow(BuildContext context) {
+  final recentMusic = _historyCoverUrls.take(3).toList();
+  final title = _isOwner ? 'My Music' : 'Their Music';
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MyMusicLibraryScreen(userId: widget.userId),
-          ),
-        );
-      },
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MyMusicLibraryScreen(userId: widget.userId),
+        ),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: double.infinity,
+            height: 32,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/gradientbar.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Image.asset(
+                  'assets/orangearrow.png',
+                  width: 10,
+                  height: 10,
+                  fit: BoxFit.contain,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          if (recentMusic.isEmpty)
-            Text(
-              _isOwner
-                  ? 'No albums found in your history.'
-                  : 'No albums found in their history.',
-              style: const TextStyle(color: Colors.white60),
-            )
-          else
-            Row(
-              children: [
-                for (int i = 0; i < 3; i++)
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: (i < recentMusic.length)
-                          ? Image.network(
-                              recentMusic[i],
-                              fit: BoxFit.contain,
-                            )
-                          : Container(),
-                    ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: List.generate(3, (i) {
+                return Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (i < recentMusic.length)
+                        ? Image.network(
+                            recentMusic[i],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
                   ),
-              ].expand((widget) => [widget, const SizedBox(width: 8)]).toList()
+                );
+              }).expand((widget) => [widget, const SizedBox(width: 8)]).toList()
                 ..removeLast(),
             ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  /// Up to 3 covers for “Wishlist”
-  Widget _buildWishlistRow(BuildContext context) {
-    final recentWishlist = _wishlistCoverUrls.take(3).toList();
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WishlistScreen(userId: widget.userId),
-          ),
-        );
-      },
+Widget _buildWishlistRow(BuildContext context) {
+  final recentWishlist = _wishlistCoverUrls.take(3).toList();
+
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WishlistScreen(userId: widget.userId),
+        ),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Wishlist',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Container(
+            width: double.infinity,
+            height: 32,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/gradientbar.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                const Text(
+                  'Wishlist',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Image.asset(
+                  'assets/orangearrow.png',
+                  width: 10,
+                  height: 10,
+                  fit: BoxFit.contain,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          if (recentWishlist.isEmpty)
-            Text(
-              _isOwner
-                  ? 'No albums in your wishlist.'
-                  : 'No albums in their wishlist.',
-              style: const TextStyle(color: Colors.white60),
-            )
-          else
-            Row(
-              children: [
-                for (int i = 0; i < 3; i++)
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: (i < recentWishlist.length)
-                          ? Image.network(
-                              recentWishlist[i],
-                              fit: BoxFit.contain,
-                            )
-                          : Container(),
-                    ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: List.generate(3, (i) {
+                return Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: (i < recentWishlist.length)
+                        ? Image.network(
+                            recentWishlist[i],
+                            fit: BoxFit.contain,
+                          )
+                        : Container(),
                   ),
-              ].expand((widget) => [widget, const SizedBox(width: 8)]).toList()
+                );
+              }).expand((widget) => [widget, const SizedBox(width: 8)]).toList()
                 ..removeLast(),
             ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
