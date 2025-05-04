@@ -218,30 +218,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-
-
-  Future<void> _addPersonalSlides() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      final userDoc =
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final data = userDoc.data() ?? {};
-
-      if (data['freeOrder'] == true) {
-        _newsItems.insert(0, {
-          'title': 'Free Order Available!',
-          'subtitle': 'You have a free order. Place it now!',
-          'imageUrl': '',
-          'deeplink': '/order/free',
-        });
-      }
-    } catch (e) {
-      debugPrint('Error reading personal flags: $e');
-    }
-  }
-
   void _startAutoScroll() {
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (!_newsController.hasClients || _newsItems.length < 2) return;
@@ -316,37 +292,36 @@ Widget _buildLittleGuyWidget() {
   }
 
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
+    padding: const EdgeInsets.symmetric(vertical: 20),
     child: Center(
       child: Container(
-        width: 300,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE0E0E0),
-          border: Border(
-            top: BorderSide(color: Color(0xFF5E5E5E), width: 2),     // dark top
-            left: BorderSide(color: Color(0xFF5E5E5E), width: 2),    // dark left
-            bottom: BorderSide(color: Colors.white, width: 2),       // light bottom
-            right: BorderSide(color: Colors.white, width: 2),        // light right
-          ),
+        constraints: const BoxConstraints(
+          maxWidth: 600,
+          maxHeight: 120,
         ),
-        child: ClipRect(
-          child: Align(
-            alignment: Alignment.center,
-            heightFactor: 0.7,
-            child: SizedBox(
-              height: 180,
-              width: 300,
-              child: AspectRatio(
-                aspectRatio: _videoController.value.aspectRatio,
-                child: VideoPlayer(_videoController),
-              ),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0), // light grey background for contrast
+          border: Border.all(color: Colors.black87, width: 1.5), // subtle dark border
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              offset: Offset(2, 2),
+              blurRadius: 4,
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: AspectRatio(
+            aspectRatio: _videoController.value.aspectRatio,
+            child: VideoPlayer(_videoController),
           ),
         ),
       ),
     ),
   );
 }
+
 
 
 
@@ -672,7 +647,7 @@ void _checkIfPageReady() {
                           child: Column(
                             children: [
                               _buildNewsCarousel(),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 24),
                               _buildLatestAlbumsStrip(),
                               SizedBox(height: 12),
                               _buildLittleGuyWidget(),

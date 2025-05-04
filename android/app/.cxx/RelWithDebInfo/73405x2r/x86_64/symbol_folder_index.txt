@@ -1,0 +1,1 @@
+C:\Workspace\newapp\newapp\build\app\intermediates\cxx\RelWithDebInfo\73405x2r\obj\x86_64
