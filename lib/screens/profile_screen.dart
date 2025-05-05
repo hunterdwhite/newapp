@@ -74,8 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final ordersSnapshot = await FirebaseFirestore.instance
           .collection('orders')
           .where('userId', isEqualTo: _myUserId)
-          .where('status', whereIn: ['kept', 'returned', 'returnedConfirmed'])
-          .get();
+          .where('status',
+              whereIn: ['kept', 'returned', 'returnedConfirmed']).get();
 
       final keptAlbumIds = <String>[];
       final returnedAlbumIds = <String>[];
@@ -262,7 +262,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: (_profilePictureUrl == null || _profilePictureUrl!.isEmpty)
                 ? Container(
                     color: Colors.grey[800],
-                    child: const Icon(Icons.person, color: Colors.white54, size: 60),
+                    child: const Icon(Icons.person,
+                        color: Colors.white54, size: 60),
                   )
                 : Image.network(_profilePictureUrl!, fit: BoxFit.cover),
           ),
@@ -281,7 +282,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.black, width: 1.5),
                 ),
-                child: const Icon(Icons.camera_alt, color: Colors.black, size: 18),
+                child:
+                    const Icon(Icons.camera_alt, color: Colors.black, size: 18),
               ),
             ),
           ),
@@ -295,7 +297,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final total = kept + returned;
     if (total == 0) {
       return Center(
-        child: Text('No stats to show.', style: const TextStyle(color: Colors.white60)),
+        child: Text('No stats to show.',
+            style: const TextStyle(color: Colors.white60)),
       );
     }
     return Center(
@@ -331,166 +334,162 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// “My Music” row => pass _myUserId to MyMusicLibraryScreen
-Widget _buildMusicRow(BuildContext context) {
-  final recentMusic = _historyCoverUrls.take(3).toList();
+  Widget _buildMusicRow(BuildContext context) {
+    final recentMusic = _historyCoverUrls.take(3).toList();
 
-  return GestureDetector(
-    onTap: () {
-      if (_myUserId == null) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MyMusicLibraryScreen(userId: _myUserId!),
-        ),
-      );
-    },
-    child: Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151515),
-        border: Border.all(color: Colors.black, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            height: 32,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/gradientbar.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'My Music',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
+    return GestureDetector(
+      onTap: () {
+        if (_myUserId == null) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MyMusicLibraryScreen(userId: _myUserId!),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: List.generate(3, (index) {
-                if (index < recentMusic.length) {
-                  return Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black54),
-                        ),
-                        child: Image.network(
-                          recentMusic[index],
-                          fit: BoxFit.contain,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          border: Border.all(color: Colors.black, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              height: 32,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/gradientbar.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'My Music',
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: List.generate(3, (index) {
+                  if (index < recentMusic.length) {
+                    return Expanded(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.black54),
+                          ),
+                          child: Image.network(
+                            recentMusic[index],
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                } else {
-                  return const Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: SizedBox.shrink(),
-                    ),
-                  );
-                }
-              }),
+                    );
+                  } else {
+                    return const Expanded(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: SizedBox.shrink(),
+                      ),
+                    );
+                  }
+                }),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
-    ),
-  );
-}
-
-
+    );
+  }
 
   /// “Wishlist” row => pass _myUserId to WishlistScreen
-Widget _buildWishlistRow(BuildContext context) {
-  final recentWishlist = _wishlistCoverUrls.take(3).toList();
+  Widget _buildWishlistRow(BuildContext context) {
+    final recentWishlist = _wishlistCoverUrls.take(3).toList();
 
-  return GestureDetector(
-    onTap: () {
-      if (_myUserId == null) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => WishlistScreen(userId: _myUserId!),
-        ),
-      );
-    },
-    child: Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151515),
-        border: Border.all(color: Colors.black, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            height: 32,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/gradientbar.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Wishlist',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
+    return GestureDetector(
+      onTap: () {
+        if (_myUserId == null) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WishlistScreen(userId: _myUserId!),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: List.generate(3, (index) {
-                if (index < recentWishlist.length) {
-                  return Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black54),
-                        ),
-                        child: Image.network(
-                          recentWishlist[index],
-                          fit: BoxFit.contain,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          border: Border.all(color: Colors.black, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              height: 32,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/gradientbar.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Wishlist',
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: List.generate(3, (index) {
+                  if (index < recentWishlist.length) {
+                    return Expanded(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.black54),
+                          ),
+                          child: Image.network(
+                            recentWishlist[index],
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                } else {
-                  return const Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: SizedBox.shrink(),
-                    ),
-                  );
-                }
-              }),
+                    );
+                  } else {
+                    return const Expanded(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: SizedBox.shrink(),
+                      ),
+                    );
+                  }
+                }),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
-    ),
-  );
-}
-
-
+    );
+  }
 }

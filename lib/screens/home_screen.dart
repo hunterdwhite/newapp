@@ -15,7 +15,6 @@ import 'feed_screen.dart';
 import 'album_detail_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -31,8 +30,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _newsLoading = true;
   int _currentPage = 0;
   bool _pageReady = false;
-
-
 
   /* ─────────────────────────  LATEST ALBUMS STRIP  ─────────────────────── */
   final FirestoreService _firestore = FirestoreService();
@@ -60,14 +57,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadAnnouncements();
     _fetchLatestAlbums();
     _startAutoScroll();
-    _videoController = VideoPlayerController.asset('assets/littleguy.mp4')
+    _videoController = VideoPlayerController.asset(
+      'assets/littleguy.mp4',
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    )
       ..setLooping(true)
       ..setVolume(0)
       ..initialize().then((_) {
-        setState(() {
-          _videoInitialized = true;
-          _videoController.play();
-        });
+        if (mounted) {
+          setState(() {
+            _videoInitialized = true;
+            _videoController.play();
+          });
+        }
       });
   }
 
@@ -80,143 +82,155 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /* ==========  ANNOUNCEMENTS FLOW  ========== */
   Future<void> _loadAnnouncements() async {
-  try {
-    _newsItems = [];
+    try {
+      _newsItems = [];
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-      if (userDoc.exists) {
-        final data = userDoc.data() ?? {};
+        if (userDoc.exists) {
+          final data = userDoc.data() ?? {};
 
-        // Welcome card if user has never ordered
-        if (data['hasOrdered'] != true) {
-          _newsItems.add({
-            'title': 'Welcome to DISSONANT!',
-            'subtitle': 'Everyone remembers their first order... \n Don\'t forget to make yours!',
-            'imageUrl': '',
-            'iconPath': 'assets/icon/firstordericon.png',
-            'deeplink': '/order',
-          });
-        }
+          // Welcome card if user has never ordered
+          if (data['hasOrdered'] != true) {
+            _newsItems.add({
+              'title': 'Welcome to DISSONANT!',
+              'subtitle':
+                  'Everyone remembers their first order... \n Don\'t forget to make yours!',
+              'imageUrl': '',
+              'iconPath': 'assets/icon/firstordericon.png',
+              'deeplink': '/order',
+            });
+          }
 
-        // Free Order card
-        if (data['freeOrder'] == true) {
-          _newsItems.add({
-            'title': 'You have a Free Order',
-            'subtitle': 'Your next order is free! \n Redeem it now and discover new music!',
-            'iconPath': 'assets/icon/nextorderfreeicon.png',
-            'imageUrl': '',
-            'deeplink': '/order/free',
-          });
+          // Free Order card
+          if (data['freeOrder'] == true) {
+            _newsItems.add({
+              'title': 'You have a Free Order',
+              'subtitle':
+                  'Your next order is free! \n Redeem it now and discover new music!',
+              'iconPath': 'assets/icon/nextorderfreeicon.png',
+              'imageUrl': '',
+              'deeplink': '/order/free',
+            });
+          }
         }
       }
-    }
 
-    // Wishlist leaderboard card
-    final leaderboardItems = await _fetchWishlistLeaderboardTop3();
-    if (leaderboardItems.isNotEmpty) {
-      _newsItems.add({
-        'title': 'Most Wishlisted Albums',
-        'subtitle': leaderboardItems.join(' • '),
-        'imageUrl': '',
-        'deeplink': '/wishlist/leaderboard',
+      // Wishlist leaderboard card
+      final leaderboardItems = await _fetchWishlistLeaderboardTop3();
+      if (leaderboardItems.isNotEmpty) {
+        _newsItems.add({
+          'title': 'Most Wishlisted Albums',
+          'subtitle': leaderboardItems.join(' • '),
+          'imageUrl': '',
+          'deeplink': '/wishlist/leaderboard',
+        });
+      }
+
+      // Propaganda cards
+      _newsItems.addAll([
+        {
+          'title': 'Get all your orders free!',
+          'subtitle':
+              'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
+          'imageUrl': '', // Upload this image
+          'iconPath': 'assets/icon/libraryicon.png',
+          'backgroundColor': Colors.deepOrange.shade700,
+        },
+        {
+          'title': 'Find that hidden gem',
+          'subtitle':
+              'Your favorite music is already out there, in a jewel case, buried in a crate at some dusty record store. \n Isn\'t that more exciting than a Spotify Playlist?',
+          'imageUrl': '',
+          'iconPath': 'assets/icon/hiddengemicon.png',
+          'backgroundColor': Colors.blueGrey.shade700,
+        },
+        {
+          'title': 'Own your music',
+          'subtitle':
+              'In a throwaway culture it’s radical to share music in a way those corporations can\'t touch.',
+          'imageUrl': '',
+          'iconPath': 'assets/icon/radicalsharemusicicon.png',
+          'backgroundColor': Colors.redAccent.shade700,
+        },
+        {
+          'title': 'Make a donation',
+          'subtitle':
+              'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
+          'imageUrl': '',
+          'iconPath': 'assets/icon/donate.png',
+          'backgroundColor': Colors.redAccent.shade700,
+        },
+        {
+          'title': 'Let’s Connect!',
+          'subtitle': 'Follow us and stay in the loop.',
+          'imageUrl': '',
+          'type': 'social',
+        },
+      ]);
+
+      setState(() {
+        _newsLoading = false;
       });
+      _checkIfPageReady();
+    } catch (e) {
+      debugPrint('Error loading announcements: $e');
+      setState(() {
+        _newsLoading = false;
+      });
+      _checkIfPageReady();
     }
-
-    // Propaganda cards
-    _newsItems.addAll([
-      {
-        'title': 'Get all your orders free!',
-        'subtitle': 'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
-        'imageUrl': '', // Upload this image
-        'iconPath': 'assets/icon/libraryicon.png',
-        'backgroundColor': Colors.deepOrange.shade700,
-      },
-      {
-        'title': 'Find that hidden gem',
-        'subtitle': 'Your favorite music is already out there, in a jewel case, buried in a crate at some dusty record store. \n Isn\'t that more exciting than a Spotify Playlist?',
-        'imageUrl': '',
-        'iconPath': 'assets/icon/hiddengemicon.png',
-        'backgroundColor': Colors.blueGrey.shade700,
-      },
-      {
-        'title': 'Own your music',
-        'subtitle': 'In a throwaway culture it’s radical to share music in a way those corporations can\'t touch.',
-        'imageUrl': '',
-        'iconPath': 'assets/icon/radicalsharemusicicon.png',
-        'backgroundColor': Colors.redAccent.shade700,
-      },
-      {
-        'title': 'Make a donation',
-        'subtitle': 'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
-        'imageUrl': '',
-        'iconPath': 'assets/icon/donate.png',
-        'backgroundColor': Colors.redAccent.shade700,
-      },
-      {
-        'title': 'Let’s Connect!',
-        'subtitle': 'Follow us and stay in the loop.',
-        'imageUrl': '',
-        'type': 'social',
-      },
-    ]);
-
-    setState(() {
-      _newsLoading = false;
-    });
-    _checkIfPageReady();
-  } catch (e) {
-    debugPrint('Error loading announcements: $e');
-    setState(() {
-      _newsLoading = false;
-    });
-    _checkIfPageReady();
   }
-}
-
 
   Future<List<String>> _fetchWishlistLeaderboardTop3() async {
-  final albumCounts = <String, int>{};
+    final albumCounts = <String, int>{};
 
-  try {
-    final usersSnapshot = await FirebaseFirestore.instance.collection('users').get();
-    for (final userDoc in usersSnapshot.docs) {
-      final wishlistSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userDoc.id)
-          .collection('wishlist')
-          .get();
+    try {
+      final usersSnapshot =
+          await FirebaseFirestore.instance.collection('users').get();
+      for (final userDoc in usersSnapshot.docs) {
+        final wishlistSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userDoc.id)
+            .collection('wishlist')
+            .get();
 
-      for (final wishlistItem in wishlistSnapshot.docs) {
-        final albumId = wishlistItem['albumId'] ?? wishlistItem.id;
-        if (albumId != null && albumId.isNotEmpty) {
-          albumCounts[albumId] = (albumCounts[albumId] ?? 0) + 1;
+        for (final wishlistItem in wishlistSnapshot.docs) {
+          final albumId = wishlistItem['albumId'] ?? wishlistItem.id;
+          if (albumId != null && albumId.isNotEmpty) {
+            albumCounts[albumId] = (albumCounts[albumId] ?? 0) + 1;
+          }
         }
       }
-    }
 
-    // Sort by count
-    final sortedAlbums = albumCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+      // Sort by count
+      final sortedAlbums = albumCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
 
-    // Fetch top 3 album names
-    final topAlbumNames = <String>[];
-    for (final entry in sortedAlbums.take(3)) {
-      final albumDoc = await FirebaseFirestore.instance.collection('albums').doc(entry.key).get();
-      if (albumDoc.exists) {
-        final name = albumDoc.data()?['albumName'] ?? 'Unknown Album';
-        topAlbumNames.add(name);
+      // Fetch top 3 album names
+      final topAlbumNames = <String>[];
+      for (final entry in sortedAlbums.take(3)) {
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(entry.key)
+            .get();
+        if (albumDoc.exists) {
+          final name = albumDoc.data()?['albumName'] ?? 'Unknown Album';
+          topAlbumNames.add(name);
+        }
       }
-    }
 
-    return topAlbumNames;
-  } catch (e) {
-    debugPrint('Error fetching wishlist leaderboard: $e');
-    return [];
+      return topAlbumNames;
+    } catch (e) {
+      debugPrint('Error fetching wishlist leaderboard: $e');
+      return [];
+    }
   }
-}
 
   void _startAutoScroll() {
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
@@ -249,8 +263,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final albumId = data['details']?['albumId'] as String?;
         if (albumId == null || albumId.isEmpty) continue;
 
-        final albumDoc =
-            await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(albumId)
+            .get();
         if (!albumDoc.exists) continue;
 
         final album = Album.fromDocument(albumDoc);
@@ -286,347 +302,362 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkIfPageReady();
   }
 
-Widget _buildLittleGuyWidget() {
-  if (!_videoInitialized) {
-    return const SizedBox(height: 100);
-  }
+  Widget _buildLittleGuyWidget() {
+    if (!_videoInitialized) {
+      return const SizedBox(height: 100);
+    }
 
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 20),
-    child: Center(
-      child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 600,
-          maxHeight: 120,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0), // light grey background for contrast
-          border: Border.all(color: Colors.black87, width: 1.5), // subtle dark border
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              offset: Offset(2, 2),
-              blurRadius: 4,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(
+            maxWidth: 600,
+            maxHeight: 120,
+          ),
+          decoration: BoxDecoration(
+            color:
+                const Color(0xFFE0E0E0), // light grey background for contrast
+            border: Border.all(
+                color: Colors.black87, width: 1.5), // subtle dark border
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                offset: Offset(2, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: AspectRatio(
+              aspectRatio: _videoController.value.aspectRatio,
+              child: VideoPlayer(_videoController),
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: AspectRatio(
-            aspectRatio: _videoController.value.aspectRatio,
-            child: VideoPlayer(_videoController),
           ),
         ),
       ),
-    ),
-  );
-}
-
-
-
-
-
+    );
+  }
 
   /* ==========  WIDGET BUILDERS  ========== */
-Widget _buildNewsCarousel() {
-  if (_newsLoading) {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.30,
-      child: const Center(child: CircularProgressIndicator()),
-    );
-  }
+  Widget _buildNewsCarousel() {
+    if (_newsLoading) {
+      return SizedBox(
+        height: MediaQuery.of(context).size.height * 0.30,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
-  final double cardHeight = MediaQuery.of(context).size.height * 0.30;
+    final double cardHeight = MediaQuery.of(context).size.height * 0.30;
 
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SizedBox(
-        height: cardHeight,
-        child: PageView.builder(
-          controller: _newsController,
-          itemCount: _newsItems.length,
-          itemBuilder: (_, idx) {
-            final item = _newsItems[idx];
-            final hasImage = (item['imageUrl'] as String).isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: cardHeight,
+          child: PageView.builder(
+            controller: _newsController,
+            itemCount: _newsItems.length,
+            itemBuilder: (_, idx) {
+              final item = _newsItems[idx];
+              final hasImage = (item['imageUrl'] as String).isNotEmpty;
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    // TODO: deeplink
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black, width: 0.5),
-                    ),
-                    child: Column(
-                      children: [
-                        Stack(
-                          children: [
-                            Container(
-                              height: 36,
-                              color: const Color(0xFFFFA12C),
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                item['title'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black,
-                                  fontWeight: FontWeight.normal,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              child: Container(height: 3, color: Color(0xFFFFC278)),
-                            ),
-                            Positioned(
-                              top: 0,
-                              bottom: 0,
-                              left: 0,
-                              child: Container(width: 3, color: Color(0xFFFFC278)),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: Container(
-                                width: 24,
-                                height: 24,
-                                alignment: Alignment.center,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFCBCACB),
-                                  border: Border(
-                                    top: BorderSide(color: Colors.white, width: 2),
-                                    left: BorderSide(color: Colors.white, width: 2),
-                                    bottom: BorderSide(color: Color(0xFF5E5E5E), width: 2),
-                                    right: BorderSide(color: Color(0xFF5E5E5E), width: 2),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'X',
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      // TODO: deeplink
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black, width: 0.5),
+                      ),
+                      child: Column(
+                        children: [
+                          Stack(
+                            children: [
+                              Container(
+                                height: 36,
+                                color: const Color(0xFFFFA12C),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  item['title'] ?? '',
+                                  style: const TextStyle(
                                     fontSize: 16,
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.normal,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        Container(height: 1, color: Colors.black),
-                        Expanded(
-                          child: Container(
-                            color: const Color(0xFFE0E0E0),
-                            width: double.infinity,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                if (item['iconPath'] != null && item['iconPath'].toString().isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 24, right: 8),
-                                    child: Image.asset(
-                                      item['iconPath'],
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.contain,
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                    height: 3, color: Color(0xFFFFC278)),
+                              ),
+                              Positioned(
+                                top: 0,
+                                bottom: 0,
+                                left: 0,
+                                child: Container(
+                                    width: 3, color: Color(0xFFFFC278)),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  alignment: Alignment.center,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFCBCACB),
+                                    border: Border(
+                                      top: BorderSide(
+                                          color: Colors.white, width: 2),
+                                      left: BorderSide(
+                                          color: Colors.white, width: 2),
+                                      bottom: BorderSide(
+                                          color: Color(0xFF5E5E5E), width: 2),
+                                      right: BorderSide(
+                                          color: Color(0xFF5E5E5E), width: 2),
                                     ),
                                   ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                    child: item['type'] == 'social'
-                                        ? Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              const Text(
-                                                'Connect with us on these platforms!',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  color: Colors.black,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  _buildSocialIcon('assets/icon/discord.png', 'https://discord.gg/Syr3HwunX3'),
-                                                  const SizedBox(width: 16),
-                                                  _buildSocialIcon('assets/icon/tiktok.png', 'https://tiktok.com/@dissonant.tt'),
-                                                  const SizedBox(width: 16),
-                                                  _buildSocialIcon('assets/icon/instagram.png', 'https://instagram.com/dissonant.ig'),
-                                                ],
-                                              ),
-                                            ],
-                                          )
-                                        : Text(
-                                            item['subtitle'] ?? '',
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
+                                  child: const Text(
+                                    'X',
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          Container(height: 1, color: Colors.black),
+                          Expanded(
+                            child: Container(
+                              color: const Color(0xFFE0E0E0),
+                              width: double.infinity,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  if (item['iconPath'] != null &&
+                                      item['iconPath'].toString().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                          left: 24, right: 8),
+                                      child: Image.asset(
+                                        item['iconPath'],
+                                        width: 60,
+                                        height: 60,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12, horizontal: 16),
+                                      child: item['type'] == 'social'
+                                          ? Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                const Text(
+                                                  'Connect with us on these platforms!',
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    color: Colors.black,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    _buildSocialIcon(
+                                                        'assets/icon/discord.png',
+                                                        'https://discord.gg/Syr3HwunX3'),
+                                                    const SizedBox(width: 16),
+                                                    _buildSocialIcon(
+                                                        'assets/icon/tiktok.png',
+                                                        'https://tiktok.com/@dissonant.tt'),
+                                                    const SizedBox(width: 16),
+                                                    _buildSocialIcon(
+                                                        'assets/icon/instagram.png',
+                                                        'https://instagram.com/dissonant.ig'),
+                                                  ],
+                                                ),
+                                              ],
+                                            )
+                                          : Text(
+                                              item['subtitle'] ?? '',
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_newsItems.length, (index) {
+            final bool isActive = _currentPage == index;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isActive ? const Color(0xFFB0C4DE) : Colors.grey,
+                borderRadius: BorderRadius.zero,
               ),
             );
-          },
+          }),
         ),
-      ),
-      const SizedBox(height: 6),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(_newsItems.length, (index) {
-          final bool isActive = _currentPage == index;
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: isActive ? const Color(0xFFB0C4DE) : Colors.grey,
-              borderRadius: BorderRadius.zero,
-            ),
-          );
-        }),
-      ),
-    ],
-  );
-}
-
-
-Widget _buildSocialIcon(String assetPath, String url) {
-  return GestureDetector(
-    onTap: () async {
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      }
-    },
-    child: Image.asset(
-      assetPath,
-      width: 40,
-      height: 40,
-      fit: BoxFit.contain,
-    ),
-  );
-}
-
-
-Widget _buildLatestAlbumsStrip() {
-  if (_latestLoading) {
-    return const SizedBox(
-      height: 150,
-      child: Center(child: CircularProgressIndicator()),
-    );
-  }
-  if (_latestFeedItems.isEmpty) {
-    return const SizedBox(
-      height: 150,
-      child: Center(child: Text('No albums yet')),
+      ],
     );
   }
 
-  final latestAlbums = _latestFeedItems.take(3).toList();
+  Widget _buildSocialIcon(String assetPath, String url) {
+    return GestureDetector(
+      onTap: () async {
+        if (await canLaunchUrl(Uri.parse(url))) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        }
+      },
+      child: Image.asset(
+        assetPath,
+        width: 40,
+        height: 40,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
 
-  return GestureDetector(
-    onTap: () {
-      MyHomePage.of(context)?.pushInHomeTab(
-        MaterialPageRoute(builder: (_) => FeedScreen()),
+  Widget _buildLatestAlbumsStrip() {
+    if (_latestLoading) {
+      return const SizedBox(
+        height: 150,
+        child: Center(child: CircularProgressIndicator()),
       );
-    },
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151515),
-        border: Border.all(color: Colors.black, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Gradient bar with title and arrow
-          Container(
-            width: double.infinity,
-            height: 32,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/gradientbar.png'),
-                fit: BoxFit.cover,
+    }
+    if (_latestFeedItems.isEmpty) {
+      return const SizedBox(
+        height: 150,
+        child: Center(child: Text('No albums yet')),
+      );
+    }
+
+    final latestAlbums = _latestFeedItems.take(3).toList();
+
+    return GestureDetector(
+      onTap: () {
+        MyHomePage.of(context)?.pushInHomeTab(
+          MaterialPageRoute(builder: (_) => FeedScreen()),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          border: Border.all(color: Colors.black, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Gradient bar with title and arrow
+            Container(
+              width: double.infinity,
+              height: 32,
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/gradientbar.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Latest Albums',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  Image.asset(
+                    'assets/orangearrow.png',
+                    width: 10,
+                    height: 10,
+                    fit: BoxFit.contain,
+                  ),
+                ],
               ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                const Text(
-                  'Latest Albums',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white,
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: latestAlbums.map((feedItem) {
+                final album = feedItem.album;
+                return Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        border: Border.all(color: Colors.black, width: 0.5),
+                      ),
+                      child: Image.network(
+                        album.albumImageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                      ),
+                    ),
                   ),
-                ),
-                const Spacer(),
-                Image.asset(
-                  'assets/orangearrow.png',
-                  width: 10,
-                  height: 10,
-                  fit: BoxFit.contain,
-                ),
-              ],
+                );
+              }).toList(),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: latestAlbums.map((feedItem) {
-              final album = feedItem.album;
-              return Container(
-                width: 98,
-                height: 98,
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black12,
-                  border: Border.all(color: Colors.black, width: 0.5),
-                ),
-                child: Image.network(
-                  album.albumImageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-        ],
+
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
-    ),
-  );
-}
-
-void _checkIfPageReady() {
-  if (!_newsLoading && !_latestLoading) {
-    setState(() {
-      _pageReady = true;
-    });
+    );
   }
-}
 
-
-
+  void _checkIfPageReady() {
+    if (!_newsLoading && !_latestLoading) {
+      setState(() {
+        _pageReady = true;
+      });
+    }
+  }
 
   /* ─────────────────────────  MAIN BUILD  ───────────────────────── */
 
@@ -636,32 +667,34 @@ void _checkIfPageReady() {
       body: BackgroundWidget(
         child: SafeArea(
           child: _pageReady
-              ? SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 36),
-                      Center(
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
                         child: SizedBox(
                           width: 600,
-                          child: Column(
-                            children: [
-                              _buildNewsCarousel(),
-                              const SizedBox(height: 24),
-                              _buildLatestAlbumsStrip(),
-                              SizedBox(height: 12),
-                              _buildLittleGuyWidget(),
-                            ],
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const SizedBox(height: 24),
+                                _buildNewsCarousel(),
+                                _buildLatestAlbumsStrip(),
+                                _buildLittleGuyWidget(),
+                                const SizedBox(height: 24),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                    );
+                  },
                 )
-              : const Center(
-                  child: CircularProgressIndicator(), // show spinner until ready
-                ),
+              : const Center(child: CircularProgressIndicator()),
         ),
       ),
     );
