@@ -290,7 +290,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                   child: Column(
                     children: [
                       Text(
-                        "Don't feel pressured to keep, returning means your next order free!",
+                        "Don't feel pressured to keep, returning means your next order is free!",
                         style: TextStyle(fontSize: 20, color: Colors.white),
                         textAlign: TextAlign.center,
                       ),
