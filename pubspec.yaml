@@ -130,6 +130,8 @@ flutter:
     - assets/icon/tiktok.png
     - assets/icon/instagram.png
     - assets/icon/donate.png
+    - assets/icon/basicintroicon.png
+
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

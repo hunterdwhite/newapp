@@ -126,6 +126,14 @@ class _HomeScreenState extends State<HomeScreen> {
       // Propaganda cards
       _newsItems.addAll([
         {
+          'title': 'Welcome to DISSONANT',
+          'subtitle':
+              'Order an album handpicked by our curators. Don\'t like it? Send it back with the included return label and your next order is free!',
+          'imageUrl': '', // Upload this image
+          'iconPath': 'assets/icon/basicintroicon.png',
+          'backgroundColor': Colors.orange.shade800,
+        },
+        {
           'title': 'Get all your orders free!',
           'subtitle':
               'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
