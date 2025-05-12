@@ -246,17 +246,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                           ),
                         SizedBox(height: 20.0),
-                        // Review entry window remains regardless of flowVersion
-                        Windows95Window(
-                          showTitleBar: true,
-                          title: 'Leave a review!',
-                          child: Padding(
+                          Text(
+                          'We\'re glad you enjoyed the album!',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 10.0),
+                          Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: TextField(
                               decoration: InputDecoration(
                                 hintText: 'Write your review here...',
                                 filled: true,
-                                fillColor: Colors.white,
+                                fillColor: Colors.black,
                                 enabledBorder: OutlineInputBorder(
                                   borderSide: BorderSide(color: Colors.black, width: 2),
                                 ),
@@ -271,14 +275,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               },
                             ),
                           ),
-                        ),
                         SizedBox(height: 20.0),
                         // Conditional UI:
                         _flowVersion == 2
                             ? RetroButton(
                                 text: 'Keep Album',
                                 onPressed: _keepAlbum,
-                                color: Color(0xFFFFA500),
+                                style: RetroButtonStyle.light,
                                 fixedHeight: true,
                               )
                             : Row(
@@ -296,7 +299,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   RetroButton(
                                     text: 'Purchase',
                                     onPressed: _processPayment,
-                                    color: Color(0xFFFFA500),
+                                    style: RetroButtonStyle.light,
                                     fixedHeight: true,
                                   ),
                                 ],

@@ -165,7 +165,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             RetroButton(
               text: 'Update Password',
               onPressed: _updatePassword,
-              color: Color(0xFFFFA500), // Orange color for the button
+              style: RetroButtonStyle.light,
             ),
           ],
         ),

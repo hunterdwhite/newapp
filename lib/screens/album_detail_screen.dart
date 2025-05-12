@@ -845,7 +845,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                         Expanded(
                           child: Text(
                             'User Reviews',
-                            style: TextStyle(color: Colors.white, fontSize: 12),
+                            style: TextStyle(color: Colors.black, fontSize: 12),
                           ),
                         ),
                         SizedBox(width: 4),
@@ -855,9 +855,9 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     contentBackgroundColor: Color(0xFFC0C0C0),
 
                     // Wrap _buildUserReviewsSection in SingleChildScrollView
-                    child: SingleChildScrollView(
+                    // child: SingleChildScrollView(
                       child: _buildUserReviewsSection(),
-                    ),
+                    // ),
                   ),
                 ),
               ),

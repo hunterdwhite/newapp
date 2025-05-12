@@ -170,7 +170,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
                           const SizedBox(height: 16),
                           RetroButton(
                             text: 'Relink Discogs Account',
-                            color: Color(0xFF333333),
+                            style: RetroButtonStyle.dark,
                             leading: Image.asset('assets/discogs_logo.png', height: 20, width: 20),
                             onPressed: () {
                               setState(() {
@@ -200,7 +200,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
                             const SizedBox(height: 12),
                             RetroButton(
                               text: 'Submit PIN',
-                              color: Color(0xFF333333),
+                              style: RetroButtonStyle.dark,
                               leading: Image.asset('assets/discogs_logo.png', height: 20, width: 20),
                               onPressed: _submitPin,
                             ),

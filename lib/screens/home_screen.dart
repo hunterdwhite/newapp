@@ -77,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _autoScrollTimer?.cancel();
     _newsController.dispose();
+    _videoController.dispose(); // ← this line is missing
     super.dispose();
   }
 
@@ -121,16 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Wishlist leaderboard card
-      final leaderboardItems = await _fetchWishlistLeaderboardTop3();
-      if (leaderboardItems.isNotEmpty) {
-        _newsItems.add({
-          'title': 'Most Wishlisted Albums',
-          'subtitle': leaderboardItems.join(' • '),
-          'imageUrl': '',
-          'deeplink': '/wishlist/leaderboard',
-        });
-      }
 
       // Propaganda cards
       _newsItems.addAll([
@@ -173,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'type': 'social',
         },
       ]);
-
+      if (!mounted) return;
       setState(() {
         _newsLoading = false;
       });
@@ -184,51 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _newsLoading = false;
       });
       _checkIfPageReady();
-    }
-  }
-
-  Future<List<String>> _fetchWishlistLeaderboardTop3() async {
-    final albumCounts = <String, int>{};
-
-    try {
-      final usersSnapshot =
-          await FirebaseFirestore.instance.collection('users').get();
-      for (final userDoc in usersSnapshot.docs) {
-        final wishlistSnapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userDoc.id)
-            .collection('wishlist')
-            .get();
-
-        for (final wishlistItem in wishlistSnapshot.docs) {
-          final albumId = wishlistItem['albumId'] ?? wishlistItem.id;
-          if (albumId != null && albumId.isNotEmpty) {
-            albumCounts[albumId] = (albumCounts[albumId] ?? 0) + 1;
-          }
-        }
-      }
-
-      // Sort by count
-      final sortedAlbums = albumCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      // Fetch top 3 album names
-      final topAlbumNames = <String>[];
-      for (final entry in sortedAlbums.take(3)) {
-        final albumDoc = await FirebaseFirestore.instance
-            .collection('albums')
-            .doc(entry.key)
-            .get();
-        if (albumDoc.exists) {
-          final name = albumDoc.data()?['albumName'] ?? 'Unknown Album';
-          topAlbumNames.add(name);
-        }
-      }
-
-      return topAlbumNames;
-    } catch (e) {
-      debugPrint('Error fetching wishlist leaderboard: $e');
-      return [];
     }
   }
 
@@ -245,100 +191,87 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /* ==========  FETCH LATEST ALBUMS FLOW  ========== */
-  Future<void> _fetchLatestAlbums() async {
-    setState(() => _latestLoading = true);
+Future<void> _fetchLatestAlbums() async {
+  if (!mounted) return;
+  setState(() => _latestLoading = true);
 
-    try {
-      final qs = await FirebaseFirestore.instance
-          .collection('orders')
-          .where('status', whereIn: ['kept', 'returnedConfirmed'])
-          .orderBy('updatedAt', descending: true)
-          .limit(_latestLimit)
-          .get();
+  try {
+    final qs = await FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', whereIn: ['kept', 'returnedConfirmed'])
+        .orderBy('updatedAt', descending: true)
+        .limit(_latestLimit)
+        .get();
 
-      final items = <FeedItem>[];
-      for (final doc in qs.docs) {
-        final data = doc.data();
-        final albumId = data['details']?['albumId'] as String?;
-        if (albumId == null || albumId.isEmpty) continue;
+    final List<FeedItem> items = [];
 
-        final albumDoc = await FirebaseFirestore.instance
-            .collection('albums')
-            .doc(albumId)
-            .get();
-        if (!albumDoc.exists) continue;
+    for (final doc in qs.docs) {
+      final data = doc.data();
+      final albumId = data['details']?['albumId'] as String?;
+      if (albumId == null || albumId.isEmpty) continue;
 
-        final album = Album.fromDocument(albumDoc);
+      // album
+      final albumDoc =
+          await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
+      if (!albumDoc.exists) continue;
+      final album = Album.fromDocument(albumDoc);
 
-        final userId = data['userId'] as String? ?? '';
-        var username = 'Unknown';
-        if (userId.isNotEmpty) {
-          final p = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('public')
-              .doc('profile')
-              .get();
-          username = (p.data() ?? {})['username'] ?? 'Unknown';
+      // user
+      final userId = data['userId'] as String? ?? '';
+      String username = 'Unknown';
+      String avatar   = '';
+
+      if (userId.isNotEmpty) {
+        final userDoc =
+            await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          final u = userDoc.data() ?? {};
+          username = u['username'] ?? username;
+          avatar   = u['profilePictureUrl'] ?? '';
         }
+      }
 
-        items.add(FeedItem(
+      items.add(
+        FeedItem(
           username: username,
           userId: userId,
           status: data['status'],
           album: album,
-        ));
-      }
-
-      setState(() {
-        _latestFeedItems = items;
-        _latestLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading latest albums: $e');
-      setState(() => _latestLoading = false);
+          profilePictureUrl: avatar,          // never null
+        ),
+      );
     }
-    _checkIfPageReady();
+
+    setState(() {
+      _latestFeedItems = items;
+      _latestLoading   = false;
+    });
+  } catch (e) {
+    debugPrint('Error loading latest albums: $e');
+    setState(() => _latestLoading = false);
   }
 
-  Widget _buildLittleGuyWidget() {
-    if (!_videoInitialized) {
-      return const SizedBox(height: 100);
-    }
+  _checkIfPageReady();
+}
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-            maxHeight: 120,
-          ),
-          decoration: BoxDecoration(
-            color:
-                const Color(0xFFE0E0E0), // light grey background for contrast
-            border: Border.all(
-                color: Colors.black87, width: 1.5), // subtle dark border
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                offset: Offset(2, 2),
-                blurRadius: 4,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: AspectRatio(
-              aspectRatio: _videoController.value.aspectRatio,
-              child: VideoPlayer(_videoController),
-            ),
-          ),
+
+ Widget _buildLittleGuyWidget() {
+  if (!_videoInitialized) return const SizedBox.shrink();
+
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: _buildCascadingWindow(
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(8),
+        child: AspectRatio(
+          aspectRatio: _videoController.value.aspectRatio,
+          child: VideoPlayer(_videoController),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /* ==========  WIDGET BUILDERS  ========== */
   Widget _buildNewsCarousel() {
@@ -542,6 +475,87 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+Widget _buildCascadingWindow({required Widget child}) {
+  return Stack(
+    children: [
+      Positioned(
+        left: 8,
+        top: 8,
+        child: _singleWindow(color: Colors.grey.shade800, child: const SizedBox.shrink()),
+      ),
+      Positioned(
+        left: 4,
+        top: 4,
+        child: _singleWindow(color: Colors.grey.shade700, child: const SizedBox.shrink()),
+      ),
+      _singleWindow(
+        color: const Color(0xFF4A626D), // base color: grey-blue
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                Container(
+                  height: 24,
+                  color: const Color(0xFF4A626D),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: const [
+                      Expanded(
+                        child: Text(
+                          'UnderConstruction.exe',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ),
+                      Icon(Icons.close, color: Colors.white, size: 16),
+                    ],
+                  ),
+                ),
+                // Highlight overlay on top and left
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 1,
+                    color: Colors.white.withOpacity(0.11),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 1,
+                    color: Colors.white.withOpacity(0.11),
+                  ),
+                ),
+              ],
+            ),
+            child,
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+
+
+
+
+Widget _singleWindow({required Color color, required Widget child}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: Colors.black),
+    ),
+    child: child,
+  );
+}
+
+
   Widget _buildSocialIcon(String assetPath, String url) {
     return GestureDetector(
       onTap: () async {
@@ -558,100 +572,95 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildLatestAlbumsStrip() {
-    if (_latestLoading) {
-      return const SizedBox(
-        height: 150,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_latestFeedItems.isEmpty) {
-      return const SizedBox(
-        height: 150,
-        child: Center(child: Text('No albums yet')),
-      );
-    }
+Widget _buildLatestAlbumsStrip() {
+  if (_latestLoading) {
+    return const SizedBox(
+      height: 150,
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
 
-    final latestAlbums = _latestFeedItems.take(3).toList();
+  if (_latestFeedItems.isEmpty) {
+    return const SizedBox(
+      height: 150,
+      child: Center(child: Text('No albums yet')),
+    );
+  }
 
-    return GestureDetector(
-      onTap: () {
-        MyHomePage.of(context)?.pushInHomeTab(
-          MaterialPageRoute(builder: (_) => FeedScreen()),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF151515),
-          border: Border.all(color: Colors.black, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Gradient bar with title and arrow
-            Container(
-              width: double.infinity,
-              height: 32,
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/gradientbar.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
+  final latestAlbums = _latestFeedItems.take(3).toList();
+
+  return GestureDetector(
+    onTap: () {
+      MyHomePage.of(context)?.pushInHomeTab(
+        MaterialPageRoute(builder: (_) => FeedScreen()),
+      );
+    },
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        // Use available width to calculate album size
+        final double totalSpacing = 2 * 16 + 2 * 12; // outer + inner padding
+        final double albumSize = (constraints.maxWidth - totalSpacing) / 3;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title + arrow
+              Row(
                 children: [
                   const Text(
                     'Latest Albums',
                     style: TextStyle(
-                      fontSize: 16,
                       color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 6),
                   Image.asset(
                     'assets/orangearrow.png',
-                    width: 10,
-                    height: 10,
+                    width: 12,
+                    height: 12,
                     fit: BoxFit.contain,
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: latestAlbums.map((feedItem) {
-                final album = feedItem.album;
-                return Expanded(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black12,
-                        border: Border.all(color: Colors.black, width: 0.5),
-                      ),
-                      child: Image.network(
-                        album.albumImageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                      ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: latestAlbums.map((feedItem) {
+                  final album = feedItem.album;
+                  return Container(
+                    width: albumSize,
+                    height: albumSize,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black, width: 0.5),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
+                    child: Image.network(
+                      album.albumImageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
 
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
+
+
+
+
 
   void _checkIfPageReady() {
+    if (!mounted) return;
     if (!_newsLoading && !_latestLoading) {
       setState(() {
         _pageReady = true;

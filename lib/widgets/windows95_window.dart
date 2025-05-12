@@ -37,7 +37,7 @@ class Windows95Window extends StatelessWidget {
             Expanded(
               child: Text(
                 title!,
-                style: TextStyle(color: Colors.white, fontSize: 12),
+                style: TextStyle(color: Colors.black, fontSize: 12),
               ),
             ),
             if (showCloseButton)
@@ -79,7 +79,7 @@ class Windows95Window extends StatelessWidget {
         children: [
           if (showTitleBar)
             Container(
-              color: Colors.deepOrange,
+              color: Color(0xFFFFA12C),
               padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               child: titleRow,
             ),

@@ -113,6 +113,9 @@ flutter:
     - assets/profileicon.png
     - assets/emptycdcase.png
     - assets/spineasset.png
+    - assets/spineasset1.png
+    - assets/spineasset2.png
+
     - assets/waitlistwelcome.png
     - assets/discogs_logo.png
     - assets/gradientbar.png

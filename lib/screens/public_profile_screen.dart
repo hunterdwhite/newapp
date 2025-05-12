@@ -174,21 +174,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        title: Text(
-          _username.isNotEmpty ? "$_username's profile" : "Profile",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : BackgroundWidget(
@@ -225,14 +210,31 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Show the user’s Firestore "username"
-        Text(
-          _username,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
+        Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: const Text(
+              '<',
+              style: TextStyle(
+                fontSize: 24,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Text(
+            _username,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+
         // If it’s their own profile, show settings
         if (_isOwner)
           IconButton(

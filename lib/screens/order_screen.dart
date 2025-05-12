@@ -358,7 +358,7 @@ class _OrderScreenState extends State<OrderScreen> {
                             await _handlePlaceOrder(user.uid);
                           }
                         },
-                  color: Color(0xFFFFA500),
+                  style: RetroButtonStyle.light,
                 ),
         ],
       ),

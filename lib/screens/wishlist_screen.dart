@@ -210,7 +210,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
           ],
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Local Wishlist'),
+              Tab(text: 'Wishlist'),
               Tab(text: 'Discogs Wantlist'),
             ],
           ),

@@ -9,11 +9,15 @@ class BackgroundWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Paints the dark off-grey across the entire viewport
+        // Only the grain overlay as background
         const Positioned.fill(
-          child: ColoredBox(color: Color(0xFF2B2B2B)), // tweak hex if needed
+          child: Image(
+            image: AssetImage('assets/grainoverlay.png'),
+            fit: BoxFit.cover,
+            repeat: ImageRepeat.repeat,
+          ),
         ),
-        // Your page content
+        // Main content on top
         Positioned.fill(child: child),
       ],
     );

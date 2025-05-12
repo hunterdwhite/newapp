@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dissonantapp2/widgets/retro_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'waitlist_signup_screen.dart';
@@ -139,7 +140,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
                 SizedBox(height: 16),
-                CustomRetroButton(
+                RetroButton(
                   text: 'Join Waitlist',
                   onPressed: () {
                     Navigator.push(
@@ -147,9 +148,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       MaterialPageRoute(builder: (context) => WaitlistSignUpScreen()),
                     );
                   },
-                  width: 350,
-                  height: 60,
-                  fontSize: 22,
                 ),
                 Spacer(flex: 1),
               ],
@@ -171,7 +169,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               // If waitlist is OFF => bigger "Sign Up" / "Log In"
               if (isWaitlistMode) ...[
                 // Waitlist ON => show "Sign Up with Key" and "Log In" as before
-                CustomRetroButton(
+                RetroButton(
                   text: 'Sign Up with Key',
                   onPressed: () {
                     Navigator.push(
@@ -179,12 +177,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       MaterialPageRoute(builder: (context) => KeySignUpScreen()),
                     );
                   },
-                  width: 220,
-                  height: 50,
-                  fontSize: 16,
                 ),
                 SizedBox(height: 16),
-                CustomRetroButton(
+                RetroButton(
                   text: 'Log In',
                   onPressed: () {
                     Navigator.push(
@@ -192,13 +187,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       MaterialPageRoute(builder: (context) => LoginScreen()),
                     );
                   },
-                  width: 220,
-                  height: 50,
-                  fontSize: 16,
                 ),
               ] else ...[
                 // Waitlist OFF => bigger "Sign Up" and bigger "Log In"
-                CustomRetroButton(
+                RetroButton(
                   text: 'Sign Up',
                   onPressed: () {
                     Navigator.push(
@@ -206,12 +198,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       MaterialPageRoute(builder: (context) => RegistrationScreen()),
                     );
                   },
-                  width: 280,
-                  height: 60,
-                  fontSize: 20,
                 ),
                 SizedBox(height: 16),
-                CustomRetroButton(
+                RetroButton(
                   text: 'Log In',
                   onPressed: () {
                     Navigator.push(
@@ -219,9 +208,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       MaterialPageRoute(builder: (context) => LoginScreen()),
                     );
                   },
-                  width: 280,
-                  height: 60,
-                  fontSize: 20,
                 ),
               ],
 
@@ -235,58 +221,3 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 }
 
 /// Same custom "retro style" button as before
-class CustomRetroButton extends StatelessWidget {
-  final String text;
-  final VoidCallback onPressed;
-  final double width;
-  final double height;
-  final double fontSize;
-
-  const CustomRetroButton({
-    required this.text,
-    required this.onPressed,
-    this.width = 350,
-    this.height = 60,
-    this.fontSize = 22,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Stack(
-        children: [
-          // Bottom shadow layer
-          Container(
-            width: width,
-            height: height,
-            margin: EdgeInsets.only(top: 4, left: 4),
-            decoration: BoxDecoration(
-              color: Colors.black,  // shadow color
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          // Top button layer
-          Container(
-            width: width,
-            height: height,
-            decoration: BoxDecoration(
-              color: Color(0xFFF5F5F5),
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

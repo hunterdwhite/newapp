@@ -199,7 +199,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                               MaterialPageRoute(builder: (context) => TasteProfileScreen()),
                             );
                           },
-                          color: Color(0xFFFFA500),
+                          style: RetroButtonStyle.light,
                           fixedHeight: true,
                         ),
                         SizedBox(height: 20),
@@ -212,7 +212,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                               MaterialPageRoute(builder: (context) => ChangePasswordScreen()),
                             );
                           },
-                          color: Color(0xFFFFA500),
+                          style: RetroButtonStyle.light,
                           fixedHeight: true,
                         ),
                         SizedBox(height: 20),
@@ -224,7 +224,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                               MaterialPageRoute(builder: (_) => LinkDiscogsScreen()),
                             );
                           },
-                          color: Color(0xFF333333), // Discogs grey
+                          style: RetroButtonStyle.dark,
                           fixedHeight: true,
                           leading: Padding(
                             padding: const EdgeInsets.only(right: 8.0),
@@ -246,7 +246,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                                 MaterialPageRoute(builder: (context) => AdminDashboardScreen()),
                               );
                             },
-                            color: Color(0xFFFFA500),
+                            style: RetroButtonStyle.light,
                             fixedHeight: true,
                           ),
                           SizedBox(height: 20),
@@ -255,7 +255,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                         RetroButton(
                           text: 'Logout',
                           onPressed: _logout,
-                          color: Colors.red,
+                          style: RetroButtonStyle.light,
                           fixedHeight: true,
                         ),
                       ],

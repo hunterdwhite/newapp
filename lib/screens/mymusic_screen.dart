@@ -185,7 +185,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                         children: [
                           if (_isAlbumRevealed)
                             Text(
-                              "The first spin is better on physical",
+                              "Give it a listen and make your decision!",
                               style:
                                   TextStyle(fontSize: 24, color: Colors.white),
                               textAlign: TextAlign.center,
@@ -290,7 +290,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                   child: Column(
                     children: [
                       Text(
-                        "Give it a listen and make your decision",
+                        "Don't feel pressured to keep, returning means your next order free!",
                         style: TextStyle(fontSize: 20, color: Colors.white),
                         textAlign: TextAlign.center,
                       ),
@@ -316,7 +316,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                   }
                                 });
                               },
-                              color: Color(0xFFFFA500),
+                              style: RetroButtonStyle.dark,
                             ),
                           ),
                           SizedBox(width: 20.0),
@@ -337,7 +337,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                   _fetchOrderStatus(); // Refresh order status
                                 }
                               },
-                              color: Colors.orange,
+                              style: RetroButtonStyle.light,
                             ),
                           ),
                         ],

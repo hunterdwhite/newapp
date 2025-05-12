@@ -5,8 +5,6 @@ import '../services/firestore_service.dart';
 import '../widgets/app_bar_widget.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
-import '../widgets/windows95_window.dart';
-import '../models/album.dart'; // For album info structure if needed
 
 class ReturnAlbumScreen extends StatefulWidget {
   final String orderId;
@@ -26,12 +24,11 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   String _heardBefore = 'Yes';
   String _ownAlbum = 'Yes';
   String _likedAlbum = 'Yes!';
-  String _review = ''; // Replacing _miscThoughts with review
-
+  String _review = '';
   String _albumCoverUrl = '';
   String _albumInfo = '';
-  String? _albumId; // Store albumId for writing review
-  int _flowVersion = 1; // Default to old flow if not present
+  String? _albumId;
+  int _flowVersion = 1;
 
   @override
   void initState() {
@@ -42,13 +39,12 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   Future<void> _fetchAlbumDetails() async {
     try {
       final orderDoc = await _firestoreService.getOrderById(widget.orderId);
-      if (orderDoc!.exists) {
+      if (orderDoc != null && orderDoc.exists) {
         final orderData = orderDoc.data() as Map<String, dynamic>;
-        // Retrieve flowVersion; if not present, default to 1
         _flowVersion = orderData['flowVersion'] ?? 1;
-
         final albumId = orderData['details']['albumId'] as String;
         _albumId = albumId;
+
         final albumDoc = await _firestoreService.getAlbumById(albumId);
         if (albumDoc.exists) {
           final album = albumDoc.data() as Map<String, dynamic>;
@@ -60,28 +56,22 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
             });
           }
         } else {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _albumInfo = 'Album not found';
-            });
-          }
-        }
-      } else {
-        if (mounted) {
           setState(() {
+            _albumInfo = 'Album not found';
             _isLoading = false;
-            _albumInfo = 'Order not found';
           });
         }
-      }
-    } catch (e) {
-      if (mounted) {
+      } else {
         setState(() {
+          _albumInfo = 'Order not found';
           _isLoading = false;
-          _albumInfo = 'Failed to load album details';
         });
       }
+    } catch (_) {
+      setState(() {
+        _albumInfo = 'Failed to load album details';
+        _isLoading = false;
+      });
     }
   }
 
@@ -99,42 +89,29 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
 
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isSubmitting = true;
-      });
+      setState(() => _isSubmitting = true);
 
-      // Collect feedback data
       Map<String, dynamic> feedback = {
         'heardBefore': _heardBefore,
         'ownAlbum': _ownAlbum,
         'likedAlbum': _likedAlbum,
       };
 
-      // Save feedback to Firestore
       await _firestoreService.submitFeedback(widget.orderId, feedback);
-
-      // If user left a review
       if (_review.trim().isNotEmpty && _albumId != null) {
         await _submitReview(_review.trim());
       }
 
-      // Update the order status to 'returned'
       await _firestoreService.updateOrderStatus(widget.orderId, 'returned');
 
-      // If the order used the new flow (flowVersion == 2), mark user as free for next album.
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null && _flowVersion == 2) {
-        await _firestoreService.updateUserDoc(currentUser.uid, {'freeOrder': true});
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && _flowVersion == 2) {
+        await _firestoreService.updateUserDoc(user.uid, {'freeOrder': true});
       }
 
-      setState(() {
-        _isSubmitting = false;
-      });
+      setState(() => _isSubmitting = false);
 
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/',
-        (Route<dynamic> route) => false,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
@@ -147,169 +124,117 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
             ? Center(child: CircularProgressIndicator())
             : Center(
                 child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        if (_albumCoverUrl.isNotEmpty)
-                          Image.network(
-                            _albumCoverUrl,
-                            height: 200,
-                            width: 200,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Center(
-                                  child: Text('Failed to load image',
-                                      style: TextStyle(color: Colors.white)));
-                            },
-                          ),
-                        if (_albumInfo.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16.0),
-                            child: Text(
-                              _albumInfo,
-                              style: TextStyle(fontSize: 24, color: Colors.white),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        SizedBox(height: 20),
-                        Windows95Window(
-                          showTitleBar: true,
-                          title: 'Return Feedback',
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Please let us know:',
-                                    style: TextStyle(fontSize: 18, color: Colors.black),
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      labelText: 'Had you heard this album before?',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    value: _heardBefore,
-                                    items: ['Yes', 'No'].map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value, style: TextStyle(color: Colors.black)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (newValue) {
-                                      setState(() {
-                                        _heardBefore = newValue!;
-                                      });
-                                    },
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      labelText: 'Do you already own this album?',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    value: _ownAlbum,
-                                    items: ['Yes', 'No'].map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value, style: TextStyle(color: Colors.black)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (newValue) {
-                                      setState(() {
-                                        _ownAlbum = newValue!;
-                                      });
-                                    },
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      labelText: 'Did you like this album?',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    value: _likedAlbum,
-                                    items: ['Yes!', 'Meh', 'Nah'].map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value, style: TextStyle(color: Colors.black)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (newValue) {
-                                      setState(() {
-                                        _likedAlbum = newValue!;
-                                      });
-                                    },
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  TextFormField(
-                                    decoration: InputDecoration(
-                                      labelText: 'Leave a review!',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    style: TextStyle(color: Colors.black),
-                                    maxLines: 3,
-                                    onChanged: (value) {
-                                      _review = value;
-                                    },
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  RetroButton(
-                                    text: 'Submit Feedback',
-                                    onPressed: _submitForm,
-                                    color: Color(0xFFD24407),
-                                  ),
-                                ],
-                              ),
-                            ),
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_albumCoverUrl.isNotEmpty)
+                        Image.network(
+                          _albumCoverUrl,
+                          height: 200,
+                          width: 200,
+                          errorBuilder: (context, error, stackTrace) => Text(
+                            'Failed to load image',
+                            style: TextStyle(color: Colors.white),
                           ),
                         ),
-                      ],
-                    ),
+                      if (_albumInfo.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: Text(
+                            _albumInfo,
+                            style: TextStyle(fontSize: 24, color: Colors.white),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Return Feedback',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            _buildDropdown(
+                              label: 'Had you heard this album before?',
+                              value: _heardBefore,
+                              onChanged: (val) => setState(() => _heardBefore = val!),
+                              options: ['Yes', 'No'],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDropdown(
+                              label: 'Do you already own this album?',
+                              value: _ownAlbum,
+                              onChanged: (val) => setState(() => _ownAlbum = val!),
+                              options: ['Yes', 'No'],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDropdown(
+                              label: 'Did you like this album?',
+                              value: _likedAlbum,
+                              onChanged: (val) => setState(() => _likedAlbum = val!),
+                              options: ['Yes!', 'Meh', 'Nah'],
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              decoration: InputDecoration(
+                                labelText: 'Leave a review!',
+                                labelStyle: TextStyle(color: Colors.white),
+                                filled: true,
+                                fillColor: Colors.white10,
+                                border: OutlineInputBorder(),
+                              ),
+                              style: TextStyle(color: Colors.white),
+                              maxLines: 3,
+                              onChanged: (value) => _review = value,
+                            ),
+                            const SizedBox(height: 24),
+                            RetroButton(
+                              text: 'Submit Feedback',
+                              onPressed: _submitForm,
+                              style: RetroButtonStyle.light,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String value,
+    required void Function(String?) onChanged,
+    required List<String> options,
+  }) {
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.white),
+        filled: true,
+        fillColor: Colors.white10,
+        border: OutlineInputBorder(),
+      ),
+      dropdownColor: Colors.black87,
+      style: TextStyle(color: Colors.white),
+      value: value,
+      items: options.map((opt) {
+        return DropdownMenuItem(
+          value: opt,
+          child: Text(opt, style: TextStyle(color: Colors.white)),
+        );
+      }).toList(),
+      onChanged: onChanged,
     );
   }
 }

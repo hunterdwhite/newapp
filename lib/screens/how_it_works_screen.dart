@@ -148,7 +148,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
             RetroButton(
               onPressed: _enterHomePage,
               text: 'Enter Dissonant',
-              color: Color(0xFFFFA500), // Orange color for the button
+              style: RetroButtonStyle.light,
             ),
           ],
         ],
