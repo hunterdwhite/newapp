@@ -443,7 +443,9 @@ Widget _buildSpineImageOnly(FeedItem item) {
 
   @override
   Widget build(BuildContext context) {
-    final double totalSpinesHeight = MediaQuery.of(context).size.height * 0.14;
+  final viewInsets = MediaQuery.of(context).viewPadding;
+  final availableHeight = MediaQuery.of(context).size.height - viewInsets.top - viewInsets.bottom;
+  final double totalSpinesHeight = availableHeight * 0.14;
 
     return Scaffold(
       body: BackgroundWidget(
