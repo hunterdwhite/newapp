@@ -441,59 +441,64 @@ Widget _buildSpineImageOnly(FeedItem item) {
 
   /* ─────────────────────────── build ─────────────────────────── */
 
-  @override
-  Widget build(BuildContext context) {
-  final viewInsets = MediaQuery.of(context).viewPadding;
-  final availableHeight = MediaQuery.of(context).size.height - viewInsets.top - viewInsets.bottom;
-  final double totalSpinesHeight = availableHeight * 0.14;
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: BackgroundWidget(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: Stack(
+                children: [
+                  // Fullscreen vertical PageView
+                  PageView.builder(
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    itemCount: _feedItems.length,
+                    itemBuilder: (context, index) =>
+                        _buildAnimatedFeedItem(_feedItems[index], index),
+                  ),
 
-    return Scaffold(
-      body: BackgroundWidget(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SafeArea(
-                child: Stack(
-                  children: [
-                    _buildSpines(totalSpinesHeight),
-                    Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: MediaQuery.of(context).size.height - totalSpinesHeight,
-                      child: PageView.builder(
-                        controller: _pageController,
-                        scrollDirection: Axis.vertical,
-                        itemCount: _feedItems.length,
-                        itemBuilder: (c, i) => _buildAnimatedFeedItem(_feedItems[i], i),
+                  // Feed title pinned at top
+                  const Positioned(
+                    top: 5,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Text(
+                        'My Feed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
 
-                    const Positioned(
-                      top: 5,
+                  // CD spines overlaid visually at bottom
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildSpines(maxSpines * 48.0),
+                  ),
+
+                  // Spinner above spines when loading more
+                  if (_isFetchingMore)
+                    Positioned(
+                      bottom: maxSpines * 48.0 + 20,
                       left: 0,
                       right: 0,
-                      child: Center(
-                        child: Text(
-                          'My Feed',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                      child: const Center(child: CircularProgressIndicator()),
                     ),
-                    if (_isFetchingMore)
-                      Positioned(
-                        bottom: totalSpinesHeight + 20,
-                        left: 0,
-                        right: 0,
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                  ],
-                ),
+                ],
               ),
-      ),
-    );
-  }
+            ),
+    ),
+  );
+}
+
+
+
 }
