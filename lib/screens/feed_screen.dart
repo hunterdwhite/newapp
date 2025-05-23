@@ -443,7 +443,7 @@ Widget _buildSpineImageOnly(FeedItem item) {
 
   @override
   Widget build(BuildContext context) {
-    final double totalSpinesHeight = maxSpines * 48.0; // increase spine height
+    final double totalSpinesHeight = MediaQuery.of(context).size.height * 0.14;
 
     return Scaffold(
       body: BackgroundWidget(
