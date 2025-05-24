@@ -227,7 +227,7 @@ final List<int> _spineWeights = [80, 30];
           children: [
             /* ――― top bar ――― */
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.only(left: 20, right: 12),
               child: Row(
                 children: [
                   // ONE avatar, wrapped to make it tappable
@@ -344,13 +344,22 @@ final List<int> _spineWeights = [80, 30];
 
 
   /* spines */
-Widget _buildSpines(double totalSpinesHeight) {
+Widget _buildSpines(BuildContext context) {
+  final screenHeight = MediaQuery.of(context).size.height;
+  final screenWidth = MediaQuery.of(context).size.width;
+
+  // Shrink spines on smaller screens
+  final isSmallScreen = screenHeight < 750;
+  final spineHeight = isSmallScreen ? 38.0 : 45.0;
+  final maxSpines = 4; // fewer spines for better fit
+  final spineWidth = screenWidth * 0.85;
+
   return Positioned(
-    bottom: 0,
+    bottom: isSmallScreen ? 4 : 16, // margin below stack
     left: 0,
     right: 0,
     child: SizedBox(
-      height: totalSpinesHeight,
+      height: maxSpines * spineHeight,
       child: AnimatedBuilder(
         animation: _pageController,
         builder: (context, child) {
@@ -365,9 +374,9 @@ Widget _buildSpines(double totalSpinesHeight) {
               if (spineIndex >= _feedItems.length) return const SizedBox.shrink();
 
               final offset = page - _currentIndex;
-              final bottomOffset =
-                  (maxSpines - i - 1) * (spineHeight * 0.75) - offset * (spineHeight * 0.75);
+              final bottomOffset = (maxSpines - i - 1) * (spineHeight * 0.45) - offset * (spineHeight * 0.45);
 
+              // Randomized spine asset per index
               if (!_spineAssetMap.containsKey(spineIndex)) {
                 final rand = _random.nextInt(100);
                 _spineAssetMap[spineIndex] =
@@ -380,8 +389,8 @@ Widget _buildSpines(double totalSpinesHeight) {
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.9),
+                  child: SizedBox(
+                    width: spineWidth,
                     child: AspectRatio(
                       aspectRatio: 7,
                       child: Image.asset(
@@ -399,6 +408,7 @@ Widget _buildSpines(double totalSpinesHeight) {
     ),
   );
 }
+
 
 
 
@@ -510,7 +520,7 @@ Widget build(BuildContext context) {
           : SafeArea(
               child: Stack(
                 children: [
-                  _buildSpines(totalSpinesHeight),
+                  _buildSpines(context),
                   Positioned(
                     top: 0,
                     left: 0,
