@@ -342,20 +342,6 @@ final List<int> _spineWeights = [80, 30];
     );
   }
 
-  /* fade-in effect for off-center pages */
-  Widget _buildAnimatedFeedItem(FeedItem item, int index) {
-    return AnimatedBuilder(
-      animation: _pageController,
-      builder: (context, child) {
-        var opacity = 1.0;
-        if (_pageController.position.haveDimensions) {
-          final diff = (index - (_pageController.page ?? _currentIndex.toDouble())).abs();
-          opacity = (1 - diff).clamp(0, 1);
-        }
-        return Opacity(opacity: opacity, child: _buildFeedItem(item));
-      },
-    );
-  }
 
   /* spines */
 Widget _buildSpines(double totalSpinesHeight) {
@@ -438,11 +424,81 @@ Widget _buildSpineImageOnly(FeedItem item) {
   );
 }
 
+Widget _buildHeaderBar(FeedItem item) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: item.userId)),
+          ),
+          child: CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey.shade700,
+            backgroundImage: item.profilePictureUrl.isNotEmpty
+                ? NetworkImage(item.profilePictureUrl)
+                : null,
+            child: item.profilePictureUrl.isEmpty
+                ? const Icon(Icons.person, size: 20, color: Colors.white)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: item.userId)),
+          ),
+          child: Text(
+            item.username,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          item.status == 'kept' ? 'kept' : 'returned',
+          style: const TextStyle(fontSize: 16, color: Colors.white70),
+        ),
+        const Spacer(),
+      ],
+    ),
+  );
+}
+
 
   /* ─────────────────────────── build ─────────────────────────── */
 
 @override
 Widget build(BuildContext context) {
+  final screenHeight = MediaQuery.of(context).size.height;
+  final screenWidth = MediaQuery.of(context).size.width;
+
+  // Reserve 5% of height for top padding and 5% for bottom margin
+  final usableHeight = screenHeight * 0.9;
+
+  final double totalSpinesHeight = maxSpines * 48.0;
+  final double coverArtHeight = usableHeight * 0.35;
+  final double buttonHeight = 50.0;
+  final double spacing = 16.0;
+
+  final double contentHeight = coverArtHeight + spacing + buttonHeight + spacing;
+
+  // If the content + spines exceed available height, scale down everything
+  final bool overflow = contentHeight + totalSpinesHeight > usableHeight;
+  final double scaleFactor = overflow
+      ? (usableHeight - totalSpinesHeight) / contentHeight
+      : 1.0;
+
+  final double scaledCoverArtHeight = coverArtHeight * scaleFactor;
+  final double scaledButtonHeight = buttonHeight * scaleFactor;
+  final double scaledSpacing = spacing * scaleFactor;
+
   return Scaffold(
     body: BackgroundWidget(
       child: _isLoading
@@ -450,16 +506,74 @@ Widget build(BuildContext context) {
           : SafeArea(
               child: Stack(
                 children: [
-                  // Fullscreen vertical PageView
-                  PageView.builder(
-                    controller: _pageController,
-                    scrollDirection: Axis.vertical,
-                    itemCount: _feedItems.length,
-                    itemBuilder: (context, index) =>
-                        _buildAnimatedFeedItem(_feedItems[index], index),
-                  ),
+                  _buildSpines(totalSpinesHeight),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      height: screenHeight - totalSpinesHeight,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        scrollDirection: Axis.vertical,
+                        itemCount: _feedItems.length,
+                        itemBuilder: (context, i) {
+                          final verticalUnit = MediaQuery.of(context).size.height * 0.015;
 
-                  // Feed title pinned at top
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: verticalUnit * 2, // margin between header and "My Feed"
+                              left: 16,
+                              right: 16,
+                              bottom: verticalUnit,  // margin above the spines
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                SizedBox(height: verticalUnit * 2), // space below "My Feed"
+                                _buildHeaderBar(_feedItems[i]),
+                                SizedBox(height: verticalUnit * 2),
+                                SizedBox(
+                                  height: scaledCoverArtHeight,
+                                  child: InkWell(
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AlbumDetailsScreen(album: _feedItems[i].album),
+                                      ),
+                                    ),
+                                    child: Image.network(
+                                      _feedItems[i].album.albumImageUrl,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: verticalUnit * 2),
+                                Text(
+                                  '${_feedItems[i].album.artist} – ${_feedItems[i].album.albumName}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(height: verticalUnit * 2),
+                                SizedBox(
+                                  height: scaledButtonHeight,
+                                  child: RetroButton(
+                                    text: 'Add to Wishlist',
+                                    style: RetroButtonStyle.light,
+                                    fixedHeight: true,
+                                    onPressed: () => _addToWishlist(_feedItems[i].album.albumId),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+
+                      ),
+                    ),
+                  ),
                   const Positioned(
                     top: 5,
                     left: 0,
@@ -476,18 +590,9 @@ Widget build(BuildContext context) {
                     ),
                   ),
 
-                  // CD spines overlaid visually at bottom
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildSpines(maxSpines * 48.0),
-                  ),
-
-                  // Spinner above spines when loading more
                   if (_isFetchingMore)
                     Positioned(
-                      bottom: maxSpines * 48.0 + 20,
+                      bottom: totalSpinesHeight + 20,
                       left: 0,
                       right: 0,
                       child: const Center(child: CircularProgressIndicator()),
@@ -498,6 +603,8 @@ Widget build(BuildContext context) {
     ),
   );
 }
+
+
 
 
 
