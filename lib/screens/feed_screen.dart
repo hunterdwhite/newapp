@@ -365,11 +365,11 @@ Widget _buildSpines(double totalSpinesHeight) {
               if (spineIndex >= _feedItems.length) return const SizedBox.shrink();
 
               final offset = page - _currentIndex;
-              final bottomOffset = (maxSpines - i - 1) * (spineHeight * 0.75) - offset * (spineHeight * 0.75);
+              final bottomOffset =
+                  (maxSpines - i - 1) * (spineHeight * 0.75) - offset * (spineHeight * 0.75);
 
-              // Use cached asset if exists, otherwise pick one now
               if (!_spineAssetMap.containsKey(spineIndex)) {
-                final rand = Random().nextInt(100);
+                final rand = _random.nextInt(100);
                 _spineAssetMap[spineIndex] =
                     rand < _spineWeights[0] ? _spineOptions[0] : _spineOptions[1];
               }
@@ -381,7 +381,7 @@ Widget _buildSpines(double totalSpinesHeight) {
                 right: 0,
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.9),
                     child: AspectRatio(
                       aspectRatio: 7,
                       child: Image.asset(
@@ -399,6 +399,7 @@ Widget _buildSpines(double totalSpinesHeight) {
     ),
   );
 }
+
 
 
 
@@ -471,33 +472,36 @@ Widget _buildHeaderBar(FeedItem item) {
   );
 }
 
+Widget _buildAnimatedFeedItem(FeedItem item, int index) {
+  return AnimatedBuilder(
+    animation: _pageController,
+    builder: (context, child) {
+      var opacity = 1.0;
+
+      if (_pageController.hasClients && _pageController.page != null) {
+        final diff = (index - _pageController.page!).abs();
+        opacity = (1 - diff).clamp(0.0, 1.0);
+      }
+
+      return Opacity(
+        opacity: opacity,
+        child: _buildFeedItem(item),
+      );
+    },
+  );
+}
 
   /* ─────────────────────────── build ─────────────────────────── */
 
 @override
 Widget build(BuildContext context) {
-  final screenHeight = MediaQuery.of(context).size.height;
-  final screenWidth = MediaQuery.of(context).size.width;
+  final mediaQuery = MediaQuery.of(context);
+  final screenHeight = mediaQuery.size.height;
+  final topPadding = mediaQuery.padding.top;
+  final bottomPadding = mediaQuery.padding.bottom;
+  final totalSpinesHeight = maxSpines * 48.0;
 
-  // Reserve 5% of height for top padding and 5% for bottom margin
-  final usableHeight = screenHeight * 0.9;
-
-  final double totalSpinesHeight = maxSpines * 48.0;
-  final double coverArtHeight = usableHeight * 0.35;
-  final double buttonHeight = 50.0;
-  final double spacing = 16.0;
-
-  final double contentHeight = coverArtHeight + spacing + buttonHeight + spacing;
-
-  // If the content + spines exceed available height, scale down everything
-  final bool overflow = contentHeight + totalSpinesHeight > usableHeight;
-  final double scaleFactor = overflow
-      ? (usableHeight - totalSpinesHeight) / contentHeight
-      : 1.0;
-
-  final double scaledCoverArtHeight = coverArtHeight * scaleFactor;
-  final double scaledButtonHeight = buttonHeight * scaleFactor;
-  final double scaledSpacing = spacing * scaleFactor;
+  final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
 
   return Scaffold(
     body: BackgroundWidget(
@@ -507,89 +511,33 @@ Widget build(BuildContext context) {
               child: Stack(
                 children: [
                   _buildSpines(totalSpinesHeight),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: screenHeight - totalSpinesHeight,
-                      child: PageView.builder(
-                        controller: _pageController,
-                        scrollDirection: Axis.vertical,
-                        itemCount: _feedItems.length,
-                        itemBuilder: (context, i) {
-                          final verticalUnit = MediaQuery.of(context).size.height * 0.015;
-
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              top: verticalUnit * 2, // margin between header and "My Feed"
-                              left: 16,
-                              right: 16,
-                              bottom: verticalUnit,  // margin above the spines
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                SizedBox(height: verticalUnit * 2), // space below "My Feed"
-                                _buildHeaderBar(_feedItems[i]),
-                                SizedBox(height: verticalUnit * 2),
-                                SizedBox(
-                                  height: scaledCoverArtHeight,
-                                  child: InkWell(
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => AlbumDetailsScreen(album: _feedItems[i].album),
-                                      ),
-                                    ),
-                                    child: Image.network(
-                                      _feedItems[i].album.albumImageUrl,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: verticalUnit * 2),
-                                Text(
-                                  '${_feedItems[i].album.artist} – ${_feedItems[i].album.albumName}',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                SizedBox(height: verticalUnit * 2),
-                                SizedBox(
-                                  height: scaledButtonHeight,
-                                  child: RetroButton(
-                                    text: 'Add to Wishlist',
-                                    style: RetroButtonStyle.light,
-                                    fixedHeight: true,
-                                    onPressed: () => _addToWishlist(_feedItems[i].album.albumId),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-
-                      ),
-                    ),
-                  ),
-                  const Positioned(
-                    top: 5,
+                  Positioned(
+                    top: 0,
                     left: 0,
                     right: 0,
-                    child: Center(
-                      child: Text(
-                        'My Feed',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        const Text(
+                          'My Feed',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                        SizedBox(
+                          height: feedHeight,
+                          child: PageView.builder(
+                            controller: _pageController,
+                            scrollDirection: Axis.vertical,
+                            itemCount: _feedItems.length,
+                            itemBuilder: (c, i) => _buildFeedItem(_feedItems[i]),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-
                   if (_isFetchingMore)
                     Positioned(
                       bottom: totalSpinesHeight + 20,
@@ -603,8 +551,6 @@ Widget build(BuildContext context) {
     ),
   );
 }
-
-
 
 
 
