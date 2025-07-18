@@ -22,7 +22,7 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = '34'
+def flutterVersionCode = '35'
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }

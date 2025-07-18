@@ -18,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'screens/order_selection_screen.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -165,7 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
       GlobalKey<NavigatorState>();
 
   final List<Widget> _plainPages = [
-    OrderScreen(),
+    OrderSelectionScreen(),
     MyMusicScreen(),
     ProfileScreen(),
   ];

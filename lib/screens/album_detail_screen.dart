@@ -554,7 +554,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     );
   }
 
-  // -- CHANGED: Removed SingleChildScrollView from inside here --
+  // Replace _buildUserReviewsSection to use ListView for scrollability and left alignment
   Widget _buildUserReviewsSection() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -585,9 +585,9 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
           );
         }
 
-        // Just return a Column; we'll wrap this in a scroll view in build()
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Use ListView for scrollability
+        return ListView(
+          padding: EdgeInsets.zero,
           children: snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             String comment = data['comment'] ?? '';
@@ -608,20 +608,22 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Loading user info...',
                       style: TextStyle(color: Colors.black),
+                      textAlign: TextAlign.left,
                     ),
                   );
                 }
 
                 if (userSnapshot.hasError || userSnapshot.data == null) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Error loading user info',
                       style: TextStyle(color: Colors.red),
+                      textAlign: TextAlign.left,
                     ),
                   );
                 }
@@ -631,29 +633,30 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     userSnapshot.data!['statusNote'] ?? '(hasn\'t received this album)';
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Username
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PublicProfileScreen(userId: userId),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PublicProfileScreen(userId: userId),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          username,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                            decoration: TextDecoration.underline,
                           ),
-                        );
-                      },
-                      child: Text(
-                        username,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                          decoration: TextDecoration.underline, // Optional, visual indication it's clickable
+                          textAlign: TextAlign.left,
                         ),
                       ),
-                    ),
                       // Status note
                       Text(
                         statusNote,
@@ -661,6 +664,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                           fontSize: 12,
                           color: Colors.black54,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                       // Date
                       Text(
@@ -669,6 +673,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                           fontSize: 12,
                           color: Colors.black54,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                       SizedBox(height: 4),
                       // Comment
@@ -693,6 +698,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                               color: Colors.blue,
                               decoration: TextDecoration.underline,
                             ),
+                            textAlign: TextAlign.left,
                           ),
                         ),
                       SizedBox(height: 8),
@@ -853,11 +859,10 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       ],
                     ),
                     contentBackgroundColor: Color(0xFFC0C0C0),
-
-                    // Wrap _buildUserReviewsSection in SingleChildScrollView
-                    // child: SingleChildScrollView(
+                    child: SizedBox(
+                      height: 250, // Adjust as needed
                       child: _buildUserReviewsSection(),
-                    // ),
+                    ),
                   ),
                 ),
               ),
