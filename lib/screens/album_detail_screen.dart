@@ -62,10 +62,14 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     try {
       Uri uri = Uri.parse(url);
       String extension = path.extension(uri.path).toLowerCase(); // e.g., '.png'
-      print('Parsed extension: $extension for URL: $url'); // Debug log
+      // Removed debug print statement for production
       return (extension == '.jpg' || extension == '.jpeg' || extension == '.png');
     } catch (e) {
-      print('Error parsing image URL: $url, error: $e');
+      // Only print errors in debug mode
+      assert(() {
+        print('Error parsing image URL: $url, error: $e');
+        return true;
+      }());
       return false;
     }
   }
