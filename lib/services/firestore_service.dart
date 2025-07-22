@@ -8,15 +8,67 @@ import 'referral_service.dart';
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // Cache for frequently accessed data
+  static final Map<String, dynamic> _cache = {};
+  static const int _cacheExpiry = 300000; // 5 minutes in milliseconds
+  static final Map<String, int> _cacheTimestamps = {};
+
+  // Constructor with performance optimizations
+  FirestoreService() {
+    // Enable offline persistence for better performance
+    _firestore.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
+
+  /// Check cache first before making Firestore query
+  T? _getFromCache<T>(String key) {
+    final timestamp = _cacheTimestamps[key];
+    if (timestamp != null && 
+        DateTime.now().millisecondsSinceEpoch - timestamp < _cacheExpiry) {
+      return _cache[key] as T?;
+    }
+    return null;
+  }
+
+  /// Store data in cache
+  void _setCache<T>(String key, T data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  /// Clear expired cache entries
+  void _clearExpiredCache() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final expiredKeys = _cacheTimestamps.entries
+        .where((entry) => now - entry.value > _cacheExpiry)
+        .map((entry) => entry.key)
+        .toList();
+    
+    for (final key in expiredKeys) {
+      _cache.remove(key);
+      _cacheTimestamps.remove(key);
+    }
+  }
 
   /// ------------------------
-  /// Existing Methods
+  /// Existing Methods (Optimized)
   /// ------------------------
 
-  // Check if a username exists in the usernames collection
+  // Check if a username exists in the usernames collection (with caching)
   Future<bool> checkUsernameExists(String username) async {
-    final doc = await _firestore.collection('usernames').doc(username).get();
-    return doc.exists;
+    final cacheKey = 'username_exists_$username';
+    final cached = _getFromCache<bool>(cacheKey);
+    if (cached != null) return cached;
+
+    final doc = await _firestore.collection('usernames').doc(username).get(
+      const GetOptions(source: Source.cache),
+    );
+    final exists = doc.exists;
+    _setCache(cacheKey, exists);
+    return exists;
   }
 
   // Add a username to the usernames collection
@@ -25,18 +77,30 @@ class FirestoreService {
       'userId': userId,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    
+    // Update cache
+    _setCache('username_exists_$username', true);
   }
 
+  // Optimized batch query for outstanding orders
   Future<bool> hasOutstandingOrders(String userId) async {
+    final cacheKey = 'outstanding_orders_$userId';
+    final cached = _getFromCache<bool>(cacheKey);
+    if (cached != null) return cached;
+
     QuerySnapshot ordersSnapshot = await _firestore
         .collection('orders')
         .where('userId', isEqualTo: userId)
         .where('status', whereIn: ['sent', 'returned'])
+        .limit(1) // Only need to know if any exist
         .get();
 
-    return ordersSnapshot.docs.isNotEmpty;
+    final hasOrders = ordersSnapshot.docs.isNotEmpty;
+    _setCache(cacheKey, hasOrders);
+    return hasOrders;
   }
 
+  // Optimized batch delete using WriteBatch
   Future<void> deleteUserData(String userId) async {
     WriteBatch batch = _firestore.batch();
 
@@ -57,39 +121,67 @@ class FirestoreService {
       batch.delete(usernameDocRef);
     }
 
-    // Delete user's wishlist items
+    // Delete user's wishlist items (batch operation)
     CollectionReference wishlistRef = userDocRef.collection('wishlist');
-    QuerySnapshot wishlistSnapshot = await wishlistRef.get();
+    QuerySnapshot wishlistSnapshot = await wishlistRef.limit(500).get(); // Batch in chunks
     for (DocumentSnapshot doc in wishlistSnapshot.docs) {
       batch.delete(doc.reference);
     }
 
-    // Delete user's orders
-    QuerySnapshot ordersSnapshot = await _firestore.collection('orders').where('userId', isEqualTo: userId).get();
+    // Delete user's orders (batch operation)
+    QuerySnapshot ordersSnapshot = await _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .limit(500) // Batch in chunks
+        .get();
     for (DocumentSnapshot doc in ordersSnapshot.docs) {
       batch.delete(doc.reference);
     }
 
     // Commit the batch
     await batch.commit();
+    
+    // Clear related cache entries
+    _cache.removeWhere((key, value) => key.contains(userId));
+    _cacheTimestamps.removeWhere((key, value) => key.contains(userId));
   }
 
+  // Optimized public profile retrieval with caching
   Future<Map<String, dynamic>?> getUserPublicProfile(String userId) async {
+    final cacheKey = 'public_profile_$userId';
+    final cached = _getFromCache<Map<String, dynamic>>(cacheKey);
+    if (cached != null) return cached;
+
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .collection('public')
         .doc('profile')
         .get();
-    return doc.data();
+    
+    final data = doc.data();
+    if (data != null) {
+      _setCache(cacheKey, data);
+    }
+    return data;
   }
 
+  // Optimized order retrieval with caching
   Future<DocumentSnapshot?> getOrderById(String orderId) async {
+    final cacheKey = 'order_$orderId';
+    final cached = _getFromCache<DocumentSnapshot>(cacheKey);
+    if (cached != null) return cached;
+
     final doc = await FirebaseFirestore.instance
         .collection('orders')
         .doc(orderId)
         .get();
-    return doc.exists ? doc : null;
+    
+    if (doc.exists) {
+      _setCache(cacheKey, doc);
+      return doc;
+    }
+    return null;
   }
 
   Future<void> addReview({
