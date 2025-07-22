@@ -57,7 +57,7 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: _isLoading
             ? Center(child: CircularProgressIndicator())
             : _hasOrdered

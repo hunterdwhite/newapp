@@ -5,12 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io'; // Import the dart:io package for File
 
-class ProfilePictureSelector extends StatefulWidget {
+class ProfilePictureSelectorWidget extends StatefulWidget {
   @override
-  _ProfilePictureSelectorState createState() => _ProfilePictureSelectorState();
+  _ProfilePictureSelectorWidgetState createState() => _ProfilePictureSelectorWidgetState();
 }
 
-class _ProfilePictureSelectorState extends State<ProfilePictureSelector> {
+class _ProfilePictureSelectorWidgetState extends State<ProfilePictureSelectorWidget> {
   final ImagePicker _picker = ImagePicker();
   String? _profileImageUrl;
 

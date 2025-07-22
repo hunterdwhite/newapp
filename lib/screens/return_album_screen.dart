@@ -118,8 +118,8 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: 'Return Album'),
-      body: BackgroundWidget(
+      appBar: CustomAppBarWidget(title: 'Return Album'),
+      body: GrainyBackgroundWidget(
         child: _isSubmitting || _isLoading
             ? Center(child: CircularProgressIndicator())
             : Center(
@@ -195,7 +195,7 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                               onChanged: (value) => _review = value,
                             ),
                             const SizedBox(height: 24),
-                            RetroButton(
+                            RetroButtonWidget(
                               text: 'Submit Feedback',
                               onPressed: _submitForm,
                               style: RetroButtonStyle.light,

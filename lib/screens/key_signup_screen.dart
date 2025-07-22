@@ -118,7 +118,7 @@ class _KeySignUpScreenState extends State<KeySignUpScreen> {
                                 isFlat: true,
                               ),
                               SizedBox(height: 16.0),
-                              CustomRetroButton(
+                              CustomRetroButtonWidget(
                                 text: 'Verify Key',
                                 onPressed: _verifyKey,
                                 color: Color(0xFFD24407),

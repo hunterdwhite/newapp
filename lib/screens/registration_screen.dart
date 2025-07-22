@@ -329,7 +329,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                     style: TextStyle(fontSize: 12, color: Colors.grey),
                                   ),
                                   SizedBox(height: 16.0),
-                                  CustomRetroButton(
+                                  CustomRetroButtonWidget(
                                     text: 'Sign Up',
                                     onPressed: isLoading ? null : _register,
                                     color: Color(0xFFD24407),
@@ -559,14 +559,14 @@ class CustomTextField extends StatelessWidget {
   }
 }
 
-class CustomRetroButton extends StatelessWidget {
+class CustomRetroButtonWidget extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final Color color;
   final bool fixedHeight;
   final Color shadowColor;
 
-  const CustomRetroButton({
+  const CustomRetroButtonWidget({
     Key? key,
     required this.text,
     this.onPressed,

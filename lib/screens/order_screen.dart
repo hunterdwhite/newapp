@@ -154,7 +154,7 @@ class _OrderScreenState extends State<OrderScreen> {
     final user = FirebaseAuth.instance.currentUser;
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: _isLoading
             ? Center(child: CircularProgressIndicator())
             : _hasOrdered
@@ -349,7 +349,7 @@ class _OrderScreenState extends State<OrderScreen> {
           SizedBox(height: 24.0),
           _isProcessing
               ? Center(child: CircularProgressIndicator())
-              : RetroButton(
+              : RetroButtonWidget(
                   text: 'Place Order',
                   onPressed: user == null
                       ? null
