@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'registration_screen.dart';
 import '../services/waitlist_service.dart';
+import '../widgets/retro_button_widget.dart';
 
 
 class KeySignUpScreen extends StatefulWidget {
@@ -118,10 +119,10 @@ class _KeySignUpScreenState extends State<KeySignUpScreen> {
                                 isFlat: true,
                               ),
                               SizedBox(height: 16.0),
-                              CustomRetroButtonWidget(
+                              RetroButtonWidget(
                                 text: 'Verify Key',
                                 onPressed: _verifyKey,
-                                color: Color(0xFFD24407),
+                                style: RetroButtonStyle.dark,
                                 fixedHeight: true,
                               ),
                             ],

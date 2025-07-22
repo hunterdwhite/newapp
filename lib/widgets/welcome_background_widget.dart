@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class WelcomeBackgroundWidget extends StatelessWidget {
   final Widget child;
 
-  WelcomeGrainyBackgroundWidget({required this.child});
+  WelcomeBackgroundWidget({required this.child});
 
   @override
   Widget build(BuildContext context) {

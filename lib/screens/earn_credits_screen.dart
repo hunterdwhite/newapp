@@ -820,7 +820,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
           ),
         ),
       ),
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: SafeArea(
           child: Column(
             children: [

@@ -1,4 +1,4 @@
-import 'album.dart';
+import 'album_model.dart';
 
 class FeedItem {
   final String username;
