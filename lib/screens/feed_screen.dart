@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/firestore_service.dart';
 import '../widgets/retro_button_widget.dart';
-import '../models/album.dart';
-import '../models/feed_item.dart';
+import '../models/album_model.dart';
+import '../models/feed_item_model.dart';
 import 'album_detail_screen.dart';
 import 'public_profile_screen.dart';
 import 'dart:math'; // make sure this is at the top
@@ -14,10 +14,10 @@ import 'dart:math'; // make sure this is at the top
 
 class FeedScreen extends StatefulWidget {
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  _FeedScreenState createState() => _FeedScreenState();
 }
 
-class _HomeScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   // Paginated feed
@@ -292,7 +292,7 @@ final List<int> _spineWeights = [80, 30];
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AlbumDetailsScreen(album: item.album),
+                    builder: (_) => AlbumDetailScreen(album: item.album),
                   ),
                 ),
                 child: Image.network(
@@ -330,7 +330,7 @@ final List<int> _spineWeights = [80, 30];
             const SizedBox(height: 30),
 
             /* ――― wishlist button ――― */
-            RetroButton(
+            RetroButtonWidget(
               text: 'Add to Wishlist',
               style: RetroButtonStyle.light,
               fixedHeight: true,
@@ -514,7 +514,7 @@ Widget build(BuildContext context) {
   final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
 
   return Scaffold(
-    body: BackgroundWidget(
+    body: GrainyBackgroundWidget(
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(

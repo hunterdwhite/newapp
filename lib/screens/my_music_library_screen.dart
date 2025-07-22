@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/grainy_background_widget.dart';
-import '../models/album.dart';
+import '../models/album_model.dart';
 import 'album_detail_screen.dart';
 
 class MyMusicLibraryScreen extends StatefulWidget {
@@ -164,7 +164,7 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
             ),
         ],
       ),
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _musicItems.isEmpty
@@ -193,7 +193,7 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => AlbumDetailsScreen(album: album),
+                              builder: (_) => AlbumDetailScreen(album: album),
                             ),
                           );
                         },

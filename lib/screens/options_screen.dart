@@ -176,7 +176,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(16.0),
@@ -191,7 +191,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                       children: [
                         SizedBox(height: 20),
                         // Edit Taste Profile
-                        RetroButton(
+                        RetroButtonWidget(
                           text: 'Edit Taste Profile',
                           onPressed: () {
                             Navigator.push(
@@ -204,7 +204,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                         ),
                         SizedBox(height: 20),
                         // Change Password
-                        RetroButton(
+                        RetroButtonWidget(
                           text: 'Change Password',
                           onPressed: () {
                             Navigator.push(
@@ -216,7 +216,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           fixedHeight: true,
                         ),
                         SizedBox(height: 20),
-                        RetroButton(
+                        RetroButtonWidget(
                           text: 'Link Discogs',
                           onPressed: () {
                             Navigator.push(
@@ -238,7 +238,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                         SizedBox(height: 20),
                         // If admin, show Admin Dashboard button
                         if (_isAdmin) ...[
-                          RetroButton(
+                          RetroButtonWidget(
                             text: 'Admin Dashboard',
                             onPressed: () {
                               Navigator.push(
@@ -252,7 +252,7 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           SizedBox(height: 20),
                         ],
                         // Logout button for everyone
-                        RetroButton(
+                        RetroButtonWidget(
                           text: 'Logout',
                           onPressed: _logout,
                           style: RetroButtonStyle.light,

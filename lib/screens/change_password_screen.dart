@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../widgets/grainy_background_widget.dart'; // Import the BackgroundWidget
+import '../widgets/grainy_background_widget.dart'; // Import the GrainyBackgroundWidget
 import '../widgets/retro_button_widget.dart'; // Import the RetroButtonWidget
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -95,7 +95,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : BackgroundWidget(
+          : GrainyBackgroundWidget(
               child: _buildChangePasswordForm(),
             ),
     );
@@ -162,7 +162,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
             SizedBox(height: 40),
             // Update Password Button
-            RetroButton(
+            RetroButtonWidget(
               text: 'Update Password',
               onPressed: _updatePassword,
               style: RetroButtonStyle.light,

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'base_service.dart';
 
-class PaymentService {
+class PaymentService extends BaseService {
+  @override
+  String get serviceName => 'PaymentService';
   static const _paymentApiUrl = 'http://10.0.2.2:4242/create-payment-intent'; // Update this with your server URL
 
   Future<Map<String, dynamic>> createPaymentIntent(int amount) async {

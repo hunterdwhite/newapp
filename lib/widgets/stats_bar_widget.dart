@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-class StatsBar extends StatelessWidget {
+class StatsBarWidget extends StatelessWidget {
   final int albumsSentBack;
   final int albumsKept;
 
-  StatsBar({required this.albumsSentBack, required this.albumsKept});
+  StatsBarWidget({required this.albumsSentBack, required this.albumsKept});
 
   @override
   Widget build(BuildContext context) {
