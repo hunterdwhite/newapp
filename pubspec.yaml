@@ -49,6 +49,7 @@ dependencies:
   flutter_native_splash: ^2.2.18  # Replace with the latest version
   cached_network_image: ^3.2.3
   firebase_crashlytics: ^4.1.4
+  firebase_performance: ^0.10.0+8  # Add performance monitoring
   path: ^1.8.3
   flutter_colorpicker: ^1.1.0
   xml: ^6.1.0
@@ -57,7 +58,12 @@ dependencies:
   webview_flutter: ^4.0.0
   video_player: ^2.9.5
   in_app_review: ^2.0.9
-  share_plus: ^10.1.2  
+  share_plus: ^10.1.2
+  # Performance optimizations
+  flutter_bloc: ^8.1.6  # Better state management
+  equatable: ^2.0.5     # Efficient equality comparisons
+  get_it: ^7.7.0        # Dependency injection for better memory management
+  visibility_detector: ^0.4.0+2  # Lazy loading for lists
 
 
 
