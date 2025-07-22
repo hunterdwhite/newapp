@@ -26,5 +26,6 @@ class Album {
     );
   }
 
-  get artistName => null;
+  // Fixed: Return the actual artist name instead of null
+  String get artistName => artist;
 }
