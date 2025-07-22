@@ -10,7 +10,7 @@ import 'screens/mymusic_screen.dart';
 import 'screens/order_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/welcome_screen.dart';
-import 'screens/emailverification_screen.dart';
+import 'screens/email_verification_screen.dart';
 import 'models/order_model.dart';
 import 'widgets/app_bar_widget.dart';
 import 'widgets/bottom_navigation_widget.dart';
@@ -196,7 +196,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: 'DISSONANT'),
+      appBar: CustomAppBarWidget(title: 'DISSONANT'),
       body: IndexedStack(
         index: _selectedIndex,
         children: [

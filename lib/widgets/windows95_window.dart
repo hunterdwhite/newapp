@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-class Windows95Window extends StatelessWidget {
+class Windows95WindowWidget extends StatelessWidget {
   final String? title;
   final Widget? titleWidget;
   final bool showCloseButton;
@@ -12,7 +12,7 @@ class Windows95Window extends StatelessWidget {
   final Color backgroundColor; // Background color for the entire window
   final Color? contentBackgroundColor; // Background color for the content area
 
-  const Windows95Window({
+  const Windows95WindowWidget({
     Key? key,
     this.title,
     this.titleWidget,

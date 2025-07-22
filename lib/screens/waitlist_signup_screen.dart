@@ -123,7 +123,7 @@ class _WaitlistSignUpScreenState extends State<WaitlistSignUpScreen> {
                                 isFlat: true,
                               ),
                               SizedBox(height: 16.0),
-                              CustomRetroButton(
+                              CustomRetroButtonWidget(
                                 text: 'Join Waitlist',
                                 onPressed: _submitWaitlist,
                                 color: Color(0xFFD24407),

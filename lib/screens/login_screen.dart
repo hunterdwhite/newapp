@@ -262,7 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ],
                                   ),
                                   SizedBox(height: 8.0),
-                                  CustomRetroButton(
+                                  CustomRetroButtonWidget(
                                     text: 'Log in',
                                     onPressed: _isLoading ? null : _login,
                                     color: Color(
@@ -450,7 +450,7 @@ class CustomRetroButton extends StatelessWidget {
   final bool fixedHeight;
   final Color shadowColor; // Custom shadow color
 
-  const CustomRetroButton({
+  const CustomRetroButtonWidget({
     required this.text,
     required this.onPressed,
     this.color = const Color(0xFFD24407), // Updated color for the Log in button

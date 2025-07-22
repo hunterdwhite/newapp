@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../models/album.dart';
+import '../models/album_model.dart';
 import '../widgets/app_bar_widget.dart';
 import '../widgets/dialog/genre_selection_dialog.dart';
 import '../widgets/dialog/review_dialog.dart';
@@ -18,19 +18,19 @@ import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
 import 'public_profile_screen.dart';
 
-class AlbumDetailsScreen extends StatefulWidget {
+class AlbumDetailScreen extends StatefulWidget {
   final Album album;
 
-  const AlbumDetailsScreen({
+  const AlbumDetailScreen({
     Key? key,
     required this.album,
   }) : super(key: key);
 
   @override
-  _AlbumDetailsScreenState createState() => _AlbumDetailsScreenState();
+  _AlbumDetailScreenState createState() => _AlbumDetailScreenState();
 }
 
-class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
+class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
   String? _currentUserId;
@@ -755,14 +755,14 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: SafeArea(
           child: Column(
             children: [
               // Top window: album cover & details
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Windows95Window(
+                child: Windows95WindowWidget(
                   showTitleBar: true,
                   title: 'Album Details',
                   contentBackgroundColor: Color(0xFFC0C0C0),
@@ -772,11 +772,11 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       // Album Cover (no title bar)
                       Expanded(
                         flex: 1,
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: false,
                           contentPadding: EdgeInsets.zero,
                           contentBackgroundColor: Color(0xFFC0C0C0),
-                          child: CustomAlbumImage(
+                          child: CustomAlbumImageWidget(
                             imageUrl: widget.album.albumImageUrl,
                             fit: BoxFit.contain,
                           ),
@@ -816,7 +816,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     children: [
                       // Genres window
                       Expanded(
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Genres',
                           contentBackgroundColor: Color(0xFFC0C0C0),
@@ -829,7 +829,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       SizedBox(width: 8.0),
                       // Counter window
                       Expanded(
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Counter',
                           contentBackgroundColor: Color(0xFFC0C0C0),
@@ -848,7 +848,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Windows95Window(
+                  child: Windows95WindowWidget(
                     showTitleBar: true,
                     titleWidget: Row(
                       children: [

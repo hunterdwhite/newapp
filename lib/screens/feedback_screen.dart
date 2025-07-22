@@ -59,7 +59,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(), // Dismiss keyboard when tapping outside
           child: Padding(

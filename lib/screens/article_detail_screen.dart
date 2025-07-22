@@ -24,7 +24,7 @@ class ArticleDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
       ),
-      body: BackgroundWidget( // Wrap the content with GrainyBackgroundWidget
+      body: GrainyBackgroundWidget( // Wrap the content with GrainyBackgroundWidget
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(16.0),

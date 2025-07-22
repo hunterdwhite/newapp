@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path/path.dart' as path;
 
-class CustomAlbumImage extends StatelessWidget {
+class CustomAlbumImageWidget extends StatelessWidget {
   final String imageUrl;
   final BoxFit fit;
 
-  const CustomAlbumImage({
+  const CustomAlbumImageWidget({
     Key? key,
     required this.imageUrl,
     this.fit = BoxFit.contain,

@@ -146,7 +146,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     if (_orderReturned) {
       // If the order status is 'returned', show the specific message
       return Scaffold(
-        body: BackgroundWidget(
+        body: GrainyBackgroundWidget(
           child: Center(
             child: Text(
               "Once we receive your album you'll be able to order another!",
@@ -159,7 +159,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     } else if (_returnConfirmed || _orderKept || !_hasOrdered) {
       // If there's no order or status is 'returnedConfirmed' or 'kept', show a message
       return Scaffold(
-        body: BackgroundWidget(
+        body: GrainyBackgroundWidget(
           child: Center(
             child: Text(
               'Order an album to see your music show up here.',
@@ -172,7 +172,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     }
 
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Column(
@@ -299,7 +299,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: RetroButton(
+                            child: RetroButtonWidget(
                               text: 'Return Album',
                               onPressed: () {
                                 Navigator.push(
@@ -321,7 +321,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                           ),
                           SizedBox(width: 20.0),
                           Expanded(
-                            child: RetroButton(
+                            child: RetroButtonWidget(
                               text: 'Keep Album',
                               onPressed: () async {
                                 final result = await Navigator.push(
