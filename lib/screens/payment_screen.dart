@@ -203,8 +203,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     // For old flow (flowVersion != 2), the UI shows price and payment step.
     // For new flow (flowVersion == 2), we remove price and payment, and only show the "Keep Album" option.
     return Scaffold(
-      appBar: CustomAppBar(title: 'Keep Your Album'),
-      body: BackgroundWidget(
+      appBar: CustomAppBarWidget(title: 'Keep Your Album'),
+      body: GrainyBackgroundWidget(
         child: _isProcessing || _isLoading
             ? Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
@@ -278,7 +278,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         SizedBox(height: 20.0),
                         // Conditional UI:
                         _flowVersion == 2
-                            ? RetroButton(
+                            ? RetroButtonWidget(
                                 text: 'Keep Album',
                                 onPressed: _keepAlbum,
                                 style: RetroButtonStyle.light,
@@ -296,7 +296,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                     ),
                                   ),
                                   SizedBox(width: 20.0),
-                                  RetroButton(
+                                  RetroButtonWidget(
                                     text: 'Purchase',
                                     onPressed: _processPayment,
                                     style: RetroButtonStyle.light,

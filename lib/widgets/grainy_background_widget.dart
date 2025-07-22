@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-class BackgroundWidget extends StatelessWidget {
+class GrainyBackgroundWidget extends StatelessWidget {
   final Widget child;
 
-  const BackgroundWidget({Key? key, required this.child}) : super(key: key);
+  const GrainyGrainyBackgroundWidget({Key? key, required this.child}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

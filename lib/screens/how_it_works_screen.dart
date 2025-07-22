@@ -91,7 +91,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
               ],
             )
           : null,
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: Column(
           children: [
             Expanded(
@@ -145,7 +145,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
           ),
           if (index == steps.length - 1) ...[
             SizedBox(height: 40),
-            RetroButton(
+            RetroButtonWidget(
               onPressed: _enterHomePage,
               text: 'Enter Dissonant',
               style: RetroButtonStyle.light,
