@@ -10,6 +10,7 @@ import '../services/payment_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'home_screen.dart';
 
 // Add this import for XML parsing
 import 'package:xml/xml.dart' as xml;
@@ -494,6 +495,9 @@ class _OrderScreenState extends State<OrderScreen> {
       if (_hasFreeOrder) {
         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
         await _firestoreService.updateUserDoc(uid, {'freeOrder': false});
+        
+        // Award 1 credit for placing an order
+        await HomeScreen.addFreeOrderCredits(uid, 1);
 
         if (!mounted) return;
         setState(() {
@@ -529,6 +533,9 @@ class _OrderScreenState extends State<OrderScreen> {
 
         print('Payment completed successfully.');
         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+        
+        // Award 1 credit for placing an order
+        await HomeScreen.addFreeOrderCredits(uid, 1);
 
         if (!mounted) return;
         setState(() {

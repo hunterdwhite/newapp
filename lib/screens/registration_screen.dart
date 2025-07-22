@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../routes.dart';
 import '/services/firestore_service.dart';
+import '/services/referral_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   @override
@@ -21,6 +22,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String password = '';
   String confirmPassword = '';
   String country = 'United States';
+  String referralCode = '';
   bool isLoading = false;
   String errorMessage = '';
 
@@ -80,11 +82,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         // This will create the main user document and the public profile document
         await _firestoreService.addUser(user.uid, username, email, country);
 
+        // Step 6: Process referral code if provided
+        if (referralCode.trim().isNotEmpty) {
+          bool referralProcessed = await ReferralService.processReferral(
+            referralCode.trim(), 
+            user.uid
+          );
+          if (!referralProcessed) {
+            // Referral code was invalid, but don't fail registration
+            print('Invalid referral code: $referralCode');
+          }
+        }
+
         setState(() {
           isLoading = false;
         });
 
-        // Step 6: Navigate to the email verification screen
+        // Step 7: Navigate to the email verification screen
         Navigator.pushReplacementNamed(context, emailVerificationRoute);
       } on FirebaseAuthException catch (e) {
         setState(() {
@@ -296,6 +310,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                   SizedBox(height: 8.0),
                                   Text(
                                     'We currently only support users in the United States.',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                  SizedBox(height: 16.0),
+                                  CustomTextField(
+                                    labelText: "Referral Code (Optional)",
+                                    textColor: Colors.black,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        referralCode = value;
+                                      });
+                                    },
+                                    isFlat: true,
+                                  ),
+                                  SizedBox(height: 8.0),
+                                  Text(
+                                    'Have a friend already using DISSONANT? Enter their referral code to earn them a credit!',
                                     style: TextStyle(fontSize: 12, color: Colors.grey),
                                   ),
                                   SizedBox(height: 16.0),

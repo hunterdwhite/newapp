@@ -55,7 +55,9 @@ dependencies:
   url_launcher: ^6.3.1
   oauth1: ^2.1.0
   webview_flutter: ^4.0.0
-  video_player: ^2.9.5  
+  video_player: ^2.9.5
+  in_app_review: ^2.0.9
+  share_plus: ^10.1.2  
 
 
 
@@ -115,6 +117,8 @@ flutter:
     - assets/spineasset.png
     - assets/spineasset1.png
     - assets/spineasset2.png
+    - assets/dissonantordericon.png
+    - assets/communitycuratoricon.png
 
     - assets/waitlistwelcome.png
     - assets/discogs_logo.png
