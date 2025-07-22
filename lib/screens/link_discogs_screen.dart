@@ -151,7 +151,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Link Discogs')),
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _alreadyLinked
@@ -168,7 +168,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
-                          RetroButton(
+                          RetroButtonWidget(
                             text: 'Relink Discogs Account',
                             style: RetroButtonStyle.dark,
                             leading: Image.asset('assets/discogs_logo.png', height: 20, width: 20),
@@ -198,7 +198,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            RetroButton(
+                            RetroButtonWidget(
                               text: 'Submit PIN',
                               style: RetroButtonStyle.dark,
                               leading: Image.asset('assets/discogs_logo.png', height: 20, width: 20),

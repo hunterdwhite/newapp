@@ -9,8 +9,8 @@ import 'package:video_player/video_player.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
 import '../services/firestore_service.dart';
-import '../models/album.dart';
-import '../models/feed_item.dart';
+import '../models/album_model.dart';
+import '../models/feed_item_model.dart';
 import 'feed_screen.dart';
 import 'album_detail_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
@@ -681,7 +681,7 @@ Widget _buildLatestAlbumsStrip() {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: SafeArea(
           child: _pageReady
               ? LayoutBuilder(

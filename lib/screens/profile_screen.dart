@@ -193,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.black,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : BackgroundWidget(
+          : GrainyBackgroundWidget(
               child: SafeArea(
                 child: SingleChildScrollView(
                   padding:
