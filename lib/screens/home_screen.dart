@@ -13,6 +13,7 @@ import '../models/album.dart';
 import '../models/feed_item.dart';
 import 'feed_screen.dart';
 import 'album_detail_screen.dart';
+import 'earn_credits_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
 
 class HomeScreen extends StatefulWidget {
@@ -20,6 +21,79 @@ class HomeScreen extends StatefulWidget {
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
+
+  // Helper method for when a free order is used (can be called from order screen)
+  static Future<void> useFreeOrder(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data() ?? {};
+        final int currentFreeOrders = data['freeOrdersAvailable'] ?? 0;
+        
+        if (currentFreeOrders > 0) {
+          final int newFreeOrders = currentFreeOrders - 1;
+          
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .update({
+            'freeOrdersAvailable': newFreeOrders,
+            'freeOrder': newFreeOrders > 0, // Only true if still have free orders left
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error using free order: $e');
+    }
+  }
+
+  // Helper method to add credits (can be called when user completes actions)
+  static Future<void> addFreeOrderCredits(String userId, int creditsToAdd) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data() ?? {};
+        final int currentCredits = data['freeOrderCredits'] ?? 0;
+        final int currentFreeOrders = data['freeOrdersAvailable'] ?? 0;
+        
+        final int newTotalCredits = currentCredits + creditsToAdd;
+        
+        if (newTotalCredits >= 5) {
+          // Convert credits to free orders
+          final int newFreeOrdersEarned = newTotalCredits ~/ 5;
+          final int remainingCredits = newTotalCredits % 5;
+          final int totalFreeOrders = currentFreeOrders + newFreeOrdersEarned;
+          
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .update({
+            'freeOrderCredits': remainingCredits,
+            'freeOrdersAvailable': totalFreeOrders,
+            'freeOrder': totalFreeOrders > 0,
+          });
+        } else {
+          // Just add the credits
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .update({
+            'freeOrderCredits': newTotalCredits,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error adding free order credits: $e');
+    }
+  }
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -40,6 +114,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /* ─────────────────────────  USERNAME  ─────────────────────── */
   String? _username;
 
+  /* ─────────────────────────  FREE ORDER BAR  ─────────────────────── */
+  int _freeOrderCredits = 0;
+  int _freeOrdersAvailable = 0;
+  bool _creditsLoading = true;
+
   late VideoPlayerController _videoController;
   bool _videoInitialized = false;
 
@@ -56,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadAnnouncements();
     _fetchLatestAlbums();
+    _fetchFreeOrderCredits();
     _startAutoScroll();
     _videoController = VideoPlayerController.asset(
       'assets/littleguy.mp4',
@@ -262,24 +342,211 @@ Future<void> _fetchLatestAlbums() async {
   _checkIfPageReady();
 }
 
+Future<void> _fetchFreeOrderCredits() async {
+  if (!mounted) return;
+  setState(() => _creditsLoading = true);
 
- Widget _buildLittleGuyWidget() {
-  if (!_videoInitialized) return const SizedBox.shrink();
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data() ?? {};
+        int credits = data['freeOrderCredits'] ?? 0;
+        
+        // Check if we need to convert credits to free orders
+        if (credits >= 5) {
+          final int newFreeOrders = credits ~/ 5; // How many complete sets of 5
+          final int remainingCredits = credits % 5; // Leftover credits
+          
+          // Update Firestore with the new values
+          await _convertCreditsToFreeOrders(user.uid, newFreeOrders, remainingCredits, data);
+          
+          // Update local state
+          setState(() {
+            _freeOrderCredits = remainingCredits;
+            _freeOrdersAvailable = (data['freeOrdersAvailable'] ?? 0) + newFreeOrders;
+            _creditsLoading = false;
+          });
+        } else {
+          setState(() {
+            _freeOrderCredits = credits;
+            _freeOrdersAvailable = data['freeOrdersAvailable'] ?? 0;
+            _creditsLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _freeOrderCredits = 0;
+          _freeOrdersAvailable = 0;
+          _creditsLoading = false;
+        });
+      }
+    } else {
+      setState(() {
+        _freeOrderCredits = 0;
+        _freeOrdersAvailable = 0;
+        _creditsLoading = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error loading free order credits: $e');
+    setState(() {
+      _freeOrderCredits = 0;
+      _freeOrdersAvailable = 0;
+      _creditsLoading = false;
+    });
+  }
+
+  _checkIfPageReady();
+}
+
+Future<void> _convertCreditsToFreeOrders(String userId, int newFreeOrders, int remainingCredits, Map<String, dynamic> currentData) async {
+  try {
+    final int currentFreeOrders = currentData['freeOrdersAvailable'] ?? 0;
+    final int totalFreeOrders = currentFreeOrders + newFreeOrders;
+    
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .update({
+      'freeOrderCredits': remainingCredits,
+      'freeOrdersAvailable': totalFreeOrders,
+      'freeOrder': totalFreeOrders > 0, // Set to true if any free orders available
+    });
+  } catch (e) {
+    debugPrint('Error converting credits to free orders: $e');
+  }
+}
+
+
+
+Widget _buildFreeOrderBar() {
+  if (_creditsLoading) {
+    return const SizedBox(
+      height: 150,
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  final int creditsNeeded = 5 - _freeOrderCredits;
+  final int filledPartitions = _freeOrderCredits;
 
   return Padding(
     padding: const EdgeInsets.all(16),
-    child: _buildCascadingWindow(
+    child: GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const EarnCreditsScreen()),
+        );
+      },
       child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(8),
-        child: AspectRatio(
-          aspectRatio: _videoController.value.aspectRatio,
-          child: VideoPlayer(_videoController),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          border: Border.all(color: Colors.white, width: 1),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Available free orders (if any)
+            if (_freeOrdersAvailable > 0) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA500),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: Text(
+                  _freeOrdersAvailable == 1 
+                      ? 'You have 1 free order available!'
+                      : 'You have $_freeOrdersAvailable free orders available!',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            
+            // Progress toward next free order
+            Text(
+              '$creditsNeeded credits until next free order',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            
+            // Progress bar with 5 partitions
+            Container(
+              height: 24,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              child: Row(
+                children: List.generate(5, (index) {
+                  final bool isFilled = index < filledPartitions;
+                  return Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isFilled ? const Color(0xFFFFA500) : Colors.transparent,
+                        border: index < 4 
+                            ? const Border(right: BorderSide(color: Colors.white, width: 1))
+                            : null,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Text below the bar
+            const Text(
+              'Click to earn free credits',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     ),
   );
 }
+
+ // Widget _buildLittleGuyWidget() {
+ //   if (!_videoInitialized) return const SizedBox.shrink();
+
+ //   return Padding(
+ //     padding: const EdgeInsets.all(16),
+ //     child: _buildCascadingWindow(
+ //       child: Container(
+ //         color: Colors.white,
+ //         padding: const EdgeInsets.all(8),
+ //         child: AspectRatio(
+ //           aspectRatio: _videoController.value.aspectRatio,
+ //           child: VideoPlayer(_videoController),
+ //         ),
+ //       ),
+ //     ),
+ //   );
+ // }
 
   /* ==========  WIDGET BUILDERS  ========== */
   Widget _buildNewsCarousel() {
@@ -669,7 +936,7 @@ Widget _buildLatestAlbumsStrip() {
 
   void _checkIfPageReady() {
     if (!mounted) return;
-    if (!_newsLoading && !_latestLoading) {
+    if (!_newsLoading && !_latestLoading && !_creditsLoading) {
       setState(() {
         _pageReady = true;
       });
@@ -701,7 +968,7 @@ Widget _buildLatestAlbumsStrip() {
                                 const SizedBox(height: 24),
                                 _buildNewsCarousel(),
                                 _buildLatestAlbumsStrip(),
-                                _buildLittleGuyWidget(),
+                                _buildFreeOrderBar(),
                                 const SizedBox(height: 24),
                               ],
                             ),

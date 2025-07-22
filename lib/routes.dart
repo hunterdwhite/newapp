@@ -1,5 +1,6 @@
 const String homeRoute = '/home';
 const String orderRoute = '/order';
+const String curatorRoute = '/curator';
 const String myMusicRoute = '/mymusic';
 const String profileRoute = '/profile';
 const String loginRoute = '/login';

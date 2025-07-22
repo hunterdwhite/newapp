@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'referral_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -333,6 +334,14 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
   }
 
   Future<void> addOrder(String userId, String address, {int flowVersion = 1,}) async {
+    // Check if this is the user's first order
+    QuerySnapshot existingOrders = await _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .get();
+    
+    bool isFirstOrder = existingOrders.docs.isEmpty;
+
     await _firestore.collection('orders').add({
       'userId': userId,
       'address': address,
@@ -347,6 +356,16 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
       'hasOrdered': true,
       'updatedAt': FieldValue.serverTimestamp(), // Added updatedAt timestamp
     });
+
+    // If this is the user's first order and they were referred, award referral credits
+    if (isFirstOrder) {
+      try {
+        await ReferralService.processReferredUserFirstOrder(userId);
+      } catch (e) {
+        print('Error processing referral first order: $e');
+        // Don't fail the order creation if referral processing fails
+      }
+    }
   }
 
 // For retrieving the user document

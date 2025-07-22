@@ -109,7 +109,11 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
               children: [
                 Expanded(
                   child: _buildOrderOption(
-                    icon: Icons.album,
+                    icon: Image.asset(
+                      'assets/dissonantordericon.png',
+                      width: 64,
+                      height: 64,
+                    ),
                     title: 'Dissonant',
                     subtitle: 'Curated by us',
                     onTap: () {
@@ -126,7 +130,11 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                 SizedBox(width: 24.0),
                 Expanded(
                   child: _buildOrderOption(
-                    icon: Icons.people,
+                    icon: Image.asset(
+                      'assets/communitycuratoricon.png',
+                      width: 64,
+                      height: 64,
+                    ),
                     title: 'Community\nCurators',
                     subtitle: 'Coming soon',
                     onTap: null,
@@ -142,7 +150,7 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
   }
 
   Widget _buildOrderOption({
-    required IconData icon,
+    required Widget icon,
     required String title,
     required String subtitle,
     required VoidCallback? onTap,
@@ -163,11 +171,7 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 64,
-              color: isEnabled ? Colors.orangeAccent : Colors.grey,
-            ),
+            icon,
             SizedBox(height: 16),
             Text(
               title,
