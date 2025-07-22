@@ -67,7 +67,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       body: Stack(
         children: [
           // Background
-          GrainyBackgroundWidget(),
+          GrainyBackgroundWidget(
+            child: Container(), // Empty container as background
+          ),
           
           // Content
           SafeArea(

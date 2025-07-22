@@ -4,7 +4,7 @@ import 'package:dissonantapp2/screens/taste_profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // Removed flutter_secure_storage as it's no longer used
-import 'emailverification_screen.dart';
+import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -443,7 +443,7 @@ class CustomTextField extends StatelessWidget {
 }
 
 // Updated CustomRetroButton to handle disabled state
-class CustomRetroButton extends StatelessWidget {
+class CustomRetroButtonWidget extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed; // Made nullable to handle disabled state
   final Color color;

@@ -1,6 +1,7 @@
 import 'package:dissonantapp2/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/waitlist_service.dart';
+import '../widgets/retro_button_widget.dart';
 
 
 class WaitlistSignUpScreen extends StatefulWidget {
@@ -123,10 +124,10 @@ class _WaitlistSignUpScreenState extends State<WaitlistSignUpScreen> {
                                 isFlat: true,
                               ),
                               SizedBox(height: 16.0),
-                              CustomRetroButtonWidget(
+                              RetroButtonWidget(
                                 text: 'Join Waitlist',
                                 onPressed: _submitWaitlist,
-                                color: Color(0xFFD24407),
+                                style: RetroButtonStyle.dark,
                                 fixedHeight: true,
                               ),
                             ],

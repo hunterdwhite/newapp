@@ -54,7 +54,7 @@ class _CuratorScreenState extends State<CuratorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -89,7 +89,7 @@ class _CuratorScreenState extends State<CuratorScreen> {
                 if (_isLoading)
                   const CircularProgressIndicator()
                 else ...[
-                  RetroButton(
+                  RetroButtonWidget(
                     text: 'Become Curator',
                     onPressed: _canBecomeCurator ? _becomeCurator : null,
                     style: _canBecomeCurator 
