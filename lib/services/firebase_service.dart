@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'base_service.dart';
 
-class FirebaseService {
+class FirebaseService extends BaseService {
+  @override
+  String get serviceName => 'FirebaseService';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<void> addOrder(String userId, String address) async {

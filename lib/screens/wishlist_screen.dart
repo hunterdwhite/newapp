@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:oauth1/oauth1.dart' as oauth1;
 import '../widgets/grainy_background_widget.dart';
-import '../models/album.dart';
+import '../models/album_model.dart';
 import 'album_detail_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
@@ -215,7 +215,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
             ],
           ),
         ),
-        body: BackgroundWidget(
+        body: GrainyBackgroundWidget(
           child: TabBarView(
             children: [
               _buildLocalTabContent(),
@@ -280,7 +280,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AlbumDetailsScreen(album: album),
+                builder: (_) => AlbumDetailScreen(album: album),
               ),
             );
           },

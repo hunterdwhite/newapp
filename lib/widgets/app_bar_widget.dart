@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../screens/how_it_works_screen.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CustomAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final String title;
 
-  const CustomAppBar({Key? key, required this.title}) : super(key: key);
+  const CustomAppBarWidget({Key? key, required this.title}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

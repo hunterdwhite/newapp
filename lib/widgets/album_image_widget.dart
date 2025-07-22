@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path/path.dart' as path;
 
-class CustomAlbumImage extends StatelessWidget {
+class CustomAlbumImageWidget extends StatelessWidget {
   final String imageUrl;
   final BoxFit fit;
 
-  const CustomAlbumImage({
+  const CustomAlbumImageWidget({
     Key? key,
     required this.imageUrl,
     this.fit = BoxFit.contain,
@@ -19,10 +19,14 @@ class CustomAlbumImage extends StatelessWidget {
     try {
       Uri uri = Uri.parse(url);
       String extension = path.extension(uri.path).toLowerCase(); // e.g., '.png'
-      print('Parsed extension: $extension for URL: $url'); // Debug log
+      // Removed debug print statement for production
       return (extension == '.jpg' || extension == '.jpeg' || extension == '.png');
     } catch (e) {
-      print('Error parsing image URL: $url, error: $e');
+      // Only print errors in debug mode (this would be better handled with proper logging)
+      assert(() {
+        print('Error parsing image URL: $url, error: $e');
+        return true;
+      }());
       return false;
     }
   }
@@ -33,7 +37,7 @@ class CustomAlbumImage extends StatelessWidget {
     bool isSupported = isSupportedImageFormat(imageUrl);
 
     if (!isSupported) {
-      print('Unsupported image format for URL: $imageUrl');
+      // Removed debug print statement for production
       // Return a fallback image
       return Image.asset(
         'assets/blank_cd.png', // Ensure this image exists in your assets
@@ -47,7 +51,11 @@ class CustomAlbumImage extends StatelessWidget {
             fit: fit,
             placeholder: (context, url) => Center(child: CircularProgressIndicator()),
             errorWidget: (context, url, error) {
-              print('Error loading image from $url: $error');
+              // Only print errors in debug mode
+              assert(() {
+                print('Error loading image from $url: $error');
+                return true;
+              }());
               return Image.asset(
                 'assets/blank_cd.png', // Fallback image
                 fit: fit,
