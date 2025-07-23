@@ -276,43 +276,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                     isFlat: true,
                                   ),
                                   SizedBox(height: 12.0),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      labelText: 'Country of Residence',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      fillColor: Colors.white,
-                                      filled: true,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    value: country,
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: 'United States',
-                                        child: Text(
-                                          'United States',
-                                          style: TextStyle(color: Colors.black),
-                                        ),
-                                      ),
-                                    ],
-                                    onChanged: (String? newValue) {
-                                      setState(() {
-                                        country = newValue!;
-                                      });
-                                    },
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                  SizedBox(height: 8.0),
-                                  Text(
-                                    'We currently only support users in the United States.',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                  SizedBox(height: 16.0),
                                   CustomTextField(
                                     labelText: "Referral Code (Optional)",
                                     textColor: Colors.black,

@@ -25,6 +25,7 @@ class _CuratorScreenState extends State<CuratorScreen> {
   Future<void> _checkCuratorEligibility() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _canBecomeCurator = false;
@@ -38,12 +39,14 @@ class _CuratorScreenState extends State<CuratorScreen> {
       final albumsKept = stats['albumsKept'] ?? 0;
       final albumsSentBack = stats['albumsSentBack'] ?? 0;
       
+      if (!mounted) return;
       setState(() {
         _canBecomeCurator = (albumsKept + albumsSentBack) > 0;
         _isLoading = false;
       });
     } catch (e) {
       print('Error checking curator eligibility: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _canBecomeCurator = false;

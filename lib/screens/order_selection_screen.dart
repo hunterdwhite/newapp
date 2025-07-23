@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/grainy_background_widget.dart';
 import 'order_screen.dart';
+import '../main.dart';
 
 class OrderSelectionScreen extends StatefulWidget {
   @override
@@ -117,8 +118,7 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                     title: 'Dissonant',
                     subtitle: 'Curated by us',
                     onTap: () {
-                      Navigator.push(
-                        context,
+                      MyHomePage.of(context)?.pushInOrderTab(
                         MaterialPageRoute(
                           builder: (context) => OrderScreen(),
                         ),
