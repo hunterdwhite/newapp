@@ -1,5 +1,6 @@
 // lib/services/performance_service.dart
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_performance/firebase_performance.dart';
@@ -208,7 +209,3 @@ class PerformanceService {
     };
   }
 }
-
-// Import required packages
-import 'dart:async';
-import 'package:firebase_performance/firebase_performance.dart';
