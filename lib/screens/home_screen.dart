@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     _newsController.addListener(() {
       final page = _newsController.page?.round() ?? 0;
-      if (_currentPage != page) {
+      if (_currentPage != page && mounted) {
         setState(() {
           _currentPage = page;
         });
@@ -157,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _autoScrollTimer?.cancel();
     _newsController.dispose();
-    _videoController.dispose(); // ← this line is missing
+    _videoController.dispose();
     super.dispose();
   }
 
@@ -259,6 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _checkIfPageReady();
     } catch (e) {
       debugPrint('Error loading announcements: $e');
+      if (!mounted) return;
       setState(() {
         _newsLoading = false;
       });
@@ -268,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startAutoScroll() {
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (!_newsController.hasClients || _newsItems.length < 2) return;
+      if (!mounted || !_newsController.hasClients || _newsItems.length < 2) return;
       final next = (_newsController.page ?? 0).round() + 1;
       final target = next >= _newsItems.length ? 0 : next;
       _newsController.animateToPage(
@@ -330,12 +331,14 @@ Future<void> _fetchLatestAlbums() async {
       );
     }
 
+    if (!mounted) return;
     setState(() {
       _latestFeedItems = items;
       _latestLoading   = false;
     });
   } catch (e) {
     debugPrint('Error loading latest albums: $e');
+    if (!mounted) return;
     setState(() => _latestLoading = false);
   }
 
@@ -367,12 +370,14 @@ Future<void> _fetchFreeOrderCredits() async {
           await _convertCreditsToFreeOrders(user.uid, newFreeOrders, remainingCredits, data);
           
           // Update local state
+          if (!mounted) return;
           setState(() {
             _freeOrderCredits = remainingCredits;
             _freeOrdersAvailable = (data['freeOrdersAvailable'] ?? 0) + newFreeOrders;
             _creditsLoading = false;
           });
         } else {
+          if (!mounted) return;
           setState(() {
             _freeOrderCredits = credits;
             _freeOrdersAvailable = data['freeOrdersAvailable'] ?? 0;
@@ -380,6 +385,7 @@ Future<void> _fetchFreeOrderCredits() async {
           });
         }
       } else {
+        if (!mounted) return;
         setState(() {
           _freeOrderCredits = 0;
           _freeOrdersAvailable = 0;
@@ -387,6 +393,7 @@ Future<void> _fetchFreeOrderCredits() async {
         });
       }
     } else {
+      if (!mounted) return;
       setState(() {
         _freeOrderCredits = 0;
         _freeOrdersAvailable = 0;
@@ -395,6 +402,7 @@ Future<void> _fetchFreeOrderCredits() async {
     }
   } catch (e) {
     debugPrint('Error loading free order credits: $e');
+    if (!mounted) return;
     setState(() {
       _freeOrderCredits = 0;
       _freeOrdersAvailable = 0;

@@ -162,20 +162,25 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
 
-  // ─── NEW: navigator dedicated to the Home tab ────────────────
+  // ─── Navigators for tabs that need sub-navigation ────────────────
   final GlobalKey<NavigatorState> _homeNavigatorKey =
+      GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _orderNavigatorKey =
       GlobalKey<NavigatorState>();
 
   final List<Widget> _plainPages = [
-    OrderSelectionScreen(),
     const CuratorScreen(),
     MyMusicScreen(),
     ProfileScreen(),
   ];
 
-  // ─── NEW: helper so HomeScreen can push while keeping the bar ─
+  // ─── Helpers for tab navigation ─
   Future<T?> pushInHomeTab<T>(Route<T> route) {
     return _homeNavigatorKey.currentState!.push(route);
+  }
+
+  Future<T?> pushInOrderTab<T>(Route<T> route) {
+    return _orderNavigatorKey.currentState!.push(route);
   }
 
   static _MyHomePageState? of(BuildContext context) =>
@@ -185,8 +190,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (index == _selectedIndex) {
       // ▸ already on that tab
       if (index == 0) {
-        // ▸ and it’s the Home tab → pop to its first route
+        // ▸ Home tab → pop to its first route
         _homeNavigatorKey.currentState
+            ?.popUntil((route) => route.isFirst);
+      } else if (index == 1) {
+        // ▸ Order tab → pop to its first route
+        _orderNavigatorKey.currentState
             ?.popUntil((route) => route.isFirst);
       }
       // ▸ for other tabs we do nothing (leave as‑is)
@@ -202,11 +211,17 @@ class _MyHomePageState extends State<MyHomePage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          // ── index 0: Home tab now owns its own Navigator ──
+          // ── index 0: Home tab with its own Navigator ──
           Navigator(
             key: _homeNavigatorKey,
             onGenerateRoute: (_) =>
                 MaterialPageRoute(builder: (_) => const HomeScreen()),
+          ),
+          // ── index 1: Order tab with its own Navigator ──
+          Navigator(
+            key: _orderNavigatorKey,
+            onGenerateRoute: (_) =>
+                MaterialPageRoute(builder: (_) => OrderSelectionScreen()),
           ),
           // ── remaining tabs unchanged ────────────────────────
           ..._plainPages,

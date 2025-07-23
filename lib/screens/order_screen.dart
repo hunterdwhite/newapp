@@ -5,12 +5,14 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import '../services/firestore_service.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
+import '../widgets/app_bar_widget.dart';
 import 'package:keyboard_actions/keyboard_actions.dart';
 import '../services/payment_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'home_screen.dart';
+import 'how_it_works_screen.dart';
 
 // Add this import for XML parsing
 import 'package:xml/xml.dart' as xml;
@@ -79,6 +81,7 @@ class _OrderScreenState extends State<OrderScreen> {
       if (userDoc != null && userDoc.exists) {
         final docData = userDoc.data() as Map<String, dynamic>?;
         if (docData != null) {
+          if (!mounted) return;
           setState(() {
             _hasFreeOrder = docData['freeOrder'] ?? false;
           });
@@ -149,7 +152,7 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     return Scaffold(
