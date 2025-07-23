@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:dissonantapp2/widgets/grainy_background_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../services/firestore_service.dart';
 import '../widgets/retro_button_widget.dart';
@@ -13,18 +12,11 @@ import 'public_profile_screen.dart';
 import 'dart:math'; // make sure this is at the top
 
 class FeedScreen extends StatefulWidget {
-  const FeedScreen({Key? key}) : super(key: key);
-
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
+  _FeedScreenState createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> 
-    with AutomaticKeepAliveClientMixin {
-  
-  @override
-  bool get wantKeepAlive => true;
-
+class _FeedScreenState extends State<FeedScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   // Paginated feed
@@ -33,32 +25,31 @@ class _FeedScreenState extends State<FeedScreen>
   bool _isFetchingMore = false;
   bool _hasMoreData = true;
   DocumentSnapshot? _lastDocument;
-  static const int _pageSize = 15; // Increased for better performance
-  
-  // Performance optimizations
-  static final Map<int, String> _spineAssetMap = {};
-  static const List<String> _spineOptions = [
+  final int _pageSize = 10;
+  // This map stores which spine asset was chosen for each spine index
+  final Map<int, String> _spineAssetMap = {};
+
+  // These are your available spine images
+  final List<String> _spineOptions = [
     'assets/spineasset1.png',
     'assets/spineasset2.png',
   ];
-  static const List<int> _spineWeights = [80, 30];
-  static final Random _random = Random();
+
+  // Corresponding weights (e.g., 80% chance of spineasset1, 20% of spineasset2)
+  final List<int> _spineWeights = [80, 30];
+  final Random _random = Random(); // place this at the class level to reuse the same instance
 
   // Page-view controller
-  late final PageController _pageController;
+  final PageController _pageController = PageController();
   int _currentIndex = 0;
 
-  // "Stacked spines" constants
-  static const double spineHeight = 45;
-  static const int maxSpines = 5;
-
-  // Performance tracking
-  final Set<int> _visibleItems = {};
+  // “Stacked spines”
+  final double spineHeight = 45;
+  final int maxSpines = 5;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     _fetchInitialFeedItems();
     _pageController.addListener(_onPageChanged);
   }
@@ -70,32 +61,20 @@ class _FeedScreenState extends State<FeedScreen>
     super.dispose();
   }
 
-  /* ─────────────────────────── DATA LAYER (Optimized) ─────────────────────────── */
+  /* ─────────────────────────── DATA LAYER ─────────────────────────── */
 
   void _onPageChanged() {
-    if (!_pageController.hasClients) return;
-    
     final newIndex = _pageController.page?.round() ?? 0;
     if (newIndex != _currentIndex && newIndex < _feedItems.length) {
       setState(() => _currentIndex = newIndex);
 
-      // Prefetch more data when approaching end
-      if (newIndex >= _feedItems.length - 3 && _hasMoreData && !_isFetchingMore) {
+      if (newIndex >= _feedItems.length - 2 && _hasMoreData) {
         _fetchMoreFeedItems();
-      }
-
-      // Preload next image for smoother scrolling
-      if (newIndex + 1 < _feedItems.length) {
-        precacheImage(
-          NetworkImage(_feedItems[newIndex + 1].album.albumImageUrl),
-          context,
-        );
       }
     }
   }
 
   Future<void> _fetchInitialFeedItems() async {
-    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
@@ -117,27 +96,24 @@ class _FeedScreenState extends State<FeedScreen>
         _hasMoreData = snap.docs.length == _pageSize;
       });
 
-      // Preload first few images
-      _preloadInitialImages();
+      if (_feedItems.isNotEmpty) {
+        precacheImage(
+          NetworkImage(_feedItems.first.album.albumImageUrl),
+          context,
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showErrorSnackBar('Error loading feed items: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading feed items: $e')),
+        );
       }
     }
   }
 
-  void _preloadInitialImages() {
-    for (int i = 0; i < _feedItems.length && i < 3; i++) {
-      precacheImage(
-        NetworkImage(_feedItems[i].album.albumImageUrl),
-        context,
-      );
-    }
-  }
-
   Future<void> _fetchMoreFeedItems() async {
-    if (_isFetchingMore || !_hasMoreData || !mounted) return;
+    if (_isFetchingMore || !_hasMoreData) return;
     setState(() => _isFetchingMore = true);
 
     try {
@@ -147,9 +123,7 @@ class _FeedScreenState extends State<FeedScreen>
           .orderBy('updatedAt', descending: true)
           .limit(_pageSize);
 
-      if (_lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
+      if (_lastDocument != null) query = query.startAfterDocument(_lastDocument!);
 
       final snap = await query.get();
       if (snap.docs.isNotEmpty) _lastDocument = snap.docs.last;
@@ -165,229 +139,81 @@ class _FeedScreenState extends State<FeedScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isFetchingMore = false);
-        _showErrorSnackBar('Error loading more feed items: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading more feed items: $e')),
+        );
       }
     }
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  // Optimized batch processing
   Future<List<FeedItem>> _processOrderDocs(List<DocumentSnapshot> docs) async {
-    final List<FeedItem> items = [];
-    final Set<String> processedAlbums = {}; // Avoid duplicates
-    
-    // Batch fetch albums and users
-    final Map<String, Album> albumCache = {};
-    final Map<String, Map<String, String>> userCache = {};
+    final items = <FeedItem>[];
 
     for (final doc in docs) {
-      if (!mounted) break;
-      
-      final data = doc.data() as Map<String, dynamic>?;
-      if (data == null) continue;
+      final data = doc.data() as Map<String, dynamic>;
 
-      final albumId = data['details']?['albumId'] as String?;
-      final userId = data['userId'] as String? ?? '';
+      /* ── USER ─────────────────────────────────────────────── */
+      final userId = data['userId'] ?? '';
+      String username = 'Unknown';
+      String profilePictureUrl = '';
 
-      if (albumId == null || albumId.isEmpty || processedAlbums.contains(albumId)) {
-        continue;
+      if (userId.isNotEmpty) {
+        final userDoc =
+            await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          final u = userDoc.data() ?? {};
+          username          = u['username']          ?? username;
+          profilePictureUrl = u['profilePictureUrl'] ?? '';
+        }
       }
 
-      processedAlbums.add(albumId);
 
-      try {
-        // Get album (with caching)
-        Album? album = albumCache[albumId];
-        if (album == null) {
-          final albumDoc = await FirebaseFirestore.instance
-              .collection('albums')
-              .doc(albumId)
-              .get();
-          if (albumDoc.exists) {
-            album = Album.fromDocument(albumDoc);
-            albumCache[albumId] = album;
-          }
-        }
+      /* ── album ── */
+      final albumId = data['details']?['albumId'];
+      if (albumId == null || (albumId as String).isEmpty) continue;
 
-        if (album == null) continue;
+      final albumDoc =
+          await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
+      if (!albumDoc.exists) continue;
 
-        // Get user info (with caching)
-        Map<String, String>? userInfo = userCache[userId];
-        if (userInfo == null && userId.isNotEmpty) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .get();
-          if (userDoc.exists) {
-            final userData = userDoc.data() ?? {};
-            userInfo = {
-              'username': userData['username'] ?? 'Unknown',
-              'avatar': userData['profilePictureUrl'] ?? '',
-            };
-            userCache[userId] = userInfo;
-          }
-        }
+      final album = Album.fromDocument(albumDoc);
+      if (!isSupportedImageFormat(album.albumImageUrl)) continue;
 
-        final username = userInfo?['username'] ?? 'Unknown';
-        final avatar = userInfo?['avatar'] ?? '';
-
-        items.add(FeedItem(
+      items.add(
+        FeedItem(
           username: username,
           userId: userId,
-          status: data['status'] ?? '',
+          status: data['status'],
           album: album,
-          profilePictureUrl: avatar,
-        ));
-      } catch (e) {
-        debugPrint('Error processing album $albumId: $e');
-        continue;
-      }
+          profilePictureUrl: profilePictureUrl ,
+        ),
+      );
     }
-
     return items;
   }
 
-  /* ─────────────────────────── SPINE LOGIC (Optimized) ─────────────────────────── */
-  
-  String _getSpineAsset(int index) {
-    if (_spineAssetMap.containsKey(index)) {
-      return _spineAssetMap[index]!;
-    }
-
-    // Weighted random selection with better performance
-    final randomValue = _random.nextInt(100);
-    int cumulativeWeight = 0;
-    
-    for (int i = 0; i < _spineWeights.length; i++) {
-      cumulativeWeight += _spineWeights[i];
-      if (randomValue < cumulativeWeight) {
-        _spineAssetMap[index] = _spineOptions[i];
-        return _spineOptions[i];
-      }
-    }
-    
-    // Fallback
-    _spineAssetMap[index] = _spineOptions[0];
-    return _spineOptions[0];
+  bool isSupportedImageFormat(String url) {
+    final ext = Uri.tryParse(url)?.path.toLowerCase().split('.').last ?? '';
+    return ext == 'jpg' || ext == 'jpeg' || ext == 'png';
   }
 
-  /* ─────────────────────────── UI LAYER (Optimized) ─────────────────────────── */
+  Future<void> _addToWishlist(String albumId) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
-
-    return Scaffold(
-      body: GrainyBackgroundWidget(
-        child: _isLoading
-            ? const Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-                  ),
-                ),
-              )
-            : _feedItems.isEmpty
-                ? _buildEmptyState()
-                : _buildFeedView(),
-      ),
+    await _firestoreService.addToWishlist(
+      userId: currentUser.uid,
+      albumId: albumId,
     );
-  }
-
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.library_music,
-            size: 64,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No albums in the feed yet',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Be the first to share an album!',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-        ],
-      ),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Album added to your wishlist')),
     );
-  }
-
-  Widget _buildFeedView() {
-    return PageView.builder(
-      controller: _pageController,
-      itemCount: _feedItems.length + (_isFetchingMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index >= _feedItems.length) {
-          // Loading indicator for more items
-          return const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-              ),
-            ),
-          );
-        }
-
-        return VisibilityDetector(
-          key: Key('feed_item_$index'),
-          onVisibilityChanged: (info) {
-            if (info.visibleFraction > 0.5) {
-              _visibleItems.add(index);
-              // Preload adjacent images
-              _preloadAdjacentImages(index);
-            } else {
-              _visibleItems.remove(index);
-            }
-          },
-          child: _buildFeedItem(_feedItems[index], index),
-        );
-      },
-    );
-  }
-
-  void _preloadAdjacentImages(int currentIndex) {
-    // Preload previous and next images
-    for (int offset in [-1, 1]) {
-      final targetIndex = currentIndex + offset;
-      if (targetIndex >= 0 && targetIndex < _feedItems.length) {
-        precacheImage(
-          NetworkImage(_feedItems[targetIndex].album.albumImageUrl),
-          context,
-        );
-      }
-    }
   }
 
   /* ─────────────────────────── UI ─────────────────────────── */
 
-  Widget _buildFeedItem(FeedItem item, int index) {
+  Widget _buildFeedItem(FeedItem item) {
     final actionText = item.status == 'kept' ? 'kept' : 'returned';
     final theme = Theme.of(context);
 
@@ -582,13 +408,6 @@ Widget _buildSpines(BuildContext context) {
   );
 }
 
-
-
-
-
-
-
-
 Widget _buildSpine(FeedItem item) {
   return AspectRatio(
     aspectRatio: 7, // or adjust this based on your image’s natural dimensions
@@ -598,8 +417,6 @@ Widget _buildSpine(FeedItem item) {
     ),
   );
 }
-
-
 
 Widget _buildSpineImageOnly(FeedItem item) {
   return Image.asset(
@@ -668,20 +485,71 @@ Widget _buildAnimatedFeedItem(FeedItem item, int index) {
 
       return Opacity(
         opacity: opacity,
-        child: _buildFeedItem(item, index),
+        child: _buildFeedItem(item),
       );
     },
   );
 }
 
-  // Add to wishlist method
-  void _addToWishlist(String albumId) {
-    // TODO: Implement wishlist functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Wishlist feature coming soon!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
+  /* ─────────────────────────── build ─────────────────────────── */
+
+@override
+Widget build(BuildContext context) {
+  final mediaQuery = MediaQuery.of(context);
+  final screenHeight = mediaQuery.size.height;
+  final topPadding = mediaQuery.padding.top;
+  final bottomPadding = mediaQuery.padding.bottom;
+  final totalSpinesHeight = maxSpines * 48.0;
+
+  final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
+
+  return Scaffold(
+    body: GrainyBackgroundWidget(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: Stack(
+                children: [
+                  _buildSpines(context),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        const Text(
+                          'My Feed',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(
+                          height: feedHeight,
+                          child: PageView.builder(
+                            controller: _pageController,
+                            scrollDirection: Axis.vertical,
+                            itemCount: _feedItems.length,
+                            itemBuilder: (c, i) => _buildFeedItem(_feedItems[i]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isFetchingMore)
+                    Positioned(
+                      bottom: totalSpinesHeight + 20,
+                      left: 0,
+                      right: 0,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
+              ),
+            ),
+    ),
+  );
+}
+
 }
