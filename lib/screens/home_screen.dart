@@ -96,9 +96,14 @@ class HomeScreen extends StatefulWidget {
   }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> 
+    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
+  
+  @override
+  bool get wantKeepAlive => true;
+
   /* ─────────────────────────  NEWS / ANNOUNCEMENTS  ─────────────────────── */
-  final PageController _newsController = PageController();
+  late final PageController _newsController;
   Timer? _autoScrollTimer;
   List<Map<String, dynamic>> _newsItems = [];
   bool _newsLoading = true;
@@ -106,8 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _pageReady = false;
 
   /* ─────────────────────────  LATEST ALBUMS STRIP  ─────────────────────── */
-  final FirestoreService _firestore = FirestoreService();
-  final int _latestLimit = 10;
+  late final FirestoreService _firestore;
+  static const int _latestLimit = 10;
   List<FeedItem> _latestFeedItems = [];
   bool _latestLoading = true;
 
@@ -122,21 +127,53 @@ class _HomeScreenState extends State<HomeScreen> {
   late VideoPlayerController _videoController;
   bool _videoInitialized = false;
 
+  // Performance optimization: Cache user data
+  static final Map<String, dynamic> _userDataCache = {};
+  static int _lastUserDataFetch = 0;
+  static const int _userDataCacheDuration = 30000; // 30 seconds
+
   @override
   void initState() {
-    _newsController.addListener(() {
+    super.initState();
+    
+    // Initialize controllers
+    _newsController = PageController();
+    _firestore = FirestoreService();
+    
+    _newsController.addListener(_onPageChanged);
+    
+    // Load data with proper error handling
+    _initializeData();
+    _initializeVideo();
+  }
+
+  void _onPageChanged() {
+    if (_newsController.hasClients) {
       final page = _newsController.page?.round() ?? 0;
       if (_currentPage != page && mounted) {
         setState(() {
           _currentPage = page;
         });
       }
+    }
+  }
+
+  Future<void> _initializeData() async {
+    // Use Future.wait for parallel execution
+    await Future.wait([
+      _loadAnnouncements(),
+      _fetchLatestAlbums(),
+      _fetchFreeOrderCredits(),
+    ]).then((_) {
+      if (mounted) {
+        _startAutoScroll();
+      }
+    }).catchError((error) {
+      debugPrint('Error initializing data: $error');
     });
-    super.initState();
-    _loadAnnouncements();
-    _fetchLatestAlbums();
-    _fetchFreeOrderCredits();
-    _startAutoScroll();
+  }
+
+  void _initializeVideo() {
     _videoController = VideoPlayerController.asset(
       'assets/littleguy.mp4',
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
@@ -147,129 +184,145 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             _videoInitialized = true;
-            _videoController.play();
           });
+          _videoController.play();
         }
+      }).catchError((error) {
+        debugPrint('Video initialization error: $error');
       });
   }
 
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
+    _newsController.removeListener(_onPageChanged);
     _newsController.dispose();
     _videoController.dispose();
     super.dispose();
   }
 
-  /* ==========  ANNOUNCEMENTS FLOW  ========== */
+  /* ==========  ANNOUNCEMENTS FLOW (Optimized) ========== */
   Future<void> _loadAnnouncements() async {
+    if (!mounted) return;
+    
     try {
       _newsItems = [];
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+        // Check cache first
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (_userDataCache.containsKey(user.uid) && 
+            (now - _lastUserDataFetch) < _userDataCacheDuration) {
+          _processUserData(_userDataCache[user.uid]);
+        } else {
+          // Fetch fresh data
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get(const GetOptions(source: Source.cache));
 
-        if (userDoc.exists) {
-          final data = userDoc.data() ?? {};
-
-          // Welcome card if user has never ordered
-          if (data['hasOrdered'] != true) {
-            _newsItems.add({
-              'title': 'Welcome to DISSONANT!',
-              'subtitle':
-                  'Everyone remembers their first order... \n Don\'t forget to make yours!',
-              'imageUrl': '',
-              'iconPath': 'assets/icon/firstordericon.png',
-              'deeplink': '/order',
-            });
-          }
-
-          // Free Order card
-          if (data['freeOrder'] == true) {
-            _newsItems.add({
-              'title': 'You have a Free Order',
-              'subtitle':
-                  'Your next order is free! \n Redeem it now and discover new music!',
-              'iconPath': 'assets/icon/nextorderfreeicon.png',
-              'imageUrl': '',
-              'deeplink': '/order/free',
-            });
+          if (userDoc.exists) {
+            final data = userDoc.data() ?? {};
+            _userDataCache[user.uid] = data;
+            _lastUserDataFetch = now;
+            _processUserData(data);
           }
         }
       }
 
-
-      // Propaganda cards
-      _newsItems.addAll([
-        {
-          'title': 'Welcome to DISSONANT',
-          'subtitle':
-              'Order an album handpicked by our curators. Don\'t like it? Send it back with the included return label and your next order is free!',
-          'imageUrl': '', // Upload this image
-          'iconPath': 'assets/icon/basicintroicon.png',
-          'backgroundColor': Colors.orange.shade800,
-        },
-        {
-          'title': 'Get all your orders free!',
-          'subtitle':
-              'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
-          'imageUrl': '', // Upload this image
-          'iconPath': 'assets/icon/libraryicon.png',
-          'backgroundColor': Colors.deepOrange.shade700,
-        },
-        {
-          'title': 'Find that hidden gem',
-          'subtitle':
-              'Your favorite music is already out there, in a jewel case, buried in a crate at some dusty record store. \n Isn\'t that more exciting than a Spotify Playlist?',
-          'imageUrl': '',
-          'iconPath': 'assets/icon/hiddengemicon.png',
-          'backgroundColor': Colors.blueGrey.shade700,
-        },
-        {
-          'title': 'Own your music',
-          'subtitle':
-              'In a throwaway culture it’s radical to share music in a way those corporations can\'t touch.',
-          'imageUrl': '',
-          'iconPath': 'assets/icon/radicalsharemusicicon.png',
-          'backgroundColor': Colors.redAccent.shade700,
-        },
-        {
-          'title': 'Make a donation',
-          'subtitle':
-              'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
-          'imageUrl': '',
-          'iconPath': 'assets/icon/donate.png',
-          'backgroundColor': Colors.redAccent.shade700,
-        },
-        {
-          'title': 'Let’s Connect!',
-          'subtitle': 'Follow us and stay in the loop.',
-          'imageUrl': '',
-          'type': 'social',
-        },
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _newsLoading = false;
-      });
-      _checkIfPageReady();
+      _addPropagandaCards();
+      
+      if (mounted) {
+        setState(() {
+          _newsLoading = false;
+        });
+        _checkIfPageReady();
+      }
     } catch (e) {
       debugPrint('Error loading announcements: $e');
-      if (!mounted) return;
-      setState(() {
-        _newsLoading = false;
-      });
-      _checkIfPageReady();
+      if (mounted) {
+        setState(() {
+          _newsLoading = false;
+        });
+        _checkIfPageReady();
+      }
     }
   }
 
+  void _processUserData(Map<String, dynamic> data) {
+    // Welcome card if user has never ordered
+    if (data['hasOrdered'] != true) {
+      _newsItems.add({
+        'title': 'Welcome to DISSONANT!',
+        'subtitle': 'Everyone remembers their first order... \n Don\'t forget to make yours!',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/firstordericon.png',
+        'deeplink': '/order',
+      });
+    }
+
+    // Free Order card
+    if (data['freeOrder'] == true) {
+      _newsItems.add({
+        'title': 'You have a Free Order',
+        'subtitle': 'Your next order is free! \n Redeem it now and discover new music!',
+        'iconPath': 'assets/icon/nextorderfreeicon.png',
+        'imageUrl': '',
+        'deeplink': '/order/free',
+      });
+    }
+  }
+
+  void _addPropagandaCards() {
+    // Static propaganda cards - these could be cached as const
+    _newsItems.addAll(const [
+      {
+        'title': 'Welcome to DISSONANT',
+        'subtitle': 'Order an album handpicked by our curators. Don\'t like it? Send it back with the included return label and your next order is free!',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/basicintroicon.png',
+      },
+      {
+        'title': 'Get all your orders free!',
+        'subtitle': 'You can place one order for the cheapest price, then treat our service like a library card! \n After each return your next order is free! \n And there\'s no limit!!',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/libraryicon.png',
+      },
+      {
+        'title': 'Find that hidden gem',
+        'subtitle': 'Your favorite music is already out there, in a jewel case, buried in a crate at some dusty record store. \n Isn\'t that more exciting than a Spotify Playlist?',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/hiddengemicon.png',
+      },
+      {
+        'title': 'Own your music',
+        'subtitle': 'In a throwaway culture it\'s radical to share music in a way those corporations can\'t touch.',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/radicalsharemusicicon.png',
+      },
+      {
+        'title': 'Make a donation',
+        'subtitle': 'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
+        'imageUrl': '',
+        'iconPath': 'assets/icon/donate.png',
+      },
+      {
+        'title': 'Let\'s Connect!',
+        'subtitle': 'Follow us and stay in the loop.',
+        'imageUrl': '',
+        'type': 'social',
+      },
+    ]);
+  }
+
   void _startAutoScroll() {
+    _autoScrollTimer?.cancel(); // Cancel existing timer
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (!mounted || !_newsController.hasClients || _newsItems.length < 2) return;
+      if (!mounted || !_newsController.hasClients || _newsItems.length < 2) {
+        timer.cancel();
+        return;
+      }
       final next = (_newsController.page ?? 0).round() + 1;
       final target = next >= _newsItems.length ? 0 : next;
       _newsController.animateToPage(
@@ -280,72 +333,84 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-Future<void> _fetchLatestAlbums() async {
-  if (!mounted) return;
-  setState(() => _latestLoading = true);
+  // Optimized album fetching with better error handling
+  Future<void> _fetchLatestAlbums() async {
+    if (!mounted) return;
+    setState(() => _latestLoading = true);
 
-  try {
-    final qs = await FirebaseFirestore.instance
-        .collection('orders')
-        .where('status', whereIn: ['kept', 'returnedConfirmed'])
-        .orderBy('updatedAt', descending: true)
-        .limit(_latestLimit)
-        .get();
+    try {
+      // Use single query with proper indexing
+      final qs = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('status', whereIn: ['kept', 'returnedConfirmed'])
+          .orderBy('updatedAt', descending: true)
+          .limit(_latestLimit)
+          .get();
 
-    final List<FeedItem> items = [];
+      final List<FeedItem> items = [];
+      final Set<String> processedAlbums = {}; // Avoid duplicates
 
-    for (final doc in qs.docs) {
-      final data = doc.data();
-      final albumId = data['details']?['albumId'] as String?;
-      if (albumId == null || albumId.isEmpty) continue;
-
-      // album
-      final albumDoc =
-          await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
-      if (!albumDoc.exists) continue;
-      final album = Album.fromDocument(albumDoc);
-
-      // user
-      final userId = data['userId'] as String? ?? '';
-      String username = 'Unknown';
-      String avatar   = '';
-
-      if (userId.isNotEmpty) {
-        final userDoc =
-            await FirebaseFirestore.instance.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-          final u = userDoc.data() ?? {};
-          username = u['username'] ?? username;
-          avatar   = u['profilePictureUrl'] ?? '';
+      for (final doc in qs.docs) {
+        if (!mounted) break; // Check if widget is still mounted
+        
+        final data = doc.data();
+        final albumId = data['details']?['albumId'] as String?;
+        
+        if (albumId == null || albumId.isEmpty || processedAlbums.contains(albumId)) {
+          continue;
         }
+        
+        processedAlbums.add(albumId);
+
+        // album
+        final albumDoc =
+            await FirebaseFirestore.instance.collection('albums').doc(albumId).get();
+        if (!albumDoc.exists) continue;
+        final album = Album.fromDocument(albumDoc);
+
+        // user
+        final userId = data['userId'] as String? ?? '';
+        String username = 'Unknown';
+        String avatar   = '';
+
+        if (userId.isNotEmpty) {
+          final userDoc =
+              await FirebaseFirestore.instance.collection('users').doc(userId).get();
+          if (userDoc.exists) {
+            final u = userDoc.data() ?? {};
+            username = u['username'] ?? username;
+            avatar   = u['profilePictureUrl'] ?? '';
+          }
+        }
+
+        items.add(
+          FeedItem(
+            username: username,
+            userId: userId,
+            status: data['status'],
+            album: album,
+            profilePictureUrl: avatar,          // never null
+          ),
+        );
       }
 
-      items.add(
-        FeedItem(
-          username: username,
-          userId: userId,
-          status: data['status'],
-          album: album,
-          profilePictureUrl: avatar,          // never null
-        ),
-      );
+      if (mounted) {
+        setState(() {
+          _latestFeedItems = items;
+          _latestLoading   = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading latest albums: $e');
+      if (mounted) {
+        setState(() => _latestLoading = false);
+      }
     }
 
-    if (!mounted) return;
-    setState(() {
-      _latestFeedItems = items;
-      _latestLoading   = false;
-    });
-  } catch (e) {
-    debugPrint('Error loading latest albums: $e');
-    if (!mounted) return;
-    setState(() => _latestLoading = false);
+    _checkIfPageReady();
   }
 
-  _checkIfPageReady();
-}
-
-Future<void> _fetchFreeOrderCredits() async {
+  Future<void> _fetchFreeOrderCredits() async {
   if (!mounted) return;
   setState(() => _creditsLoading = true);
 

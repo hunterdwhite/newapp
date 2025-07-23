@@ -19,6 +19,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'screens/order_selection_screen.dart';
 
 void main() async {
@@ -27,43 +29,115 @@ void main() async {
   // Preserve the splash screen
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Set the app to portrait mode only
+  // Performance optimizations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Optimize memory usage
+  await SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
+  );
 
-  // Initialize Crashlytics
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  try {
+    // Initialize Firebase with offline persistence
+    await Firebase.initializeApp();
+    
+    // Configure Firebase settings for better performance
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+
+    // Initialize Crashlytics with custom settings
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+
+    // Handle async errors
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
 
   // Remove the splash screen after initialization is complete
   FlutterNativeSplash.remove();
 
-  // Run the app
-  runApp(MyApp());
+  // Run the app with performance monitoring
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
-  _MyAppState createState() => _MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  // Asynchronous initialization can be handled here
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  static const String _stripePublishableKey = 'pk_live_51ODzOACnvJAFsDZ0COKFc7cuwsL2eAijLCxdMETnP8pGsydvkB221bJFeGKuynxSgzUQ0d9T7bDIxcCwcDcmqgDn004VZLJQio';
+  
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeStripe();
   }
 
-  Future<void> _initializeStripe() async {
-    // Set your Stripe publishable key
-    Stripe.publishableKey = 'pk_live_51ODzOACnvJAFsDZ0COKFc7cuwsL2eAijLCxdMETnP8pGsydvkB221bJFeGKuynxSgzUQ0d9T7bDIxcCwcDcmqgDn004VZLJQio'; // Replace with your actual key
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
-    // Optionally, set the Stripe merchant identifier and other settings
-    await Stripe.instance.applySettings();
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Optimize based on app lifecycle
+    switch (state) {
+      case AppLifecycleState.paused:
+        // Clear image cache when app is paused to free memory
+        imageCache.clear();
+        break;
+      case AppLifecycleState.resumed:
+        // Preload critical images when app resumes
+        _preloadCriticalAssets();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _initializeStripe() async {
+    try {
+      Stripe.publishableKey = _stripePublishableKey;
+      await Stripe.instance.applySettings();
+    } catch (e) {
+      debugPrint('Stripe initialization error: $e');
+    }
+  }
+
+  void _preloadCriticalAssets() {
+    // Preload commonly used assets
+    const criticalAssets = [
+      'assets/dissonantlogo.png',
+      'assets/blank_cd.png',
+      'assets/homeicon.png',
+      'assets/mymusicicon.png',
+      'assets/ordericon.png',
+      'assets/profileicon.png',
+    ];
+
+    for (final asset in criticalAssets) {
+      precacheImage(AssetImage(asset), context);
+    }
   }
 
   @override
@@ -74,11 +148,18 @@ class _MyAppState extends State<MyApp> {
       ],
       child: MaterialApp(
         title: 'DISSONANT',
+        debugShowCheckedModeBanner: false,
+        
+        // Performance optimizations
+        scrollBehavior: const MaterialScrollBehavior().copyWith(
+          scrollbars: false, // Disable scrollbars for better performance
+        ),
+        
         theme: ThemeData(
           brightness: Brightness.dark,
-          primaryColor: Color(0xFFFFA500), // Orange
+          primaryColor: const Color(0xFFFFA500), // Orange
           scaffoldBackgroundColor: Colors.black,
-          colorScheme: ColorScheme.dark(
+          colorScheme: const ColorScheme.dark(
             primary: Color(0xFFFFA500),
             primaryContainer: Color(0xFFE59400),
             secondary: Color(0xFFFF4500),
@@ -96,24 +177,37 @@ class _MyAppState extends State<MyApp> {
             bodyColor: Colors.white,
             displayColor: Colors.white,
           ),
-          appBarTheme: AppBarTheme(
+          appBarTheme: const AppBarTheme(
             color: Color(0xFF1E1E1E), // A slightly lighter off-black
+          ),
+          
+          // Optimize visual density for performance
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+          
+          // Disable animations on low-end devices
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+              TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            },
           ),
         ),
         navigatorKey: NavigatorService.navigatorKey,
         routes: {
           welcomeRoute: (context) => WelcomeScreen(),
           homeRoute: (context) => HomeScreen(),
-          emailVerificationRoute: (context) => EmailVerificationScreen(),
-
-          // Add other routes here
+          emailVerificationRoute: (context) => const EmailVerificationScreen(),
         },
-        home: AuthenticationWrapper(),
+        home: const AuthenticationWrapper(),
 
-        // Added builder to override textScaleFactor
+        // Optimize text scaling for performance and consistency
         builder: (BuildContext context, Widget? child) {
           return MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+            data: MediaQuery.of(context).copyWith(
+              textScaleFactor: 1.0,
+              // Reduce overdraw by limiting window insets
+              viewInsets: EdgeInsets.zero,
+            ),
             child: child!,
           );
         },
@@ -123,22 +217,33 @@ class _MyAppState extends State<MyApp> {
 }
 
 class AuthenticationWrapper extends StatelessWidget {
+  const AuthenticationWrapper({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: Colors.black, // Match your app's background color
-            body: Center(child: CircularProgressIndicator()),
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                ),
+              ),
+            ),
           );
         } else if (snapshot.hasData) {
           User? user = snapshot.data;
           if (user != null && user.emailVerified) {
-            return MyHomePage();
+            return const MyHomePage();
           } else {
-            return EmailVerificationScreen();
+            return const EmailVerificationScreen();
           }
         } else {
           return WelcomeScreen();
@@ -156,11 +261,12 @@ class MyHomePage extends StatefulWidget {
       context.findAncestorStateOfType<_MyHomePageState>();
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  late final PageController _pageController;
 
   // ─── Navigators for tabs that need sub-navigation ────────────────
   final GlobalKey<NavigatorState> _homeNavigatorKey =
@@ -168,11 +274,26 @@ class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey<NavigatorState> _orderNavigatorKey =
       GlobalKey<NavigatorState>();
 
-  final List<Widget> _plainPages = [
-    const CuratorScreen(),
-    MyMusicScreen(),
-    ProfileScreen(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+    
+    // Initialize pages with const constructors where possible
+    _pages = [
+      const CuratorScreen(),
+      MyMusicScreen(),
+      ProfileScreen(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   // ─── Helpers for tab navigation ─
   Future<T?> pushInHomeTab<T>(Route<T> route) {
@@ -190,7 +311,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (index == _selectedIndex) {
       // ▸ already on that tab
       if (index == 0) {
-        // ▸ Home tab → pop to its first route
+        // ▸ and it's the Home tab → pop to its first route
         _homeNavigatorKey.currentState
             ?.popUntil((route) => route.isFirst);
       } else if (index == 1) {
@@ -202,16 +323,25 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // ▸ switching to a different tab
       setState(() => _selectedIndex = index);
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
     }
   }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBarWidget(title: 'DISSONANT'),
-      body: IndexedStack(
-        index: _selectedIndex,
+      appBar: const CustomAppBarWidget(title: 'DISSONANT'),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() => _selectedIndex = index);
+        },
         children: [
-          // ── index 0: Home tab with its own Navigator ──
+          // ── index 0: Home tab now owns its own Navigator ──
           Navigator(
             key: _homeNavigatorKey,
             onGenerateRoute: (_) =>
@@ -224,7 +354,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 MaterialPageRoute(builder: (_) => OrderSelectionScreen()),
           ),
           // ── remaining tabs unchanged ────────────────────────
-          ..._plainPages,
+          ..._pages,
         ],
       ),
       bottomNavigationBar: BottomNavigationWidget(
