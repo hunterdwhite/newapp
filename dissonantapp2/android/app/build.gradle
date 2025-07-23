@@ -1,0 +1,142 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+} 
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader) 
+    }
+}
+
+def flutterVersionCode = '35'
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = '2.0'
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+android {
+    namespace "com.dissonant.dissonantapp2"
+    compileSdk 35
+
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    splits {
+        abi {
+            enable false
+        }
+    }
+
+    bundle {
+        density {
+            enableSplit false
+        }
+        language {
+            enableSplit false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.dissonant.dissonantapp2"
+        minSdkVersion 24
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        multiDexEnabled true
+        
+        // Performance optimizations
+        vectorDrawables.useSupportLibrary = true
+        resConfigs "en" // Only include English resources to reduce APK size
+        
+        // Proguard optimization for release builds
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
+
+    buildTypes {
+        debug {
+            // Debug optimizations
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+            
+            // Disable Crashlytics for debug builds
+            manifestPlaceholders = [crashlyticsCollectionEnabled: "false"]
+        }
+        
+        release {
+            // Maximum optimizations for release builds
+            minifyEnabled true
+            shrinkResources true
+            zipAlignEnabled true
+            debuggable false
+            
+            // Enable R8 full mode for better optimization
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Enable Crashlytics for release builds
+            manifestPlaceholders = [crashlyticsCollectionEnabled: "true"]
+            
+            signingConfig signingConfigs.release
+        }
+    }
+
+    // Additional performance optimizations
+    dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries = true
+    }
+
+    // Optimize build performance
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+// Performance dependencies
+dependencies {
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.core:core-ktx:1.10.1'
+}
