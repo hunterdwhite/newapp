@@ -69,7 +69,7 @@ class PerformanceService {
     
     try {
       final trace = _activeTraces[traceName];
-      trace?.putMetric(metricName, value);
+      trace?.setMetric(metricName, value);
     } catch (e) {
       debugPrint('Error adding metric to trace $traceName: $e');
     }

@@ -674,67 +674,14 @@ Widget _buildAnimatedFeedItem(FeedItem item, int index) {
   );
 }
 
-  /* ─────────────────────────── build ─────────────────────────── */
-
-@override
-Widget build(BuildContext context) {
-  final mediaQuery = MediaQuery.of(context);
-  final screenHeight = mediaQuery.size.height;
-  final topPadding = mediaQuery.padding.top;
-  final bottomPadding = mediaQuery.padding.bottom;
-  final totalSpinesHeight = maxSpines * 48.0;
-
-  final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
-
-  return Scaffold(
-    body: GrainyBackgroundWidget(
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: Stack(
-                children: [
-                  _buildSpines(context),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        const Text(
-                          'My Feed',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(
-                          height: feedHeight,
-                          child: PageView.builder(
-                            controller: _pageController,
-                            scrollDirection: Axis.vertical,
-                            itemCount: _feedItems.length,
-                            itemBuilder: (c, i) => _buildFeedItem(_feedItems[i], i),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_isFetchingMore)
-                    Positioned(
-                      bottom: totalSpinesHeight + 20,
-                      left: 0,
-                      right: 0,
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
-            ),
-    ),
-  );
-}
-
-
-
+  // Add to wishlist method
+  void _addToWishlist(String albumId) {
+    // TODO: Implement wishlist functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Wishlist feature coming soon!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 }
