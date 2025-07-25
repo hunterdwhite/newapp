@@ -1,0 +1,165 @@
+rules_version = '2';
+
+// =====================
+// Firestore Security Rules
+// =====================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    match /waitlist/{emailId} {
+      allow read: if true;
+      allow create: if !exists(/databases/$(database)/documents/waitlist/$(emailId));
+      allow update, delete: if false;
+    }
+
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Admins Collection Rules
+    match /admins/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == adminId;
+    }
+
+    // Users Collection Rules
+    match /users/{userId} {
+      // Let a user read/write their own document
+      allow read, write: if isAuthenticated() && isOwner(userId);
+
+      // Let admins read user documents
+      allow read: if isAuthenticated() && isAdmin();
+      
+      // Allow authenticated users to query users collection for referral code validation
+      allow list: if isAuthenticated();
+      
+      // Allow authenticated users to update credit fields for referral system (simplified)
+      allow update: if isAuthenticated();
+      
+      // Allow authenticated users to read user documents for referral stats
+      allow get: if isAuthenticated();
+      
+      // Owner can get/update/delete their own document (restored original)
+      allow get: if request.auth != null && request.auth.uid == userId;
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
+
+      match /public/{documentId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+
+      match /wishlist/{albumId} {
+        // Let owners read/write; let admins read
+        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+
+    // NEW: Referrals Collection Rules
+    match /referrals/{referralId} {
+      // Users can read referrals where they are the referrer
+      allow read: if isAuthenticated() && (
+        resource.data.referrerId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Allow list/query operations for referral system functionality
+      allow list: if isAuthenticated();
+      
+      // Allow creation of referral records during registration
+      allow create: if isAuthenticated() && (
+        request.resource.data.referredUserId == request.auth.uid ||
+        request.resource.data.referrerId == request.auth.uid
+      );
+      
+      // Allow updates for marking credits as awarded
+      allow update: if isAuthenticated() && (
+        resource.data.referrerId == request.auth.uid ||
+        resource.data.referredUserId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Only admins can delete referral records
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Followers Collection Rules
+    match /followers/{userId}/userFollowers/{followerId} {
+      allow read: if isAuthenticated(); // Auth'd can read followers
+      allow write: if isAuthenticated() && isOwner(userId); // Only user can modify
+    }
+
+    // Following Collection Rules
+    match /following/{userId}/userFollowing/{followingId} {
+      allow read: if isAuthenticated(); // Auth'd can read following
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+
+    // Usernames Collection Rules
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    // Orders Collection Rules
+    match /orders/{orderId} {
+      allow create: if isAuthenticated() && (isOwner(request.resource.data.userId) || isAdmin());
+      allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow read: if isAuthenticated() && (
+        resource.data.status in ['kept', 'returnedConfirmed']
+        || isOwner(resource.data.userId)
+        || isAdmin()
+      );
+    }
+
+    // Albums Collection Rules
+    match /albums/{albumId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isAdmin();
+
+      // Allow authenticated users to update only the genreVotes field
+      allow update: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['genreVotes']) &&
+        resource.data.genreVotes is map &&
+        request.resource.data.genreVotes is map;
+
+      match /genreUserVotes/{userId} {
+        // Allow all authenticated users to read genre votes
+        allow read: if isAuthenticated();
+        // Allow users to create, update, and delete their own genre vote
+        allow create, update, delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Default Deny Rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // RESTORED: Original additional rules
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+                  && resource.data.status in ['kept', 'returnedConfirmed'];
+    }
+  
+    // --- allow every signed-in user to read album metadata (for those feed items) ---
+    match /albums/{albumId} {
+      allow read: if request.auth != null;
+    }
+  }
+} 

@@ -57,18 +57,68 @@ class FirestoreService {
   /// Existing Methods (Optimized)
   /// ------------------------
 
-  // Check if a username exists in the usernames collection (with caching)
+  // Check if a username exists in the usernames collection (with caching and retry logic)
   Future<bool> checkUsernameExists(String username) async {
     final cacheKey = 'username_exists_$username';
     final cached = _getFromCache<bool>(cacheKey);
     if (cached != null) return cached;
 
-    final doc = await _firestore.collection('usernames').doc(username).get(
-      const GetOptions(source: Source.cache),
-    );
-    final exists = doc.exists;
-    _setCache(cacheKey, exists);
-    return exists;
+    // Try multiple approaches with error handling
+    try {
+      // First try cache
+      final cacheDoc = await _firestore.collection('usernames').doc(username).get(
+        const GetOptions(source: Source.cache),
+      );
+      final exists = cacheDoc.exists;
+      _setCache(cacheKey, exists);
+      return exists;
+    } catch (cacheError) {
+      print('Cache check failed, trying server: $cacheError');
+      
+      try {
+        // Fallback to server with retry logic
+        DocumentSnapshot? serverDoc;
+        int retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            serverDoc = await _firestore.collection('usernames').doc(username).get(
+              const GetOptions(source: Source.server),
+            );
+            break;
+          } catch (serverError) {
+            retryCount++;
+            if (retryCount >= maxRetries) {
+              throw serverError;
+            }
+            // Exponential backoff: wait 1s, 2s, 4s
+            await Future.delayed(Duration(seconds: 1 << (retryCount - 1)));
+            print('Retry $retryCount/$maxRetries for username check...');
+          }
+        }
+        
+        if (serverDoc != null) {
+          final exists = serverDoc.exists;
+          _setCache(cacheKey, exists);
+          return exists;
+        }
+        
+        throw Exception('Failed to check username after $maxRetries retries');
+      } catch (serverError) {
+        print('Server check failed: $serverError');
+        
+        // Final fallback - try default source (cache then server)
+        try {
+          final defaultDoc = await _firestore.collection('usernames').doc(username).get();
+          final exists = defaultDoc.exists;
+          _setCache(cacheKey, exists);
+          return exists;
+        } catch (finalError) {
+          throw Exception('Unable to check username availability. Please check your internet connection and try again.');
+        }
+      }
+    }
   }
 
   // Add a username to the usernames collection
@@ -376,6 +426,9 @@ class FirestoreService {
     String email,
     String country,
   ) async {
+    // Generate referral code for the new user
+    final referralCode = await ReferralService.getOrCreateReferralCode(userId);
+    
     // Create the main user document with private data
     await _firestore.collection('users').doc(userId).set({
       'username': username, // <-- Add this field
@@ -389,6 +442,10 @@ class FirestoreService {
         'fontStyle': 'MS Sans Serif',
         'layout': 'default',
       },
+      'referralCode': referralCode,
+      'referralCount': 0,
+      'totalReferralCredits': 0,
+      'firstOrderReferralCredits': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -450,9 +507,12 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     });
 
     // If this is the user's first order and they were referred, award referral credits
+    print('DEBUG: addOrder - isFirstOrder: $isFirstOrder for userId: $userId');
     if (isFirstOrder) {
       try {
-        await ReferralService.processReferredUserFirstOrder(userId);
+        print('DEBUG: addOrder - Calling processReferredUserFirstOrder for userId: $userId');
+        final result = await ReferralService.processReferredUserFirstOrder(userId);
+        print('DEBUG: addOrder - processReferredUserFirstOrder result: $result');
       } catch (e) {
         print('Error processing referral first order: $e');
         // Don't fail the order creation if referral processing fails

@@ -2,6 +2,9 @@ import 'package:dissonantapp2/main.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../widgets/grainy_background_widget.dart';
+import '../widgets/windows95_window.dart';
+import '../widgets/retro_button_widget.dart';
 import 'home_screen.dart'; // Make sure to import MyHomePage
 
 class TasteProfileScreen extends StatefulWidget {
@@ -108,136 +111,350 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
     );
   }
 
+  Widget _buildRetroCheckboxList(String title, List<String> options, List<String> selectedOptions, Function(String, bool) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFF4F4F4),
+            border: Border.all(color: Colors.black, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                offset: Offset(1, 1),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: Column(
+            children: options.map((option) {
+              final isSelected = selectedOptions.contains(option);
+              return Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                  ),
+                ),
+                child: InkWell(
+                  onTap: () => onChanged(option, !isSelected),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.black : Color(0xFFF4F4F4),
+                            border: Border.all(color: Colors.black, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white,
+                                offset: Offset(-1, -1),
+                                blurRadius: 0,
+                              ),
+                              BoxShadow(
+                                color: Colors.grey.shade600,
+                                offset: Offset(1, 1),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
+                          child: isSelected
+                              ? Icon(Icons.check, color: Colors.white, size: 12)
+                              : null,
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            option,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRetroDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'About how many albums have you listened to?',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFF4F4F4),
+            border: Border.all(color: Colors.black, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white,
+                offset: Offset(-1, -1),
+                blurRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.grey.shade600,
+                offset: Offset(1, 1),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: DropdownButtonFormField<String>(
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+            dropdownColor: Color(0xFFF4F4F4),
+            value: _albumsListened.isNotEmpty ? _albumsListened : null,
+            hint: Text(
+              'Select your listening level...',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+            items: _albumsListenedOptions.map((String option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Text(
+                  option,
+                  style: TextStyle(fontSize: 14, color: Colors.black),
+                ),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _albumsListened = newValue ?? '';
+              });
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select an option';
+              }
+              return null;
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRetroTextArea() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Is there anything else you\'d like us to know about your music taste?',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFF4F4F4),
+            border: Border.all(color: Colors.black, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white,
+                offset: Offset(-1, -1),
+                blurRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.grey.shade600,
+                offset: Offset(1, 1),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: TextFormField(
+            initialValue: _musicalBio,
+            maxLines: 4,
+            style: TextStyle(fontSize: 14, color: Colors.black),
+            decoration: InputDecoration(
+              hintText: 'Tell us about your musical journey...',
+              hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(12),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _musicalBio = value;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text('Taste Profile Survey'),
-        ),
-        body: Center(
-          child: CircularProgressIndicator(),
+        body: GrainyBackgroundWidget(
+          child: Center(
+            child: Windows95WindowWidget(
+              title: 'Loading...',
+              showCloseButton: false,
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE46A14)),
+                    ),
+                    SizedBox(height: 16),
+                                         Text(
+                       'Loading your taste profile...',
+                       style: TextStyle(fontSize: 14, color: Colors.black),
+                     ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Taste Profile Survey'),
-      ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // Favorite Genres
-              Text(
-                'Select your favorite music genres:',
-                style: TextStyle(fontSize: 18),
-              ),
-              ..._genres.map((genre) {
-                return CheckboxListTile(
-                  title: Text(genre),
-                  value: _selectedGenres.contains(genre),
-                  onChanged: (bool? value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedGenres.add(genre);
-                      } else {
-                        _selectedGenres.remove(genre);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-              SizedBox(height: 16.0),
+      body: GrainyBackgroundWidget(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16.0),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 600),
+                child: Windows95WindowWidget(
+                  title: 'Taste Profile Survey',
+                  showCloseButton: false,
+                  contentPadding: EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Welcome message
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFE46A14),
+                            border: Border.all(color: Colors.black, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white,
+                                offset: Offset(-1, -1),
+                                blurRadius: 0,
+                              ),
+                              BoxShadow(
+                                color: Colors.grey.shade600,
+                                offset: Offset(1, 1),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
+                                                     child: Text(
+                             'Help us curate the perfect albums for you by sharing your music taste!',
+                             style: TextStyle(
+                               fontSize: 16,
+                               fontWeight: FontWeight.bold,
+                               color: Colors.white,
+                             ),
+                             textAlign: TextAlign.center,
+                           ),
+                        ),
+                        SizedBox(height: 24),
 
-              // Favorite Decades
-              Text(
-                'Select your favorite decades of music:',
-                style: TextStyle(fontSize: 18),
-              ),
-              ..._decades.map((decade) {
-                return CheckboxListTile(
-                  title: Text(decade),
-                  value: _selectedDecades.contains(decade),
-                  onChanged: (bool? value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedDecades.add(decade);
-                      } else {
-                        _selectedDecades.remove(decade);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-              SizedBox(height: 16.0),
+                        // Favorite Genres
+                        _buildRetroCheckboxList(
+                          'Select your favorite music genres:',
+                          _genres,
+                          _selectedGenres,
+                          (genre, isSelected) {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedGenres.add(genre);
+                              } else {
+                                _selectedGenres.remove(genre);
+                              }
+                            });
+                          },
+                        ),
+                        SizedBox(height: 24),
 
-              // Albums Listened
-              Text(
-                'About how many albums have you listened to?',
-                style: TextStyle(fontSize: 18),
-              ),
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
+                        // Favorite Decades
+                        _buildRetroCheckboxList(
+                          'Select your favorite decades of music:',
+                          _decades,
+                          _selectedDecades,
+                          (decade, isSelected) {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedDecades.add(decade);
+                              } else {
+                                _selectedDecades.remove(decade);
+                              }
+                            });
+                          },
+                        ),
+                        SizedBox(height: 24),
+
+                        // Albums Listened
+                        _buildRetroDropdown(),
+                        SizedBox(height: 24),
+
+                        // Musical Bio
+                        _buildRetroTextArea(),
+                        SizedBox(height: 32),
+
+                        // Submit Button
+                        Center(
+                          child: RetroButtonWidget(
+                            text: 'Save Taste Profile',
+                            onPressed: () {
+                              if (_formKey.currentState?.validate() ?? false) {
+                                _submitTasteProfile(user?.uid ?? '');
+                              }
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
                 ),
-                value: _albumsListened.isNotEmpty ? _albumsListened : null,
-                items: _albumsListenedOptions.map((String option) {
-                  return DropdownMenuItem<String>(
-                    value: option,
-                    child: Text(option),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _albumsListened = newValue ?? '';
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select an option';
-                  }
-                  return null;
-                },
               ),
-              SizedBox(height: 16.0),
-
-              // Musical Bio
-              Text(
-                'Is there anything else you\'d like us to know about your music taste?',
-                style: TextStyle(fontSize: 18),
-              ),
-              SizedBox(height: 8.0),
-              TextFormField(
-                initialValue: _musicalBio,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  hintText: 'Your Musical Bio',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _musicalBio = value;
-                  });
-                },
-              ),
-              SizedBox(height: 16.0),
-
-              // Submit Button
-              ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    _submitTasteProfile(user?.uid ?? '');
-                  }
-                },
-                child: Text('Submit'),
-              ),
-            ],
+            ),
           ),
         ),
       ),

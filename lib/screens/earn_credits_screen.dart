@@ -46,10 +46,11 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // Force fresh data from server to immediately show new credits
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .get();
+            .get(const GetOptions(source: Source.server));
 
         if (userDoc.exists) {
           final data = userDoc.data() ?? {};
@@ -255,6 +256,9 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
           _firstOrderReferralCredits = stats['firstOrderReferralCredits'] ?? 0;
           _referralLoading = false;
         });
+        
+        debugPrint('DEBUG: EarnCreditsScreen - stats received: $stats');
+        debugPrint('DEBUG: EarnCreditsScreen - setting _referralCount to: ${stats['referralCount']}');
       } else {
         setState(() {
           _referralCode = '';
@@ -382,74 +386,138 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
     final int creditsNeeded = 5 - _freeOrderCredits;
     final int filledPartitions = _freeOrderCredits;
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151515),
-        border: Border.all(color: Colors.white, width: 1),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Available free orders (if any)
-          if (_freeOrdersAvailable > 0) ...[
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFA500),
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              child: Text(
-                _freeOrdersAvailable == 1 
-                    ? 'You have 1 free order available!'
-                    : 'You have $_freeOrdersAvailable free orders available!',
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black, width: 0.5),
+        ),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                Container(
+                  height: 36,
+                  color: const Color(0xFFFFA12C),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Free Order Credits',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          
-          // Progress toward next free order
-          Text(
-            '$creditsNeeded credits until next free order',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          
-          // Progress bar with 5 partitions
-          Container(
-            height: 24,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 1),
-            ),
-            child: Row(
-              children: List.generate(5, (index) {
-                final bool isFilled = index < filledPartitions;
-                return Expanded(
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   child: Container(
-                    decoration: BoxDecoration(
-                      color: isFilled ? const Color(0xFFFFA500) : Colors.transparent,
-                      border: index < 4 
-                          ? const Border(right: BorderSide(color: Colors.white, width: 1))
-                          : null,
+                    height: 3, color: Color(0xFFFFC278)),
+                ),
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  child: Container(
+                    width: 3, color: Color(0xFFFFC278)),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFCBCACB),
+                      border: Border(
+                        top: BorderSide(color: Colors.white, width: 2),
+                        left: BorderSide(color: Colors.white, width: 2),
+                        bottom: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                        right: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                      ),
+                    ),
+                    child: const Text(
+                      'X',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
-                );
-              }),
+                ),
+              ],
             ),
-          ),
-        ],
+            Container(height: 1, color: Colors.black),
+            Container(
+              color: const Color(0xFFE0E0E0),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_freeOrdersAvailable > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFA500),
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                      child: Text(
+                        _freeOrdersAvailable == 1
+                            ? 'You have 1 free order available!'
+                            : 'You have $_freeOrdersAvailable free orders available!',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    '$creditsNeeded credits until next free order',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 24,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black, width: 1),
+                    ),
+                    child: Row(
+                      children: List.generate(5, (index) {
+                        final bool isFilled = index < filledPartitions;
+                        return Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isFilled ? const Color(0xFFFFA500) : Colors.transparent,
+                              border: index < 4
+                                  ? const Border(right: BorderSide(color: Colors.black, width: 1))
+                                  : null,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -804,26 +872,12 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Earn Free Credits',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      appBar: null,
       body: GrainyBackgroundWidget(
         child: SafeArea(
           child: Column(
             children: [
+              const SizedBox(height: 24),
               // Progress bar at top
               _buildFreeOrderBar(),
               
@@ -837,6 +891,66 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                     fontSize: 16,
                   ),
                   textAlign: TextAlign.center,
+                ),
+              ),
+              
+              // Refresh button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151515),
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                                    child: InkWell(
+                  onTap: () async {
+                    await _loadUserData();
+                    await _loadReferralData();
+                    
+                    // TEMPORARY: Manual check for debugging - REMOVE LATER
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      try {
+                        await ReferralService.manuallyCheckAndAwardFirstOrderCredits(user.uid);
+                      } catch (e) {
+                        debugPrint('Manual check error: $e');
+                      }
+                    }
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Credits refreshed!'),
+                        backgroundColor: Color(0xFFFFA500),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              Icons.refresh,
+                              color: Colors.white70,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Refresh Credits',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               
@@ -982,7 +1096,9 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
 
   Future<void> _loadReferredUsers() async {
     try {
+      debugPrint('DEBUG: Dialog - Loading referred users for userId: ${widget.userId}');
       final referredUsers = await ReferralService.getReferredUsers(widget.userId);
+      debugPrint('DEBUG: Dialog - Received ${referredUsers.length} referred users');
       if (mounted) {
         setState(() {
           _referredUsers = referredUsers;
@@ -990,6 +1106,7 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
         });
       }
     } catch (e) {
+      debugPrint('DEBUG: Dialog - Error loading referred users: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
@@ -1083,7 +1200,7 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
                       )
                     : Column(
                         children: [
-                          // Header with stats
+                          // Header with stats (calculated from actual user list)
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -1112,7 +1229,7 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
                                 Column(
                                   children: [
                                     Text(
-                                      '${widget.firstOrderReferralCount}',
+                                      '${_referredUsers.where((user) => user['hasPlacedFirstOrder'] as bool).length}',
                                       style: const TextStyle(
                                         color: Color(0xFFFFA500),
                                         fontSize: 20,
@@ -1128,7 +1245,7 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
                                 Column(
                                   children: [
                                     Text(
-                                      '${widget.firstOrderReferralCredits}',
+                                      '${_referredUsers.where((user) => user['firstOrderCreditAwarded'] as bool).length * 2}',
                                       style: const TextStyle(
                                         color: Color(0xFFFFA500),
                                         fontSize: 20,
