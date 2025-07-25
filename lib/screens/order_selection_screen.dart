@@ -131,7 +131,7 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                 Expanded(
                   child: _buildOrderOption(
                     icon: Image.asset(
-                      'assets/communitycuratoricon.png',
+                      'assets/curateicon.png',
                       width: 64,
                       height: 64,
                     ),

@@ -1,11 +1,9 @@
 // email_verification_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
-import '../routes.dart';
-import '../navigator_service.dart';
+import 'how_it_works_screen.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   const EmailVerificationScreen({Key? key}) : super(key: key);
@@ -32,8 +30,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       setState(() {
         _isVerified = true;
       });
-      // Navigate to home screen
-      NavigatorService.pushNamed(homeRoute);
+      // Navigate to how it works screen for new users
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => HowItWorksPage(showExitButton: false)),
+        (Route<dynamic> route) => false,
+      );
     }
   }
 
@@ -83,7 +84,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   // Title
                   Text(
                     'Verify Your Email',
-                    style: GoogleFonts.orbitron(
+                    style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -96,7 +97,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   // Message
                   Text(
                     'Please check your email and click the verification link to continue.',
-                    style: GoogleFonts.orbitron(
+                    style: TextStyle(
                       fontSize: 16,
                       color: Colors.white70,
                     ),
@@ -118,7 +119,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     text: 'I\'ve Verified',
                     onPressed: _checkEmailVerification,
                   ),
-                  
+                                    
                   const Spacer(),
                 ],
               ),

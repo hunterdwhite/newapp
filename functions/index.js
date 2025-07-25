@@ -145,3 +145,8 @@ exports.nightlyDiscogsSync = onSchedule("every 24 hours", async () => {
   await syncAlbums();
   console.log("Discogs sync complete.");
 });
+
+// Import and export custom email service functions
+const { sendCustomEmailVerification, verifyCustomEmail } = require('./email-service');
+exports.sendCustomEmailVerification = sendCustomEmailVerification;
+exports.verifyCustomEmail = verifyCustomEmail;

@@ -35,6 +35,7 @@ dependencies:
   google_sign_in: 6.2.1
   flutter_secure_storage: ^9.2.2
   cloud_firestore: ^5.4.3
+  cloud_functions: ^5.1.3
   provider: ^6.0.5
   shared_preferences: ^2.0.15
   flutter_stripe: ^11.2.0 
@@ -110,39 +111,45 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/dissonantlogo.png
-    - assets/welcome_background.png
-    - assets/grainoverlay.png
-    - assets/blank_cd.png
     - assets/blank_cd_disc.png
-    - assets/dissonantlogotext.png
-    - assets/homeicon.png
-    - assets/mymusicicon.png
-    - assets/ordericon.png
-    - assets/profileicon.png
-    - assets/emptycdcase.png
-    - assets/spineasset.png
-    - assets/spineasset1.png
-    - assets/spineasset2.png
-    - assets/dissonantordericon.png
+    - assets/blank_cd.png
     - assets/communitycuratoricon.png
-
-    - assets/waitlistwelcome.png
+    - assets/curateicon.png
     - assets/discogs_logo.png
+    - assets/dissonantlogo.png
+    - assets/dissonantlogotext.png
+    - assets/dissonantordericon.png
+    - assets/emptycdcase.png
     - assets/gradientbar.png
-    - assets/orangearrow.png
-    - assets/littleguy.mp4
-    - assets/icon/hiddengemicon.png
+    - assets/grainoverlay.png
+    - assets/homeicon.png
+    - assets/icon/app_icon_background.png
+    - assets/icon/app_icon_foreground.png
+    - assets/icon/app_icon.png
+    - assets/icon/basicintroicon.png
+    - assets/icon/discord.png
+    - assets/icon/donate.png
     - assets/icon/firstordericon.png
+    - assets/icon/hiddengemicon.png
+    - assets/icon/instagram.png
     - assets/icon/libraryicon.png
     - assets/icon/nextorderfreeicon.png
     - assets/icon/radicalsharemusicicon.png
-    - assets/icon/discord.png
     - assets/icon/tiktok.png
-    - assets/icon/instagram.png
-    - assets/icon/donate.png
-    - assets/icon/basicintroicon.png
-
+    - assets/littleguy.mp4
+    - assets/mymusicicon.png
+    - assets/orangearrow.png
+    - assets/ordericon.png
+    - assets/profileicon.png
+    - assets/spineasset.png
+    - assets/spineasset1.png
+    - assets/spineasset2.png
+    - assets/waitlistwelcome.png
+    - assets/welcome_background.png
+    - assets/icon/keeporreturnicon.png
+    - assets/icon/tellusicon.png
+    - assets/icon/recievehandpickedicon.png
+    - assets/icon/immerseyourself.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -396,86 +396,123 @@ class _OrderScreenState extends State<OrderScreen> {
  void _showPaymentOptionsDialog() {
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-          backgroundColor: Colors.black87, // Ensure the background is dark.
-          title: Text(
-            'Select Payment Option',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: SingleChildScrollView(
-            child: ListBody(
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.black, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  onTap: () {
-                    setState(() {
-                      _selectedPaymentAmount = 8.99;
-                      _hasSelectedPrice = true;
-                    });
-                    Navigator.of(context).pop();
-                  },
-                  title: Text.rich(
-                    TextSpan(
-                      style: TextStyle(fontSize: 16.0, color: Colors.white),
-                      children: [
-                        TextSpan(
-                          text: "\$8.99",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        TextSpan(
-                          text: " - I can't afford a full price album right now",
-                        ),
-                      ],
+                // Title bar
+                Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFFA12C),
+                    border: Border(
+                      bottom: BorderSide(color: Colors.black, width: 1),
                     ),
                   ),
-                ),
-                Divider(color: Colors.white70),
-                ListTile(
-                  onTap: () {
-                    setState(() {
-                      _selectedPaymentAmount = 11.99;
-                      _hasSelectedPrice = true;
-                    });
-                    Navigator.of(context).pop();
-                  },
-                  title: Text.rich(
-                    TextSpan(
-                      style: TextStyle(fontSize: 16.0, color: Colors.white),
-                      children: [
-                        TextSpan(
-                          text: "\$11.99",
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Text(
+                            'Select Payment Option',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
-                        TextSpan(
-                          text: " - I'll buy at full price!",
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 6,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Color(0xFFCBCACB),
+                              border: Border.all(color: Colors.black, width: 1),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'X',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                Divider(color: Colors.white70),
-                ListTile(
-                  onTap: () {
-                    setState(() {
-                      _selectedPaymentAmount = 14.99;
-                      _hasSelectedPrice = true;
-                    });
-                    Navigator.of(context).pop();
-                  },
-                  title: Text.rich(
-                    TextSpan(
-                      style: TextStyle(fontSize: 16.0, color: Colors.white),
-                      children: [
-                        TextSpan(
-                          text: "\$14.99",
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                Container(
+                  color: Color(0xFFE0E0E0),
+                  padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _windows97OptionButton(
+                        label: "\$8.99",
+                        description: "I can't afford a full price album right now",
+                        onTap: () {
+                          setState(() {
+                            _selectedPaymentAmount = 8.99;
+                            _hasSelectedPrice = true;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      SizedBox(height: 12),
+                      _windows97OptionButton(
+                        label: "\$11.99",
+                        description: "I'll buy at full price!",
+                        onTap: () {
+                          setState(() {
+                            _selectedPaymentAmount = 11.99;
+                            _hasSelectedPrice = true;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      SizedBox(height: 12),
+                      _windows97OptionButton(
+                        label: "\$14.99",
+                        description: "I want to pay full price and help contribute so others don't have to pay full price!",
+                        onTap: () {
+                          setState(() {
+                            _selectedPaymentAmount = 14.99;
+                            _hasSelectedPrice = true;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      SizedBox(height: 18),
+                      Text(
+                        'All prices are for the same service',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
                         ),
-                        TextSpan(
-                          text: " - I want to pay full price and help contribute so others don't have to pay full price!",
-                        ),
-                      ],
-                    ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -483,6 +520,54 @@ class _OrderScreenState extends State<OrderScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _windows97OptionButton({
+    required String label,
+    required String description,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.black, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              offset: Offset(2, 2),
+              blurRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                description,
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -497,7 +582,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
       if (_hasFreeOrder) {
         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
-        await _firestoreService.updateUserDoc(uid, {'freeOrder': false});
+        await HomeScreen.useFreeOrder(uid); // Properly decrement free order count
         
         // Award 1 credit for placing an order
         await HomeScreen.addFreeOrderCredits(uid, 1);

@@ -15,6 +15,7 @@ import 'feed_screen.dart';
 import 'album_detail_screen.dart';
 import 'earn_credits_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
+import '../widgets/windows95_window.dart'; // Corrected import for Windows95WindowWidget
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -54,6 +55,8 @@ class HomeScreen extends StatefulWidget {
   // Helper method to add credits (can be called when user completes actions)
   static Future<void> addFreeOrderCredits(String userId, int creditsToAdd) async {
     try {
+      print('addFreeOrderCredits: Starting for userId=$userId, creditsToAdd=$creditsToAdd');
+      
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -64,6 +67,8 @@ class HomeScreen extends StatefulWidget {
         final int currentCredits = data['freeOrderCredits'] ?? 0;
         final int currentFreeOrders = data['freeOrdersAvailable'] ?? 0;
         
+        print('addFreeOrderCredits: Current credits=$currentCredits, currentFreeOrders=$currentFreeOrders');
+        
         final int newTotalCredits = currentCredits + creditsToAdd;
         
         if (newTotalCredits >= 5) {
@@ -71,6 +76,8 @@ class HomeScreen extends StatefulWidget {
           final int newFreeOrdersEarned = newTotalCredits ~/ 5;
           final int remainingCredits = newTotalCredits % 5;
           final int totalFreeOrders = currentFreeOrders + newFreeOrdersEarned;
+          
+          print('addFreeOrderCredits: Converting to free orders - newTotalCredits=$newTotalCredits, newFreeOrdersEarned=$newFreeOrdersEarned, remainingCredits=$remainingCredits, totalFreeOrders=$totalFreeOrders');
           
           await FirebaseFirestore.instance
               .collection('users')
@@ -80,17 +87,26 @@ class HomeScreen extends StatefulWidget {
             'freeOrdersAvailable': totalFreeOrders,
             'freeOrder': totalFreeOrders > 0,
           });
+          
+          print('addFreeOrderCredits: Successfully updated with free orders');
         } else {
           // Just add the credits
+          print('addFreeOrderCredits: Adding credits only - newTotalCredits=$newTotalCredits');
+          
           await FirebaseFirestore.instance
               .collection('users')
               .doc(userId)
               .update({
             'freeOrderCredits': newTotalCredits,
           });
+          
+          print('addFreeOrderCredits: Successfully updated credits');
         }
+      } else {
+        print('addFreeOrderCredits: ERROR - User document does not exist for userId=$userId');
       }
     } catch (e) {
+      print('addFreeOrderCredits: ERROR - $e');
       debugPrint('Error adding free order credits: $e');
     }
   }
@@ -501,7 +517,7 @@ Future<void> _convertCreditsToFreeOrders(String userId, int newFreeOrders, int r
 Widget _buildFreeOrderBar() {
   if (_creditsLoading) {
     return const SizedBox(
-      height: 150,
+      height: 120, // slightly reduced height
       child: Center(child: CircularProgressIndicator()),
     );
   }
@@ -510,94 +526,152 @@ Widget _buildFreeOrderBar() {
   final int filledPartitions = _freeOrderCredits;
 
   return Padding(
-    padding: const EdgeInsets.all(16),
-    child: GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const EarnCreditsScreen()),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF151515),
-          border: Border.all(color: Colors.white, width: 1),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Available free orders (if any)
-            if (_freeOrdersAvailable > 0) ...[
+    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 2), // less vertical padding
+    child: Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black, width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Stack(
+            children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFA500),
-                  border: Border.all(color: Colors.white, width: 1),
+                height: 28, // reduced title bar height
+                color: const Color(0xFFFFA12C),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                alignment: Alignment.centerLeft,
+                child: const Text(
+                  'Free Order Credits',
+                  style: TextStyle(
+                    fontSize: 14, // smaller font
+                    color: Colors.black,
+                    fontWeight: FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                child: Text(
-                  _freeOrdersAvailable == 1 
-                      ? 'You have 1 free order available!'
-                      : 'You have $_freeOrdersAvailable free orders available!',
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 3, color: Color(0xFFFFC278)),
+              ),
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 0,
+                child: Container(
+                  width: 3, color: Color(0xFFFFC278)),
+              ),
+              Positioned(
+                top: 2,
+                right: 4,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFCBCACB),
+                    border: Border(
+                      top: BorderSide(color: Colors.white, width: 2),
+                      left: BorderSide(color: Colors.white, width: 2),
+                      bottom: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                      right: BorderSide(color: Color(0xFF5E5E5E), width: 2),
+                    ),
+                  ),
+                  child: const Text(
+                    'X',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Container(height: 1, color: Colors.black),
+          Container(
+            color: const Color(0xFFE0E0E0),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8), // less padding
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_freeOrdersAvailable > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(4), // less padding
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFA500),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      _freeOrdersAvailable == 1
+                          ? 'You have 1 free order available!'
+                          : 'You have $_freeOrdersAvailable free orders available!',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 12, // smaller font
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 8), // less spacing
+                ],
+                Text(
+                  '$creditsNeeded credits until next free order',
                   style: const TextStyle(
                     color: Colors.black,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 12, // smaller font
+                    fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            
-            // Progress toward next free order
-            Text(
-              '$creditsNeeded credits until next free order',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
+                const SizedBox(height: 6), // less spacing
+                Container(
+                  height: 16, // smaller progress bar
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.black, width: 1),
+                  ),
+                  child: Row(
+                    children: List.generate(5, (index) {
+                      final bool isFilled = index < filledPartitions;
+                      return Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isFilled ? const Color(0xFFFFA500) : Colors.transparent,
+                            border: index < 4
+                                ? const Border(right: BorderSide(color: Colors.black, width: 1))
+                                : null,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 120,
+                  height: 36,
+                  child: RetroButtonWidget(
+                    text: 'Earn Credits',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const EarnCreditsScreen()),
+                      );
+                    },
+                    style: RetroButtonStyle.light,
+                    fixedHeight: true,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            
-            // Progress bar with 5 partitions
-            Container(
-              height: 24,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              child: Row(
-                children: List.generate(5, (index) {
-                  final bool isFilled = index < filledPartitions;
-                  return Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isFilled ? const Color(0xFFFFA500) : Colors.transparent,
-                        border: index < 4 
-                            ? const Border(right: BorderSide(color: Colors.white, width: 1))
-                            : null,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Text below the bar
-            const Text(
-              'Click to earn free credits',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -988,7 +1062,7 @@ Widget _buildLatestAlbumsStrip() {
                     ),
                     child: Image.network(
                       album.albumImageUrl,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => const Icon(Icons.error),
                     ),
                   );
