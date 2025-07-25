@@ -140,7 +140,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
                 SizedBox(height: 16),
-                RetroButton(
+                RetroButtonWidget(
                   text: 'Join Waitlist',
                   onPressed: () {
                     Navigator.push(
@@ -169,7 +169,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               // If waitlist is OFF => bigger "Sign Up" / "Log In"
               if (isWaitlistMode) ...[
                 // Waitlist ON => show "Sign Up with Key" and "Log In" as before
-                RetroButton(
+                RetroButtonWidget(
                   text: 'Sign Up with Key',
                   onPressed: () {
                     Navigator.push(
@@ -179,7 +179,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   },
                 ),
                 SizedBox(height: 16),
-                RetroButton(
+                RetroButtonWidget(
                   text: 'Log In',
                   onPressed: () {
                     Navigator.push(
@@ -190,7 +190,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               ] else ...[
                 // Waitlist OFF => bigger "Sign Up" and bigger "Log In"
-                RetroButton(
+                RetroButtonWidget(
                   text: 'Sign Up',
                   onPressed: () {
                     Navigator.push(
@@ -200,7 +200,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   },
                 ),
                 SizedBox(height: 16),
-                RetroButton(
+                RetroButtonWidget(
                   text: 'Log In',
                   onPressed: () {
                     Navigator.push(

@@ -46,6 +46,10 @@ class BottomNavigationWidget extends StatelessWidget {
                 label: 'Order',
               ),
               BottomNavigationBarItem(
+                icon: Image.asset('assets/curateicon.png', width: 32, height: 32),
+                label: 'Curate',
+              ),
+              BottomNavigationBarItem(
                 icon: Image.asset('assets/mymusicicon.png', width: 32, height: 32),
                 label: 'My Music',
               ),

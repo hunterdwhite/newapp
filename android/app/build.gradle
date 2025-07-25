@@ -22,7 +22,7 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = '34'
+def flutterVersionCode = '36'
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }
@@ -35,7 +35,6 @@ if (flutterVersionName == null) {
 android {
     namespace "com.dissonant.dissonantapp2"
     compileSdk 35
-    //ndkVersion flutter.ndkVersion // Ensure flutter.ndkVersion is correctly set
 
     signingConfigs {
         release {
@@ -61,7 +60,6 @@ android {
         }
     }
 
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -82,16 +80,53 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+        
+        // Performance optimizations
+        vectorDrawables.useSupportLibrary = true
+        resConfigs "en" // Only include English resources to reduce APK size
+        
+        // Proguard optimization for release builds
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
     }
 
     buildTypes {
+        debug {
+            // Debug optimizations
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+            
+            // Disable Crashlytics for debug builds
+            manifestPlaceholders = [crashlyticsCollectionEnabled: "false"]
+        }
+        
         release {
-            // Enables code shrinking, obfuscation, and optimization for release builds
+            // Maximum optimizations for release builds
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-
+            zipAlignEnabled true
+            debuggable false
+            
+            // Enable R8 full mode for better optimization
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Enable Crashlytics for release builds
+            manifestPlaceholders = [crashlyticsCollectionEnabled: "true"]
+            
             signingConfig signingConfigs.release
+        }
+    }
+
+    // Additional performance optimizations
+    dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries = true
+    }
+
+    // Optimize build performance
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
 }
@@ -100,8 +135,8 @@ flutter {
     source '../..'
 }
 
+// Performance dependencies
 dependencies {
-    implementation platform('com.google.firebase:firebase-bom:33.5.1')
     implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'androidx.core:core-ktx:1.10.1'
 }

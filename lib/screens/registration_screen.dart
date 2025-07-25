@@ -3,8 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../routes.dart';
 import '/services/firestore_service.dart';
+import '/services/referral_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   @override
@@ -21,6 +23,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String password = '';
   String confirmPassword = '';
   String country = 'United States';
+  String referralCode = '';
   bool isLoading = false;
   String errorMessage = '';
 
@@ -60,10 +63,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           throw Exception('User creation failed. Please try again.');
         }
 
-        // Step 3: Update display name and send email verification
+        // Step 3: Update display name and send custom email verification
         await user.updateDisplayName(username);
         await user.reload();
-        await user.sendEmailVerification();
+        
+        // Send custom professional email verification
+        try {
+          final callable = FirebaseFunctions.instance.httpsCallable('sendCustomEmailVerification');
+          await callable.call({
+            'email': email,
+            'displayName': username,
+          });
+          print('Custom verification email sent successfully');
+        } catch (emailError) {
+          print('Failed to send custom email, falling back to default: $emailError');
+          // Fallback to default Firebase email verification
+          await user.sendEmailVerification();
+        }
 
         // Step 4: Reserve the username using a batch write
         WriteBatch batch = FirebaseFirestore.instance.batch();
@@ -80,11 +96,28 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         // This will create the main user document and the public profile document
         await _firestoreService.addUser(user.uid, username, email, country);
 
+        // Step 6: Process referral code if provided
+        if (referralCode.trim().isNotEmpty) {
+          print('Attempting to process referral code: ${referralCode.trim()}');
+          bool referralProcessed = await ReferralService.processReferral(
+            referralCode.trim(), 
+            user.uid
+          );
+          if (!referralProcessed) {
+            // Referral code was invalid, but don't fail registration
+            print('Invalid referral code: $referralCode');
+          } else {
+            print('Referral code processed successfully: $referralCode');
+          }
+        } else {
+          print('No referral code provided during registration');
+        }
+
         setState(() {
           isLoading = false;
         });
 
-        // Step 6: Navigate to the email verification screen
+        // Step 7: Navigate to the email verification screen
         Navigator.pushReplacementNamed(context, emailVerificationRoute);
       } on FirebaseAuthException catch (e) {
         setState(() {
@@ -174,150 +207,147 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     double formWidth = screenWidth * 0.85; 
     formWidth = formWidth > 350 ? 350 : formWidth; 
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/welcome_background.png', // Path to your background image
-              fit: BoxFit.cover,
-            ),
-          ),
-          Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/dissonantlogotext.png', // Path to your Dissonant logo
-                    height: 80,
-                  ),
-                  SizedBox(height: 16.0),
-                  isLoading
-                      ? CircularProgressIndicator()
-                      : CustomFormContainer(
-                          width: formWidth,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  if (errorMessage.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8.0),
-                                      child: Text(
-                                        errorMessage,
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  CustomTextField(
-                                    labelText: "Username",
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        username = value.trim();
-                                      });
-                                    },
-                                    validator: _validateUsername,
-                                    isFlat: true,
-                                  ),
-                                  SizedBox(height: 12.0),
-                                  CustomTextField(
-                                    labelText: "Email",
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        email = value.trim();
-                                      });
-                                    },
-                                    validator: _validateEmail,
-                                    isFlat: true,
-                                  ),
-                                  SizedBox(height: 12.0),
-                                  CustomTextField(
-                                    labelText: "Password",
-                                    obscureText: true,
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        password = value;
-                                      });
-                                    },
-                                    validator: _validatePassword,
-                                    isFlat: true,
-                                  ),
-                                  SizedBox(height: 12.0),
-                                  CustomTextField(
-                                    labelText: "Confirm Password",
-                                    obscureText: true,
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        confirmPassword = value;
-                                      });
-                                    },
-                                    validator: _validateConfirmPassword,
-                                    isFlat: true,
-                                  ),
-                                  SizedBox(height: 12.0),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      labelText: 'Country of Residence',
-                                      labelStyle: TextStyle(color: Colors.black),
-                                      fillColor: Colors.white,
-                                      filled: true,
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: Colors.black, width: 2),
-                                      ),
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    value: country,
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: 'United States',
-                                        child: Text(
-                                          'United States',
-                                          style: TextStyle(color: Colors.black),
-                                        ),
-                                      ),
-                                    ],
-                                    onChanged: (String? newValue) {
-                                      setState(() {
-                                        country = newValue!;
-                                      });
-                                    },
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                  SizedBox(height: 8.0),
-                                  Text(
-                                    'We currently only support users in the United States.',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                  SizedBox(height: 16.0),
-                                  CustomRetroButton(
-                                    text: 'Sign Up',
-                                    onPressed: isLoading ? null : _register,
-                                    color: Color(0xFFD24407),
-                                    fixedHeight: true,
-                                    shadowColor: Colors.black.withOpacity(0.9),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+         return Scaffold(
+       resizeToAvoidBottomInset: true,
+       body: Container(
+         constraints: BoxConstraints(
+           minHeight: MediaQuery.of(context).size.height,
+         ),
+         decoration: BoxDecoration(
+           image: DecorationImage(
+             image: AssetImage('assets/welcome_background.png'),
+             fit: BoxFit.cover,
+           ),
+         ),
+         child: SafeArea(
+           child: SingleChildScrollView(
+             padding: EdgeInsets.only(
+               left: 16.0,
+               right: 16.0,
+               top: 16.0,
+               bottom: MediaQuery.of(context).viewInsets.bottom + 16.0,
+             ),
+             child: ConstrainedBox(
+               constraints: BoxConstraints(
+                 minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+               ),
+               child: Column(
+                                 children: [
+                   Image.asset(
+                     'assets/dissonantlogotext.png', // Path to your Dissonant logo
+                     height: 60, // Reduced from 80
+                   ),
+                   SizedBox(height: 12.0), // Reduced from 16.0
+                   isLoading
+                       ? CircularProgressIndicator()
+                       : CustomFormContainer(
+                           width: formWidth,
+                           child: Padding(
+                             padding: const EdgeInsets.all(8.0), // Reduced from 12.0
+                             child: Form(
+                               key: _formKey,
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                                 children: [
+                                   if (errorMessage.isNotEmpty)
+                                     Padding(
+                                       padding: const EdgeInsets.only(bottom: 6.0), // Reduced from 8.0
+                                       child: Text(
+                                         errorMessage,
+                                         style: TextStyle(color: Colors.red, fontSize: 14), // Smaller text
+                                       ),
+                                     ),
+                                   CustomTextField(
+                                     labelText: "Username",
+                                     textColor: Colors.black,
+                                     onChanged: (value) {
+                                       setState(() {
+                                         username = value.trim();
+                                       });
+                                     },
+                                     validator: _validateUsername,
+                                     isFlat: true,
+                                     isCompact: true, // New parameter for compact mode
+                                   ),
+                                   SizedBox(height: 8.0), // Reduced from 12.0
+                                   CustomTextField(
+                                     labelText: "Email",
+                                     textColor: Colors.black,
+                                     onChanged: (value) {
+                                       setState(() {
+                                         email = value.trim();
+                                       });
+                                     },
+                                     validator: _validateEmail,
+                                     isFlat: true,
+                                     isCompact: true,
+                                   ),
+                                   SizedBox(height: 8.0),
+                                   CustomTextField(
+                                     labelText: "Password",
+                                     obscureText: true,
+                                     textColor: Colors.black,
+                                     onChanged: (value) {
+                                       setState(() {
+                                         password = value;
+                                       });
+                                     },
+                                     validator: _validatePassword,
+                                     isFlat: true,
+                                     isCompact: true,
+                                   ),
+                                   SizedBox(height: 8.0),
+                                   CustomTextField(
+                                     labelText: "Confirm Password",
+                                     obscureText: true,
+                                     textColor: Colors.black,
+                                     onChanged: (value) {
+                                       setState(() {
+                                         confirmPassword = value;
+                                       });
+                                     },
+                                     validator: _validateConfirmPassword,
+                                     isFlat: true,
+                                     isCompact: true,
+                                   ),
+                                   SizedBox(height: 8.0),
+                                   CustomTextField(
+                                     labelText: "Referral Code (Optional)",
+                                     textColor: Colors.black,
+                                     onChanged: (value) {
+                                       setState(() {
+                                         referralCode = value;
+                                       });
+                                     },
+                                     isFlat: true,
+                                     isCompact: true,
+                                   ),
+                                   SizedBox(height: 6.0), // Reduced from 8.0
+                                   Text(
+                                     'Have a friend already using DISSONANT? Enter their referral code to earn them a credit!',
+                                     style: TextStyle(fontSize: 11, color: Colors.grey), // Smaller text
+                                   ),
+                                   SizedBox(height: 12.0), // Reduced from 16.0
+                                   CustomRetroButtonWidget(
+                                     text: 'Sign Up',
+                                     onPressed: isLoading ? null : _register,
+                                     color: Color(0xFFD24407),
+                                     fixedHeight: true,
+                                     shadowColor: Colors.black.withOpacity(0.9),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ),
+                         ),
+                   SizedBox(height: 100), // Increased space at bottom for scrolling
+                 ],
+               ),
+             ),
+           ),
+         ),
+       ),
+     );
   }
 }
 
@@ -471,6 +501,7 @@ class CustomTextField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final Color textColor;
   final bool isFlat;
+  final bool isCompact;
   final String? Function(String?)? validator;
 
   const CustomTextField({
@@ -479,21 +510,25 @@ class CustomTextField extends StatelessWidget {
     this.onChanged,
     this.textColor = Colors.black,
     this.isFlat = false,
+    this.isCompact = false,
     this.validator,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8.0),
+      margin: EdgeInsets.only(bottom: isCompact ? 4.0 : 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             labelText,
-            style: TextStyle(fontSize: 16, color: textColor),
+            style: TextStyle(
+              fontSize: isCompact ? 14 : 16, 
+              color: textColor
+            ),
           ),
-          SizedBox(height: 4.0),
+          SizedBox(height: isCompact ? 2.0 : 4.0),
           Container(
             decoration: BoxDecoration(
               color: Color(0xFFF5F5F5),
@@ -515,7 +550,7 @@ class CustomTextField extends StatelessWidget {
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: isFlat ? 12 : 18,
+                  vertical: isCompact ? 8 : (isFlat ? 12 : 18),
                 ),
               ),
               onChanged: onChanged,
@@ -529,14 +564,14 @@ class CustomTextField extends StatelessWidget {
   }
 }
 
-class CustomRetroButton extends StatelessWidget {
+class CustomRetroButtonWidget extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final Color color;
   final bool fixedHeight;
   final Color shadowColor;
 
-  const CustomRetroButton({
+  const CustomRetroButtonWidget({
     Key? key,
     required this.text,
     this.onPressed,
