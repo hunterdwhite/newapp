@@ -22,25 +22,25 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
 
   final List<Map<String, dynamic>> steps = [
     {
-      'icon': Icons.person,
+      'asset': 'assets/icon/tellusicon.png',
       'title': 'Tell Us About Yourself',
       'description':
           'Fill out a quick form about your musical preferences-your favorite genres and how adventurous you want your discovery to be.',
     },
     {
-      'icon': Icons.local_shipping,
+      'asset': 'assets/icon/recievehandpickedicon.png',
       'title': 'Receive a Handpicked CD',
       'description':
           'Make an order and our music lover curators select a CD tailored just for you and send it straight to your door.',
     },
     {
-      'icon': Icons.headset,
+      'asset': 'assets/icon/immerseyourself.png',
       'title': 'Immerse Yourself in the Music',
       'description':
           'Hold the CD, explore the artwork, read the liner notes, truly live with the music.',
     },
     {
-      'icon': Icons.swap_horiz,
+      'asset': 'assets/icon/keeporreturnicon.png',
       'title': 'Keep It or Return It',
       'description':
           'Love it? Keep it! If not, use the prepaid shipping label to send it back, and your next order will be free!',
@@ -91,7 +91,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
               ],
             )
           : null,
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: Column(
           children: [
             Expanded(
@@ -119,10 +119,10 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            step['icon'],
-            size: MediaQuery.of(context).size.width * 0.3, // Adjust icon size relative to screen width
-            color: Colors.orange, // Set icon color to orange
+          Image.asset(
+            step['asset'],
+            width: MediaQuery.of(context).size.width * 0.3,
+            height: MediaQuery.of(context).size.width * 0.3,
           ),
           SizedBox(height: 40),
           Text(
@@ -145,7 +145,7 @@ class _HowItWorksPageState extends State<HowItWorksPage> {
           ),
           if (index == steps.length - 1) ...[
             SizedBox(height: 40),
-            RetroButton(
+            RetroButtonWidget(
               onPressed: _enterHomePage,
               text: 'Enter Dissonant',
               style: RetroButtonStyle.light,

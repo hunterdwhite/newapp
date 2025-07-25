@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 enum RetroButtonStyle { light, dark }
 
-class RetroButton extends StatelessWidget {
+class RetroButtonWidget extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final RetroButtonStyle style;
   final bool fixedHeight;
   final Widget? leading;
 
-  const RetroButton({
+  const RetroButtonWidget({
     Key? key,
     required this.text,
     this.onPressed,

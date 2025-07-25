@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../models/album.dart';
+import '../models/album_model.dart';
 import '../widgets/app_bar_widget.dart';
 import '../widgets/dialog/genre_selection_dialog.dart';
 import '../widgets/dialog/review_dialog.dart';
@@ -18,19 +18,19 @@ import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
 import 'public_profile_screen.dart';
 
-class AlbumDetailsScreen extends StatefulWidget {
+class AlbumDetailScreen extends StatefulWidget {
   final Album album;
 
-  const AlbumDetailsScreen({
+  const AlbumDetailScreen({
     Key? key,
     required this.album,
   }) : super(key: key);
 
   @override
-  _AlbumDetailsScreenState createState() => _AlbumDetailsScreenState();
+  _AlbumDetailScreenState createState() => _AlbumDetailScreenState();
 }
 
-class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
+class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
   String? _currentUserId;
@@ -62,10 +62,14 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     try {
       Uri uri = Uri.parse(url);
       String extension = path.extension(uri.path).toLowerCase(); // e.g., '.png'
-      print('Parsed extension: $extension for URL: $url'); // Debug log
+      // Removed debug print statement for production
       return (extension == '.jpg' || extension == '.jpeg' || extension == '.png');
     } catch (e) {
-      print('Error parsing image URL: $url, error: $e');
+      // Only print errors in debug mode
+      assert(() {
+        print('Error parsing image URL: $url, error: $e');
+        return true;
+      }());
       return false;
     }
   }
@@ -554,7 +558,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
     );
   }
 
-  // -- CHANGED: Removed SingleChildScrollView from inside here --
+  // Replace _buildUserReviewsSection to use ListView for scrollability and left alignment
   Widget _buildUserReviewsSection() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -585,9 +589,9 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
           );
         }
 
-        // Just return a Column; we'll wrap this in a scroll view in build()
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Use ListView for scrollability
+        return ListView(
+          padding: EdgeInsets.zero,
           children: snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             String comment = data['comment'] ?? '';
@@ -608,20 +612,22 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Loading user info...',
                       style: TextStyle(color: Colors.black),
+                      textAlign: TextAlign.left,
                     ),
                   );
                 }
 
                 if (userSnapshot.hasError || userSnapshot.data == null) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Error loading user info',
                       style: TextStyle(color: Colors.red),
+                      textAlign: TextAlign.left,
                     ),
                   );
                 }
@@ -631,29 +637,30 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     userSnapshot.data!['statusNote'] ?? '(hasn\'t received this album)';
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Username
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PublicProfileScreen(userId: userId),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PublicProfileScreen(userId: userId),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          username,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                            decoration: TextDecoration.underline,
                           ),
-                        );
-                      },
-                      child: Text(
-                        username,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                          decoration: TextDecoration.underline, // Optional, visual indication it's clickable
+                          textAlign: TextAlign.left,
                         ),
                       ),
-                    ),
                       // Status note
                       Text(
                         statusNote,
@@ -661,6 +668,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                           fontSize: 12,
                           color: Colors.black54,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                       // Date
                       Text(
@@ -669,6 +677,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                           fontSize: 12,
                           color: Colors.black54,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                       SizedBox(height: 4),
                       // Comment
@@ -693,6 +702,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                               color: Colors.blue,
                               decoration: TextDecoration.underline,
                             ),
+                            textAlign: TextAlign.left,
                           ),
                         ),
                       SizedBox(height: 8),
@@ -745,14 +755,14 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BackgroundWidget(
+      body: GrainyBackgroundWidget(
         child: SafeArea(
           child: Column(
             children: [
               // Top window: album cover & details
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Windows95Window(
+                child: Windows95WindowWidget(
                   showTitleBar: true,
                   title: 'Album Details',
                   contentBackgroundColor: Color(0xFFC0C0C0),
@@ -762,11 +772,11 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       // Album Cover (no title bar)
                       Expanded(
                         flex: 1,
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: false,
                           contentPadding: EdgeInsets.zero,
                           contentBackgroundColor: Color(0xFFC0C0C0),
-                          child: CustomAlbumImage(
+                          child: CustomAlbumImageWidget(
                             imageUrl: widget.album.albumImageUrl,
                             fit: BoxFit.contain,
                           ),
@@ -806,7 +816,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                     children: [
                       // Genres window
                       Expanded(
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Genres',
                           contentBackgroundColor: Color(0xFFC0C0C0),
@@ -819,7 +829,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       SizedBox(width: 8.0),
                       // Counter window
                       Expanded(
-                        child: Windows95Window(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Counter',
                           contentBackgroundColor: Color(0xFFC0C0C0),
@@ -838,7 +848,7 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Windows95Window(
+                  child: Windows95WindowWidget(
                     showTitleBar: true,
                     titleWidget: Row(
                       children: [
@@ -853,11 +863,10 @@ class _AlbumDetailsScreenState extends State<AlbumDetailsScreen> {
                       ],
                     ),
                     contentBackgroundColor: Color(0xFFC0C0C0),
-
-                    // Wrap _buildUserReviewsSection in SingleChildScrollView
-                    // child: SingleChildScrollView(
+                    child: SizedBox(
+                      height: 250, // Adjust as needed
                       child: _buildUserReviewsSection(),
-                    // ),
+                    ),
                   ),
                 ),
               ),

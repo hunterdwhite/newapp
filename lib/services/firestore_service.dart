@@ -3,19 +3,122 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'referral_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // Cache for frequently accessed data
+  static final Map<String, dynamic> _cache = {};
+  static const int _cacheExpiry = 300000; // 5 minutes in milliseconds
+  static final Map<String, int> _cacheTimestamps = {};
+
+  // Constructor with performance optimizations
+  FirestoreService() {
+    // Enable offline persistence for better performance
+    _firestore.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
+
+  /// Check cache first before making Firestore query
+  T? _getFromCache<T>(String key) {
+    final timestamp = _cacheTimestamps[key];
+    if (timestamp != null && 
+        DateTime.now().millisecondsSinceEpoch - timestamp < _cacheExpiry) {
+      return _cache[key] as T?;
+    }
+    return null;
+  }
+
+  /// Store data in cache
+  void _setCache<T>(String key, T data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  /// Clear expired cache entries
+  void _clearExpiredCache() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final expiredKeys = _cacheTimestamps.entries
+        .where((entry) => now - entry.value > _cacheExpiry)
+        .map((entry) => entry.key)
+        .toList();
+    
+    for (final key in expiredKeys) {
+      _cache.remove(key);
+      _cacheTimestamps.remove(key);
+    }
+  }
 
   /// ------------------------
-  /// Existing Methods
+  /// Existing Methods (Optimized)
   /// ------------------------
 
-  // Check if a username exists in the usernames collection
+  // Check if a username exists in the usernames collection (with caching and retry logic)
   Future<bool> checkUsernameExists(String username) async {
-    final doc = await _firestore.collection('usernames').doc(username).get();
-    return doc.exists;
+    final cacheKey = 'username_exists_$username';
+    final cached = _getFromCache<bool>(cacheKey);
+    if (cached != null) return cached;
+
+    // Try multiple approaches with error handling
+    try {
+      // First try cache
+      final cacheDoc = await _firestore.collection('usernames').doc(username).get(
+        const GetOptions(source: Source.cache),
+      );
+      final exists = cacheDoc.exists;
+      _setCache(cacheKey, exists);
+      return exists;
+    } catch (cacheError) {
+      print('Cache check failed, trying server: $cacheError');
+      
+      try {
+        // Fallback to server with retry logic
+        DocumentSnapshot? serverDoc;
+        int retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            serverDoc = await _firestore.collection('usernames').doc(username).get(
+              const GetOptions(source: Source.server),
+            );
+            break;
+          } catch (serverError) {
+            retryCount++;
+            if (retryCount >= maxRetries) {
+              throw serverError;
+            }
+            // Exponential backoff: wait 1s, 2s, 4s
+            await Future.delayed(Duration(seconds: 1 << (retryCount - 1)));
+            print('Retry $retryCount/$maxRetries for username check...');
+          }
+        }
+        
+        if (serverDoc != null) {
+          final exists = serverDoc.exists;
+          _setCache(cacheKey, exists);
+          return exists;
+        }
+        
+        throw Exception('Failed to check username after $maxRetries retries');
+      } catch (serverError) {
+        print('Server check failed: $serverError');
+        
+        // Final fallback - try default source (cache then server)
+        try {
+          final defaultDoc = await _firestore.collection('usernames').doc(username).get();
+          final exists = defaultDoc.exists;
+          _setCache(cacheKey, exists);
+          return exists;
+        } catch (finalError) {
+          throw Exception('Unable to check username availability. Please check your internet connection and try again.');
+        }
+      }
+    }
   }
 
   // Add a username to the usernames collection
@@ -24,18 +127,30 @@ class FirestoreService {
       'userId': userId,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    
+    // Update cache
+    _setCache('username_exists_$username', true);
   }
 
+  // Optimized batch query for outstanding orders
   Future<bool> hasOutstandingOrders(String userId) async {
+    final cacheKey = 'outstanding_orders_$userId';
+    final cached = _getFromCache<bool>(cacheKey);
+    if (cached != null) return cached;
+
     QuerySnapshot ordersSnapshot = await _firestore
         .collection('orders')
         .where('userId', isEqualTo: userId)
         .where('status', whereIn: ['sent', 'returned'])
+        .limit(1) // Only need to know if any exist
         .get();
 
-    return ordersSnapshot.docs.isNotEmpty;
+    final hasOrders = ordersSnapshot.docs.isNotEmpty;
+    _setCache(cacheKey, hasOrders);
+    return hasOrders;
   }
 
+  // Optimized batch delete using WriteBatch
   Future<void> deleteUserData(String userId) async {
     WriteBatch batch = _firestore.batch();
 
@@ -56,39 +171,67 @@ class FirestoreService {
       batch.delete(usernameDocRef);
     }
 
-    // Delete user's wishlist items
+    // Delete user's wishlist items (batch operation)
     CollectionReference wishlistRef = userDocRef.collection('wishlist');
-    QuerySnapshot wishlistSnapshot = await wishlistRef.get();
+    QuerySnapshot wishlistSnapshot = await wishlistRef.limit(500).get(); // Batch in chunks
     for (DocumentSnapshot doc in wishlistSnapshot.docs) {
       batch.delete(doc.reference);
     }
 
-    // Delete user's orders
-    QuerySnapshot ordersSnapshot = await _firestore.collection('orders').where('userId', isEqualTo: userId).get();
+    // Delete user's orders (batch operation)
+    QuerySnapshot ordersSnapshot = await _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .limit(500) // Batch in chunks
+        .get();
     for (DocumentSnapshot doc in ordersSnapshot.docs) {
       batch.delete(doc.reference);
     }
 
     // Commit the batch
     await batch.commit();
+    
+    // Clear related cache entries
+    _cache.removeWhere((key, value) => key.contains(userId));
+    _cacheTimestamps.removeWhere((key, value) => key.contains(userId));
   }
 
+  // Optimized public profile retrieval with caching
   Future<Map<String, dynamic>?> getUserPublicProfile(String userId) async {
+    final cacheKey = 'public_profile_$userId';
+    final cached = _getFromCache<Map<String, dynamic>>(cacheKey);
+    if (cached != null) return cached;
+
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .collection('public')
         .doc('profile')
         .get();
-    return doc.data();
+    
+    final data = doc.data();
+    if (data != null) {
+      _setCache(cacheKey, data);
+    }
+    return data;
   }
 
+  // Optimized order retrieval with caching
   Future<DocumentSnapshot?> getOrderById(String orderId) async {
+    final cacheKey = 'order_$orderId';
+    final cached = _getFromCache<DocumentSnapshot>(cacheKey);
+    if (cached != null) return cached;
+
     final doc = await FirebaseFirestore.instance
         .collection('orders')
         .doc(orderId)
         .get();
-    return doc.exists ? doc : null;
+    
+    if (doc.exists) {
+      _setCache(cacheKey, doc);
+      return doc;
+    }
+    return null;
   }
 
   Future<void> addReview({
@@ -283,6 +426,9 @@ class FirestoreService {
     String email,
     String country,
   ) async {
+    // Generate referral code for the new user
+    final referralCode = await ReferralService.getOrCreateReferralCode(userId);
+    
     // Create the main user document with private data
     await _firestore.collection('users').doc(userId).set({
       'username': username, // <-- Add this field
@@ -296,6 +442,10 @@ class FirestoreService {
         'fontStyle': 'MS Sans Serif',
         'layout': 'default',
       },
+      'referralCode': referralCode,
+      'referralCount': 0,
+      'totalReferralCredits': 0,
+      'firstOrderReferralCredits': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -333,6 +483,14 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
   }
 
   Future<void> addOrder(String userId, String address, {int flowVersion = 1,}) async {
+    // Check if this is the user's first order
+    QuerySnapshot existingOrders = await _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .get();
+    
+    bool isFirstOrder = existingOrders.docs.isEmpty;
+
     await _firestore.collection('orders').add({
       'userId': userId,
       'address': address,
@@ -347,6 +505,19 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
       'hasOrdered': true,
       'updatedAt': FieldValue.serverTimestamp(), // Added updatedAt timestamp
     });
+
+    // If this is the user's first order and they were referred, award referral credits
+    print('DEBUG: addOrder - isFirstOrder: $isFirstOrder for userId: $userId');
+    if (isFirstOrder) {
+      try {
+        print('DEBUG: addOrder - Calling processReferredUserFirstOrder for userId: $userId');
+        final result = await ReferralService.processReferredUserFirstOrder(userId);
+        print('DEBUG: addOrder - processReferredUserFirstOrder result: $result');
+      } catch (e) {
+        print('Error processing referral first order: $e');
+        // Don't fail the order creation if referral processing fails
+      }
+    }
   }
 
 // For retrieving the user document

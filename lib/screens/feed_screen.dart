@@ -5,19 +5,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/firestore_service.dart';
 import '../widgets/retro_button_widget.dart';
-import '../models/album.dart';
-import '../models/feed_item.dart';
+import '../models/album_model.dart';
+import '../models/feed_item_model.dart';
 import 'album_detail_screen.dart';
 import 'public_profile_screen.dart';
 import 'dart:math'; // make sure this is at the top
 
-
 class FeedScreen extends StatefulWidget {
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  _FeedScreenState createState() => _FeedScreenState();
 }
 
-class _HomeScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   // Paginated feed
@@ -28,16 +27,16 @@ class _HomeScreenState extends State<FeedScreen> {
   DocumentSnapshot? _lastDocument;
   final int _pageSize = 10;
   // This map stores which spine asset was chosen for each spine index
-final Map<int, String> _spineAssetMap = {};
+  final Map<int, String> _spineAssetMap = {};
 
-// These are your available spine images
-final List<String> _spineOptions = [
-  'assets/spineasset1.png',
-  'assets/spineasset2.png',
-];
+  // These are your available spine images
+  final List<String> _spineOptions = [
+    'assets/spineasset1.png',
+    'assets/spineasset2.png',
+  ];
 
-// Corresponding weights (e.g., 80% chance of spineasset1, 20% of spineasset2)
-final List<int> _spineWeights = [80, 30];
+  // Corresponding weights (e.g., 80% chance of spineasset1, 20% of spineasset2)
+  final List<int> _spineWeights = [80, 30];
   final Random _random = Random(); // place this at the class level to reuse the same instance
 
   // Page-view controller
@@ -292,7 +291,7 @@ final List<int> _spineWeights = [80, 30];
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AlbumDetailsScreen(album: item.album),
+                    builder: (_) => AlbumDetailScreen(album: item.album),
                   ),
                 ),
                 child: Image.network(
@@ -330,7 +329,7 @@ final List<int> _spineWeights = [80, 30];
             const SizedBox(height: 30),
 
             /* ――― wishlist button ――― */
-            RetroButton(
+            RetroButtonWidget(
               text: 'Add to Wishlist',
               style: RetroButtonStyle.light,
               fixedHeight: true,
@@ -409,13 +408,6 @@ Widget _buildSpines(BuildContext context) {
   );
 }
 
-
-
-
-
-
-
-
 Widget _buildSpine(FeedItem item) {
   return AspectRatio(
     aspectRatio: 7, // or adjust this based on your image’s natural dimensions
@@ -425,8 +417,6 @@ Widget _buildSpine(FeedItem item) {
     ),
   );
 }
-
-
 
 Widget _buildSpineImageOnly(FeedItem item) {
   return Image.asset(
@@ -514,7 +504,7 @@ Widget build(BuildContext context) {
   final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
 
   return Scaffold(
-    body: BackgroundWidget(
+    body: GrainyBackgroundWidget(
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -561,7 +551,5 @@ Widget build(BuildContext context) {
     ),
   );
 }
-
-
 
 }
