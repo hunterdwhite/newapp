@@ -17,6 +17,7 @@ import '../widgets/retro_button_widget.dart';
 import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
 import 'public_profile_screen.dart';
+import '../constants/responsive_utils.dart';
 
 class AlbumDetailScreen extends StatefulWidget {
   final Album album;
@@ -761,87 +762,151 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             children: [
               // Top window: album cover & details
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: ResponsiveUtils.getResponsivePadding(context),
                 child: Windows95WindowWidget(
                   showTitleBar: true,
                   title: 'Album Details',
                   contentBackgroundColor: Color(0xFFC0C0C0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Album Cover (no title bar)
-                      Expanded(
-                        flex: 1,
-                        child: Windows95WindowWidget(
-                          showTitleBar: false,
-                          contentPadding: EdgeInsets.zero,
-                          contentBackgroundColor: Color(0xFFC0C0C0),
-                          child: CustomAlbumImageWidget(
-                            imageUrl: widget.album.albumImageUrl,
-                            fit: BoxFit.contain,
+                  child: ResponsiveUtils.isMobile(context) 
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Album Cover on mobile (stacked)
+                          Windows95WindowWidget(
+                            showTitleBar: false,
+                            contentPadding: EdgeInsets.zero,
+                            contentBackgroundColor: Color(0xFFC0C0C0),
+                            child: SizedBox(
+                              height: 200,
+                              child: CustomAlbumImageWidget(
+                                imageUrl: widget.album.albumImageUrl,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      SizedBox(width: 8.0),
-                      // Album details (artist, name, etc.)
-                      Expanded(
-                        flex: 1,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildLabelValue('Artist:', widget.album.artist),
-                              SizedBox(height: 10),
-                              _buildLabelValue('Album:', widget.album.albumName),
-                              SizedBox(height: 10),
-                              _buildLabelValue('Release Year:', widget.album.releaseYear),
-                            ],
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                          // Album details on mobile
+                          Padding(
+                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabelValue('Artist:', widget.album.artist),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+                                _buildLabelValue('Album:', widget.album.albumName),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+                                _buildLabelValue('Release Year:', widget.album.releaseYear),
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Album Cover (no title bar)
+                          Expanded(
+                            flex: 1,
+                            child: Windows95WindowWidget(
+                              showTitleBar: false,
+                              contentPadding: EdgeInsets.zero,
+                              contentBackgroundColor: Color(0xFFC0C0C0),
+                              child: CustomAlbumImageWidget(
+                                imageUrl: widget.album.albumImageUrl,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                          // Album details (artist, name, etc.)
+                          Expanded(
+                            flex: 1,
+                            child: Padding(
+                              padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildLabelValue('Artist:', widget.album.artist),
+                                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+                                  _buildLabelValue('Album:', widget.album.albumName),
+                                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+                                  _buildLabelValue('Release Year:', widget.album.releaseYear),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                 ),
               ),
 
               // Genres & Counter
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Genres window
-                      Expanded(
-                        child: Windows95WindowWidget(
+                padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+                  mobile: 16, tablet: 20, desktop: 24).copyWith(
+                  top: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10),
+                  bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10),
+                ),
+                child: ResponsiveUtils.isMobile(context)
+                  ? Column(
+                      children: [
+                        // Genres window on mobile (stacked)
+                        Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Genres',
                           contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
-                            padding: const EdgeInsets.all(8.0),
+                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
                             child: _buildGenresSection(),
                           ),
                         ),
-                      ),
-                      SizedBox(width: 8.0),
-                      // Counter window
-                      Expanded(
-                        child: Windows95WindowWidget(
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                        // Counter window on mobile
+                        Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Counter',
                           contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
-                            padding: const EdgeInsets.all(8.0),
+                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
                             child: _buildCounter(),
                           ),
                         ),
+                      ],
+                    )
+                  : IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Genres window
+                          Expanded(
+                            child: Windows95WindowWidget(
+                              showTitleBar: true,
+                              title: 'Genres',
+                              contentBackgroundColor: Color(0xFFC0C0C0),
+                              child: Padding(
+                                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
+                                child: _buildGenresSection(),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                          // Counter window
+                          Expanded(
+                            child: Windows95WindowWidget(
+                              showTitleBar: true,
+                              title: 'Counter',
+                              contentBackgroundColor: Color(0xFFC0C0C0),
+                              child: Padding(
+                                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
+                                child: _buildCounter(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
               ),
 
               // Reviews
