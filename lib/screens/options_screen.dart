@@ -252,12 +252,12 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           SizedBox(height: 20),
                         ],
                         // Logout button for everyone
-                        RetroButtonWidget(
-                          text: 'Logout',
-                          onPressed: _logout,
-                          style: RetroButtonStyle.light,
-                          fixedHeight: true,
-                        ),
+                        // RetroButtonWidget(
+                        //   text: 'Logout',
+                        //   onPressed: _logout,
+                        //   style: RetroButtonStyle.light,
+                        //   fixedHeight: true,
+                        // ),
                       ],
                     ),
                   ),
