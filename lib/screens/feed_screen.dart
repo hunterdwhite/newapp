@@ -10,6 +10,7 @@ import '../models/feed_item_model.dart';
 import 'album_detail_screen.dart';
 import 'public_profile_screen.dart';
 import 'dart:math'; // make sure this is at the top
+import '../constants/responsive_utils.dart';
 
 class FeedScreen extends StatefulWidget {
   @override
@@ -286,7 +287,9 @@ class _FeedScreenState extends State<FeedScreen> {
 
             /* ――― cover art ――― */
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.35,
+              height: ResponsiveUtils.isMobile(context) ? 
+                  MediaQuery.of(context).size.height * 0.32 : 
+                  MediaQuery.of(context).size.height * 0.35,
               child: InkWell(
                 onTap: () => Navigator.push(
                   context,
@@ -301,32 +304,39 @@ class _FeedScreenState extends State<FeedScreen> {
                       p == null ? w : const Center(child: CircularProgressIndicator()),
                   errorBuilder: (c, e, st) => Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.error, size: 100, color: Colors.red),
-                      SizedBox(height: 8),
-                      Text('Failed to load image', style: TextStyle(color: Colors.red)),
+                    children: [
+                      Icon(Icons.error, 
+                          size: ResponsiveUtils.isMobile(context) ? 80 : 100, 
+                          color: Colors.red),
+                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
+                      Text('Failed to load image', 
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+                          )),
                     ],
                   ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 8),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
 
             /* ――― artist – album title ――― */
            Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+                mobile: 16, tablet: 20, desktop: 20),
             child: Text(
-              '${item.album.artist} – ${item.album.albumName}',   // <- artist field
+              '${item.album.artist} – ${item.album.albumName}',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                //fontWeight: FontWeight.bold,
                 color: Colors.white70,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 18),
               ),
             ),
           ),
 
-            const SizedBox(height: 30),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 30, desktop: 30)),
 
             /* ――― wishlist button ――― */
             RetroButtonWidget(
@@ -344,14 +354,15 @@ class _FeedScreenState extends State<FeedScreen> {
 
   /* spines */
 Widget _buildSpines(BuildContext context) {
+  // Use responsive screen calculations
   final screenHeight = MediaQuery.of(context).size.height;
   final screenWidth = MediaQuery.of(context).size.width;
 
-  // Shrink spines on smaller screens
-  final isSmallScreen = screenHeight < 750;
-  final spineHeight = isSmallScreen ? 38.0 : 45.0;
+  // Shrink spines on smaller screens with responsive calculations
+  final isSmallScreen = ResponsiveUtils.isMobile(context);
+  final spineHeight = isSmallScreen ? 32.0 : 45.0;
   final maxSpines = 4; // fewer spines for better fit
-  final spineWidth = screenWidth * 0.85;
+  final spineWidth = screenWidth * (isSmallScreen ? 0.8 : 0.85);
 
   return Positioned(
     bottom: isSmallScreen ? 4 : 16, // margin below stack

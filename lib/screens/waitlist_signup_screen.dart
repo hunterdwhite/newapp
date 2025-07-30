@@ -2,6 +2,8 @@ import 'package:dissonantapp2/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/waitlist_service.dart';
 import '../widgets/retro_button_widget.dart';
+import '../widgets/responsive_form_container.dart';
+import '../constants/responsive_utils.dart';
 
 
 class WaitlistSignUpScreen extends StatefulWidget {
@@ -58,14 +60,9 @@ class _WaitlistSignUpScreenState extends State<WaitlistSignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double formWidth = screenWidth * 0.85;
-    formWidth = formWidth > 350 ? 350 : formWidth;
-
     return Scaffold(
       body: Stack(
         children: [
-          // Background
           Positioned.fill(
             child: Image.asset(
               'assets/welcome_background.png',
@@ -74,67 +71,72 @@ class _WaitlistSignUpScreenState extends State<WaitlistSignUpScreen> {
           ),
           Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Optional Logo
                   Image.asset(
                     'assets/dissonantlogotext.png',
-                    height: 80,
+                    height: ResponsiveUtils.isMobile(context) ? 70 : 80,
                   ),
-                  SizedBox(height: 16.0),
-
-                  if (isLoading)
-                    CircularProgressIndicator()
-                  else
-                    CustomFormContainer(
-                      width: formWidth,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (errorMessage.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Text(
-                                    errorMessage,
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ),
-                              if (successMessage.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Text(
-                                    successMessage,
-                                    style: TextStyle(color: Colors.green),
-                                  ),
-                                ),
-                              CustomTextField(
-                                labelText: "Email",
-                                textColor: Colors.black,
-                                onChanged: (value) {
-                                  setState(() {
-                                    email = value.trim();
-                                  });
-                                },
-                                validator: _validateEmail,
-                                isFlat: true,
-                              ),
-                              SizedBox(height: 16.0),
-                              RetroButtonWidget(
-                                text: 'Join Waitlist',
-                                onPressed: _submitWaitlist,
-                                style: RetroButtonStyle.dark,
-                                fixedHeight: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                     isLoading
+                       ? CircularProgressIndicator()
+                       : ResponsiveFormContainer(
+                           child: Form(
+                             key: _formKey,
+                             child: Column(
+                               crossAxisAlignment: CrossAxisAlignment.stretch,
+                               children: [
+                                 if (errorMessage.isNotEmpty)
+                                   Padding(
+                                     padding: EdgeInsets.only(
+                                       bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)
+                                     ),
+                                     child: Text(
+                                       errorMessage,
+                                       style: TextStyle(
+                                         color: Colors.red,
+                                         fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
+                                       ),
+                                     ),
+                                   ),
+                                 if (successMessage.isNotEmpty)
+                                   Padding(
+                                     padding: EdgeInsets.only(
+                                       bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)
+                                     ),
+                                     child: Text(
+                                       successMessage,
+                                       style: TextStyle(
+                                         color: Colors.green,
+                                         fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
+                                       ),
+                                     ),
+                                   ),
+                                 ResponsiveTextField(
+                                   labelText: "Email",
+                                   textColor: Colors.black,
+                                   onChanged: (value) {
+                                     setState(() {
+                                       email = value.trim();
+                                     });
+                                   },
+                                   validator: _validateEmail,
+                                   isFlat: true,
+                                   keyboardType: TextInputType.emailAddress,
+                                 ),
+                                 SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                 RetroButtonWidget(
+                                   text: 'Join Waitlist',
+                                   onPressed: _submitWaitlist,
+                                   style: RetroButtonStyle.dark,
+                                   fixedHeight: true,
+                                 ),
+                               ],
+                             ),
+                           ),
+                         ),
                 ],
               ),
             ),
