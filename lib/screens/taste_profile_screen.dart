@@ -297,6 +297,8 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
             initialValue: _musicalBio,
             maxLines: 4,
             style: TextStyle(fontSize: 14, color: Colors.black),
+            // Add text input action to provide a "done" button on keyboard
+            textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               hintText: 'Tell us about your musical journey...',
               hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade600),
@@ -307,6 +309,10 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
               setState(() {
                 _musicalBio = value;
               });
+            },
+            // Add onEditingComplete to dismiss keyboard when done
+            onEditingComplete: () {
+              FocusScope.of(context).unfocus();
             },
           ),
         ),
@@ -334,10 +340,10 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE46A14)),
                     ),
                     SizedBox(height: 16),
-                                         Text(
-                       'Loading your taste profile...',
-                       style: TextStyle(fontSize: 14, color: Colors.black),
-                     ),
+                    Text(
+                      'Loading your taste profile...',
+                      style: TextStyle(fontSize: 14, color: Colors.black),
+                    ),
                   ],
                 ),
               ),
@@ -348,109 +354,125 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
     }
 
     return Scaffold(
+      // Enable keyboard-aware resizing
+      resizeToAvoidBottomInset: true,
       body: GrainyBackgroundWidget(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(16.0),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 600),
-                child: Windows95WindowWidget(
-                  title: 'Taste Profile Survey',
-                  showCloseButton: false,
-                  contentPadding: EdgeInsets.all(20),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Welcome message
-                        Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE46A14),
-                            border: Border.all(color: Colors.black, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.white,
-                                offset: Offset(-1, -1),
-                                blurRadius: 0,
+          child: GestureDetector(
+            // Add tap-to-dismiss keyboard functionality
+            onTap: () {
+              FocusScope.of(context).unfocus();
+            },
+            child: SingleChildScrollView(
+              // Add physics for better scrolling behavior
+              physics: ClampingScrollPhysics(),
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 600),
+                  child: Column(
+                    children: [
+                      Windows95WindowWidget(
+                        title: 'Taste Profile Survey',
+                        showCloseButton: false,
+                        contentPadding: EdgeInsets.all(20),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Welcome message
+                              Container(
+                                padding: EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFE46A14),
+                                  border: Border.all(color: Colors.black, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white,
+                                      offset: Offset(-1, -1),
+                                      blurRadius: 0,
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.grey.shade600,
+                                      offset: Offset(1, 1),
+                                      blurRadius: 0,
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  'Help us curate the perfect albums for you by sharing your music taste!',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
-                              BoxShadow(
-                                color: Colors.grey.shade600,
-                                offset: Offset(1, 1),
-                                blurRadius: 0,
+                              SizedBox(height: 24),
+
+                              // Favorite Genres
+                              _buildRetroCheckboxList(
+                                'Select your favorite music genres:',
+                                _genres,
+                                _selectedGenres,
+                                (genre, isSelected) {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedGenres.add(genre);
+                                    } else {
+                                      _selectedGenres.remove(genre);
+                                    }
+                                  });
+                                },
                               ),
+                              SizedBox(height: 24),
+
+                              // Favorite Decades
+                              _buildRetroCheckboxList(
+                                'Select your favorite decades of music:',
+                                _decades,
+                                _selectedDecades,
+                                (decade, isSelected) {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedDecades.add(decade);
+                                    } else {
+                                      _selectedDecades.remove(decade);
+                                    }
+                                  });
+                                },
+                              ),
+                              SizedBox(height: 24),
+
+                              // Albums Listened
+                              _buildRetroDropdown(),
+                              SizedBox(height: 24),
+
+                              // Musical Bio
+                              _buildRetroTextArea(),
+                              SizedBox(height: 32),
+
+                              // Submit Button
+                              Center(
+                                child: RetroButtonWidget(
+                                  text: 'Save Taste Profile',
+                                  onPressed: () {
+                                    if (_formKey.currentState?.validate() ?? false) {
+                                      _submitTasteProfile(user?.uid ?? '');
+                                    }
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: 16),
                             ],
                           ),
-                                                     child: Text(
-                             'Help us curate the perfect albums for you by sharing your music taste!',
-                             style: TextStyle(
-                               fontSize: 16,
-                               fontWeight: FontWeight.bold,
-                               color: Colors.white,
-                             ),
-                             textAlign: TextAlign.center,
-                           ),
                         ),
-                        SizedBox(height: 24),
-
-                        // Favorite Genres
-                        _buildRetroCheckboxList(
-                          'Select your favorite music genres:',
-                          _genres,
-                          _selectedGenres,
-                          (genre, isSelected) {
-                            setState(() {
-                              if (isSelected) {
-                                _selectedGenres.add(genre);
-                              } else {
-                                _selectedGenres.remove(genre);
-                              }
-                            });
-                          },
-                        ),
-                        SizedBox(height: 24),
-
-                        // Favorite Decades
-                        _buildRetroCheckboxList(
-                          'Select your favorite decades of music:',
-                          _decades,
-                          _selectedDecades,
-                          (decade, isSelected) {
-                            setState(() {
-                              if (isSelected) {
-                                _selectedDecades.add(decade);
-                              } else {
-                                _selectedDecades.remove(decade);
-                              }
-                            });
-                          },
-                        ),
-                        SizedBox(height: 24),
-
-                        // Albums Listened
-                        _buildRetroDropdown(),
-                        SizedBox(height: 24),
-
-                        // Musical Bio
-                        _buildRetroTextArea(),
-                        SizedBox(height: 32),
-
-                        // Submit Button
-                        Center(
-                          child: RetroButtonWidget(
-                            text: 'Save Taste Profile',
-                            onPressed: () {
-                              if (_formKey.currentState?.validate() ?? false) {
-                                _submitTasteProfile(user?.uid ?? '');
-                              }
-                            },
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                      ],
-                    ),
+                      ),
+                      // Add extra bottom padding to ensure submit button is always accessible
+                      SizedBox(height: MediaQuery.of(context).viewInsets.bottom > 0 ? 100 : 32),
+                    ],
                   ),
                 ),
               ),

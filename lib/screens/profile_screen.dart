@@ -12,6 +12,7 @@ import 'options_screen.dart';
 
 // Import your custom grainy background widget:
 import '../widgets/grainy_background_widget.dart';
+import '../constants/responsive_utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -190,32 +191,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : GrainyBackgroundWidget(
-              child: SafeArea(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeaderRow(),
-                      const SizedBox(height: 16),
-                      Center(child: _buildProfileAvatar()),
-                      const SizedBox(height: 24),
-                      _buildStatsSection(),
-                      const SizedBox(height: 24),
-                      _buildMusicRow(context),
-                      const SizedBox(height: 24),
-                      _buildWishlistRow(context),
-                      const SizedBox(height: 30),
-                    ],
+      body: GrainyBackgroundWidget(
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+                    mobile: 16, tablet: 24, desktop: 32),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeaderRow(),
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        Center(child: _buildProfileAvatar()),
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        _buildStatsSection(),
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        _buildMusicRow(context),
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        _buildWishlistRow(context),
+                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 30, desktop: 36)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+        ),
+      ),
     );
   }
 
@@ -226,9 +231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Show the user's Firestore "username"
         Text(
           _username,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.white,
-            fontSize: 24,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 22, tablet: 24, desktop: 26),
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -251,20 +256,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-          ),
+              Container(
+        width: ResponsiveUtils.isMobile(context) ? 100 : 120,
+        height: ResponsiveUtils.isMobile(context) ? 100 : 120,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: ResponsiveUtils.isMobile(context) ? 2 : 3),
+        ),
           child: ClipOval(
             child: (_profilePictureUrl == null || _profilePictureUrl!.isEmpty)
-                ? Container(
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.person,
-                        color: Colors.white54, size: 60),
-                  )
+                                  ? Container(
+                      color: Colors.grey[800],
+                      child: Icon(Icons.person,
+                          color: Colors.white54, 
+                          size: ResponsiveUtils.isMobile(context) ? 50 : 60),
+                    )
                 : Image.network(_profilePictureUrl!, fit: BoxFit.cover),
           ),
         ),
@@ -274,16 +280,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             right: 0,
             child: GestureDetector(
               onTap: _onAddProfilePhoto,
-              child: Container(
-                width: 30,
-                height: 30,
+              child:               Container(
+                width: ResponsiveUtils.isMobile(context) ? 26 : 30,
+                height: ResponsiveUtils.isMobile(context) ? 26 : 30,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.black, width: 1.5),
                 ),
-                child:
-                    const Icon(Icons.camera_alt, color: Colors.black, size: 18),
+                child: Icon(Icons.camera_alt, 
+                    color: Colors.black, 
+                    size: ResponsiveUtils.isMobile(context) ? 16 : 18),
               ),
             ),
           ),
