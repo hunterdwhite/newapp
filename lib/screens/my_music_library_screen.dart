@@ -5,6 +5,7 @@ import '../widgets/grainy_background_widget.dart';
 import '../models/album_model.dart';
 import '../services/discogs_service.dart';
 import 'album_detail_screen.dart';
+import 'link_discogs_screen.dart';
 
 class MyMusicLibraryScreen extends StatefulWidget {
   final String userId; // Pass in any user’s ID
@@ -272,7 +273,34 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
 
   Widget _buildDiscogsCollectionTab() {
     if (!_discogsLinked) {
-      return const Center(child: Text('Discogs account not linked.'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.link_off, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'Link your Discogs account to view your collection',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+                          if (_isOwner)
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LinkDiscogsScreen()),
+                    ).then((_) {
+                      // Refresh tokens after returning from link screen
+                      _loadDiscogsTokens();
+                    });
+                  },
+                  child: const Text('Link Discogs Account'),
+                ),
+          ],
+        ),
+      );
     }
     if (_isLoadingDiscogs) {
       return const Center(child: CircularProgressIndicator());
@@ -339,19 +367,18 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
   Widget build(BuildContext context) {
     final title = _isOwner ? 'My Music Library' : 'Music Library';
 
-    // Determine number of tabs based on Discogs link status
-    final tabCount = _discogsLinked ? 2 : 1;
-    final tabs = <Widget>[
-      const Tab(text: 'Library'),
-      if (_discogsLinked) const Tab(text: 'Current Collection'),
+    // Always use 2 tabs to prevent DefaultTabController length mismatch
+    const tabs = <Widget>[
+      Tab(text: 'Library'),
+      Tab(text: 'Discogs Collection'),
     ];
     final tabViews = <Widget>[
       _buildLocalLibraryTab(),
-      if (_discogsLinked) _buildDiscogsCollectionTab(),
+      _buildDiscogsCollectionTab(),
     ];
 
     return DefaultTabController(
-      length: tabCount,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text(title),
@@ -362,12 +389,10 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
                 onPressed: _showFilterMenu,
               ),
           ],
-          bottom: tabCount > 1 ? TabBar(tabs: tabs) : null,
+          bottom: const TabBar(tabs: tabs),
         ),
         body: GrainyBackgroundWidget(
-          child: tabCount > 1
-              ? TabBarView(children: tabViews)
-              : tabViews.first,
+          child: TabBarView(children: tabViews),
         ),
       ),
     );
