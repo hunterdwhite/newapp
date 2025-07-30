@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/responsive_utils.dart';
 
 enum RetroButtonStyle { light, dark }
 
@@ -8,6 +9,7 @@ class RetroButtonWidget extends StatelessWidget {
   final RetroButtonStyle style;
   final bool fixedHeight;
   final Widget? leading;
+  final double? customWidth; // Optional custom width override
 
   const RetroButtonWidget({
     Key? key,
@@ -16,6 +18,7 @@ class RetroButtonWidget extends StatelessWidget {
     this.style = RetroButtonStyle.light,
     this.fixedHeight = false,
     this.leading,
+    this.customWidth,
   }) : super(key: key);
 
   static const _lightFill = Color(0xFFE9E9E9);
@@ -35,14 +38,26 @@ class RetroButtonWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    
+    // Use custom width if provided, otherwise calculate responsive width
+    final double buttonWidth = customWidth ?? ResponsiveUtils.getButtonWidth(context);
+    
+    // Responsive height calculation
+    final double buttonHeight = fixedHeight 
+        ? (ResponsiveUtils.isMobile(context) ? 42 : 45)
+        : (ResponsiveUtils.isMobile(context) ? 48 : 50);
+    
+    // Responsive font size
+    final double fontSize = ResponsiveUtils.getResponsiveFontSize(context, 
+        mobile: 14, tablet: 16, desktop: 16);
 
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: Opacity(
         opacity: enabled ? 1 : 0.5,
         child: Container(
-          width: 160,
-          height: fixedHeight ? 45 : 50,
+          width: buttonWidth,
+          height: buttonHeight,
           decoration: BoxDecoration(
             color: _fill,
             border: Border(
@@ -55,20 +70,26 @@ class RetroButtonWidget extends StatelessWidget {
               BoxShadow(color: _shadowColor, offset: const Offset(2, 2), blurRadius: 0),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.isMobile(context) ? 8 : 12
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (leading != null) ...[
                 leading!,
-                const SizedBox(width: 8),
+                SizedBox(width: ResponsiveUtils.isMobile(context) ? 6 : 8),
               ],
-              Text(
-                text,
-                style: TextStyle(
-                  color: _textColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+              Flexible(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: _textColor,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

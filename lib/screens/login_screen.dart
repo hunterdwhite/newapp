@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 // Removed flutter_secure_storage as it's no longer used
 import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
+import '../widgets/responsive_form_container.dart';
+import '../constants/responsive_utils.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -157,11 +159,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Make UI responsive by using MediaQuery
-    double screenWidth = MediaQuery.of(context).size.width;
-    double formWidth = screenWidth * 0.85; // 85% of screen width
-    formWidth = formWidth > 350 ? 350 : formWidth; // Max width of 350
-
     return Scaffold(
       body: Stack(
         children: [
@@ -173,107 +170,133 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Logo with responsive sizing
                   Image.asset(
                     'assets/dissonantlogotext.png', // Path to your Dissonant logo
-                    height: 80, // Adjust height as needed
+                    height: ResponsiveUtils.isMobile(context) ? 70 : 80,
                   ),
-                  SizedBox(height: 16.0),
+                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                   _isLoading
                       ? CircularProgressIndicator()
-                      : CustomFormContainer(
-                          width: formWidth,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  if (_errorMessage != null)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 8.0),
-                                      child: Text(
-                                        _errorMessage!,
-                                        style: TextStyle(color: Colors.red),
+                      : ResponsiveFormContainer(
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_errorMessage != null)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)
+                                    ),
+                                    child: Text(
+                                      _errorMessage!,
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
                                       ),
                                     ),
-                                  CustomTextField(
-                                    labelText: "Email",
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _email = value;
-                                      });
-                                    },
-                                    validator:
-                                        _validateEmail, // Added validation
-                                    isFlat: true, // Flatter input field
                                   ),
-                                  SizedBox(height: 12.0),
-                                  CustomTextField(
-                                    labelText: "Password",
-                                    obscureText: true,
-                                    textColor: Colors.black,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _password = value;
-                                      });
-                                    },
-                                    validator:
-                                        _validatePassword, // Added validation
-                                    isFlat: true, // Flatter input field
-                                  ),
-                                  SizedBox(height: 12.0),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          CustomCheckbox(
-                                            value: _rememberMe,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _rememberMe = value!;
-                                              });
-                                            },
-                                            label: 'Remember me',
-                                          ),
-                                        ],
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (context) =>
-                                                    ForgotPasswordScreen()),
-                                          );
-                                        },
-                                        child: Text('Forgot Password?',
+                                ResponsiveTextField(
+                                  labelText: "Email",
+                                  textColor: Colors.black,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _email = value;
+                                    });
+                                  },
+                                  validator: _validateEmail,
+                                  isFlat: true,
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                                ResponsiveTextField(
+                                  labelText: "Password",
+                                  obscureText: true,
+                                  textColor: Colors.black,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _password = value;
+                                    });
+                                  },
+                                  validator: _validatePassword,
+                                  isFlat: true,
+                                ),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
+                                // Remember me and forgot password row with responsive layout
+                                ResponsiveUtils.isMobile(context) 
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        ResponsiveCheckbox(
+                                          value: _rememberMe,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _rememberMe = value!;
+                                            });
+                                          },
+                                          label: 'Remember me',
+                                        ),
+                                        SizedBox(height: 8),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      ForgotPasswordScreen()),
+                                            );
+                                          },
+                                          child: Text(
+                                            'Forgot Password?',
                                             style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey)),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 8.0),
-                                  CustomRetroButtonWidget(
-                                    text: 'Log in',
-                                    onPressed: _isLoading ? null : _login,
-                                    color: Color(
-                                        0xFFD24407), // Updated color for the Log in button
-                                    fixedHeight:
-                                        true, // Ensure the button height is constrained
-                                    shadowColor: Colors.black.withOpacity(
-                                        0.9), // Darker shadow for the button
-                                  ),
-                                ],
-                              ),
+                                              color: Colors.blue,
+                                              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        ResponsiveCheckbox(
+                                          value: _rememberMe,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _rememberMe = value!;
+                                            });
+                                          },
+                                          label: 'Remember me',
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      ForgotPasswordScreen()),
+                                            );
+                                          },
+                                          child: Text(
+                                            'Forgot Password?',
+                                            style: TextStyle(
+                                              color: Colors.blue,
+                                              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                ResponsiveRetroButton(
+                                  text: 'Log In',
+                                  onPressed: _isLoading ? null : _login,
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -287,276 +310,79 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Updated CustomCheckbox with Semantic Labels
-class CustomCheckbox extends StatelessWidget {
+// Responsive checkbox widget
+class ResponsiveCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool?> onChanged;
   final String label;
 
-  const CustomCheckbox({
+  const ResponsiveCheckbox({
+    Key? key,
     required this.value,
     required this.onChanged,
     required this.label,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: label,
-      checked: value,
-      child: GestureDetector(
-        onTap: () => onChanged(!value),
-        child: Row(
-          children: [
-            Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                color: value ? Colors.orange : Colors.white,
-                border: Border.all(color: Colors.black, width: 2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: value
-                  ? Icon(
-                      Icons.check,
-                      size: 12,
-                      color: Colors.black,
-                    )
-                  : null,
-            ),
-            SizedBox(width: 4.0), // Space between checkbox and label
-            Text(
-              label,
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Transform.scale(
+          scale: ResponsiveUtils.isMobile(context) ? 0.9 : 1.0,
+          child: Checkbox(
+            value: value,
+            onChanged: onChanged,
+            fillColor: MaterialStateProperty.all(Colors.white),
+            checkColor: Colors.black,
+          ),
         ),
-      ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 16),
+          ),
+        ),
+      ],
     );
   }
 }
 
-// Updated CustomFormContainer to be more flexible
-class CustomFormContainer extends StatelessWidget {
-  final Widget child;
-  final double width;
-
-  const CustomFormContainer({required this.child, required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      padding: EdgeInsets.only(
-          bottom: 12.0), // Adjusted padding to remove extra white space
-      decoration: BoxDecoration(
-        color: Color(0xFFF4F4F4),
-        border: Border.all(
-            color: Colors.black, width: 2), // Uniform thin black outline
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.8), // Darker shadow
-            offset: Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize
-            .min, // Ensure the column only takes up the necessary vertical space
-        children: [
-          CustomWindowFrame(), // Including window frame with the correct border
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-// CustomTextField updated to accept validator
-class CustomTextField extends StatelessWidget {
-  final String labelText;
-  final bool obscureText;
-  final ValueChanged<String>? onChanged;
-  final Color textColor;
-  final bool isFlat;
-  final String? Function(String?)? validator;
-
-  const CustomTextField({
-    required this.labelText,
-    this.obscureText = false,
-    this.onChanged,
-    this.textColor = Colors.black,
-    this.isFlat = false, // Flatter input field
-    this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin:
-          const EdgeInsets.only(bottom: 8.0), // Space between label and input
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            labelText,
-            style: TextStyle(
-              fontSize: 16,
-              color: textColor,
-            ),
-          ),
-          SizedBox(height: 4.0), // Space between label and input
-          Container(
-            decoration: BoxDecoration(
-              color: Color(0xFFF5F5F5),
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.8), // Darker shadow
-                  offset: Offset(3, 3),
-                  blurRadius: 0,
-                ),
-              ],
-            ),
-            child: TextFormField(
-              obscureText: obscureText,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.transparent,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: isFlat ? 12 : 18), // Flatter input field
-              ),
-              onChanged: onChanged,
-              style: TextStyle(color: textColor),
-              validator: validator, // Added validator
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Updated CustomRetroButton to handle disabled state
-class CustomRetroButtonWidget extends StatelessWidget {
+// Responsive retro button wrapper
+class ResponsiveRetroButton extends StatelessWidget {
   final String text;
-  final VoidCallback? onPressed; // Made nullable to handle disabled state
-  final Color color;
-  final bool fixedHeight;
-  final Color shadowColor; // Custom shadow color
+  final VoidCallback? onPressed;
 
-  const CustomRetroButtonWidget({
+  const ResponsiveRetroButton({
+    Key? key,
     required this.text,
-    required this.onPressed,
-    this.color = const Color(0xFFD24407), // Updated color for the Log in button
-    this.fixedHeight = false, // Allow control over height adjustment
-    this.shadowColor = Colors.black, // Default shadow color
-  });
+    this.onPressed,
+  }) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    // Adjust opacity based on whether the button is enabled
-    final bool isEnabled = onPressed != null;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor.withOpacity(0.9), // Darker shadow color
-            offset: Offset(
-                4, 4), // Slightly larger offset for more pronounced effect
-            blurRadius: 0,
-          ),
-        ],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: GestureDetector(
-        onTap: isEnabled ? onPressed : null,
-        child: Opacity(
-          opacity: isEnabled ? 1.0 : 0.5, // Visual feedback for disabled state
-          child: Container(
-            height: fixedHeight ? 45 : 50, // Adjust height to prevent overflow
-            decoration: BoxDecoration(
-              color: color,
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// CustomWindowFrame remains unchanged
-class CustomWindowFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 40,
-      decoration: BoxDecoration(
-        color: Color(0xFFFFA12C), // Updated color for the top bar
-        border: Border(
-          bottom: BorderSide(
-              color: Colors.black,
-              width: 2), // Only bottom border for the orange bar
-        ),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(4),
-          topRight: Radius.circular(4),
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: 8.0,
-            top: 8.0,
-            child: GestureDetector(
-              onTap: () {
-                Navigator.pop(context); // Pop the current page off the stack
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  border:
-                      Border.all(color: Colors.black, width: 2), // Black border
-                  color: Color(
-                      0xFFF4F4F4), // Off-white color matching the Figma design
-                ),
-                width: 20,
-                height: 20,
-                alignment: Alignment
-                    .center, // Center the content both horizontally and vertically
-                child: Text(
-                  'X',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14, // Slightly adjust the font size
-                    height:
-                        1, // Adjust line height to better center the text vertically
-                    color: Colors.black, // Black "X"
-                  ),
-                  textAlign: TextAlign.center, // Center the text within the box
-                ),
-              ),
-            ),
+      height: ResponsiveUtils.isMobile(context) ? 48 : 52,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFD24407),
+          foregroundColor: Colors.white,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: Colors.black, width: 2),
           ),
-        ],
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 18),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
