@@ -4,6 +4,7 @@
 /// Import this file instead of individual service files.
 
 export 'base_service.dart';
+export 'discogs_service.dart';
 export 'firebase_service.dart';
 export 'firestore_service.dart';
 export 'payment_service.dart';
