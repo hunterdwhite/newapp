@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
-import 'package:oauth1/oauth1.dart' as oauth1;
 import '../widgets/grainy_background_widget.dart';
 import '../models/album_model.dart';
+import '../services/discogs_service.dart';
 import 'album_detail_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
@@ -30,11 +28,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
   List<Map<String, String>> _discogsItems = [];
   bool _isLoadingDiscogs = false;
 
-  static const _discogsConsumerKey = 'EzVdIgMVbCnRNcwacndA';
-  static const _discogsConsumerSecret = 'CUqIDOCeEoFmREnzjKqTmKpstenTGnsE';
-
-  late oauth1.SignatureMethod _signatureMethod;
-  late oauth1.ClientCredentials _clientCredentials;
+  final DiscogsService _discogsService = DiscogsService();
 
   bool get _isOwner {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -46,12 +40,6 @@ class _WishlistScreenState extends State<WishlistScreen> {
     super.initState();
     _fetchLocalWishlist();
     _loadDiscogsTokens();
-
-    _signatureMethod = oauth1.SignatureMethods.hmacSha1;
-    _clientCredentials = oauth1.ClientCredentials(
-      _discogsConsumerKey,
-      _discogsConsumerSecret,
-    );
   }
 
   Future<void> _fetchLocalWishlist() async {
@@ -130,17 +118,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
 
   Future<void> _loadDiscogsTokens() async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userId)
-          .get();
-      final data = userDoc.data();
-      if (data == null || data['discogsLinked'] != true) return;
+      final authData = await _discogsService.loadAuthData(widget.userId);
+      if (authData == null) return;
 
       _discogsLinked = true;
-      _discogsAccessToken = data['discogsAccessToken'];
-      _discogsAccessSecret = data['discogsTokenSecret'];
-      _discogsUsername = data['discogsUsername'];
+      _discogsAccessToken = authData['accessToken'];
+      _discogsAccessSecret = authData['accessSecret'];
+      _discogsUsername = authData['username'];
 
       _fetchDiscogsWantlist();
     } catch (e) {
@@ -151,41 +135,20 @@ class _WishlistScreenState extends State<WishlistScreen> {
   Future<void> _fetchDiscogsWantlist() async {
     if (!_discogsLinked ||
         _discogsAccessToken == null ||
-        _discogsAccessSecret == null) return;
+        _discogsAccessSecret == null ||
+        _discogsUsername == null) return;
 
     setState(() => _isLoadingDiscogs = true);
 
     try {
-      final client = oauth1.Client(
-        _signatureMethod,
-        _clientCredentials,
-        oauth1.Credentials(_discogsAccessToken!, _discogsAccessSecret!),
+      final items = await _discogsService.getWantlist(
+        _discogsUsername!,
+        _discogsAccessToken!,
+        _discogsAccessSecret!,
       );
-
-      final response = await client.get(
-        Uri.parse('https://api.discogs.com/users/${_discogsUsername ?? 'placeholder'}/wants'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final wants = data['wants'] as List<dynamic>;
-        final items = <Map<String, String>>[];
-
-        for (var item in wants) {
-          final info = item['basic_information'];
-          if (info != null) {
-            items.add({
-              'image': info['cover_image'] ?? '',
-              'album': (info['title'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
-              'artist': (info['artists']?[0]?['name'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
-            });
-          }
-        }
-
-        setState(() => _discogsItems = items);
-      }
+      setState(() => _discogsItems = items);
     } catch (e) {
-      print('Error fetching Discogs: $e');
+      print('Error fetching Discogs wantlist: $e');
     } finally {
       setState(() => _isLoadingDiscogs = false);
     }
