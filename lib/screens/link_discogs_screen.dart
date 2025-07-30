@@ -1,13 +1,9 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:oauth1/oauth1.dart' as oauth1;
-import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/retro_button_widget.dart';
 import '../widgets/grainy_background_widget.dart';
+import '../services/discogs_service.dart';
 
 class LinkDiscogsScreen extends StatefulWidget {
   const LinkDiscogsScreen({Key? key}) : super(key: key);
@@ -17,18 +13,9 @@ class LinkDiscogsScreen extends StatefulWidget {
 }
 
 class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
-  static const _consumerKey = 'EzVdIgMVbCnRNcwacndA';
-  static const _consumerSecret = 'CUqIDOCeEoFmREnzjKqTmKpstenTGnsE';
-
-  final oauth1.Platform _platform = oauth1.Platform(
-    'https://api.discogs.com/oauth/request_token',
-    'https://www.discogs.com/oauth/authorize',
-    'https://api.discogs.com/oauth/access_token',
-    oauth1.SignatureMethods.hmacSha1,
-  );
-
-  late final oauth1.Authorization _auth;
-  oauth1.Credentials? _tempCredentials;
+  final DiscogsService _discogsService = DiscogsService();
+  
+  Map<String, String>? _tempCredentials;
   late final WebViewController _webViewController;
 
   final TextEditingController _pinController = TextEditingController();
@@ -39,17 +26,15 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
   @override
   void initState() {
     super.initState();
-    final clientCredentials = oauth1.ClientCredentials(_consumerKey, _consumerSecret);
-    _auth = oauth1.Authorization(clientCredentials, _platform);
     _checkIfAlreadyLinked();
   }
 
   Future<void> _checkIfAlreadyLinked() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    final linked = doc.data()?['discogsLinked'] == true;
-    if (linked) {
+    
+    final authData = await _discogsService.loadAuthData(user.uid);
+    if (authData != null) {
       setState(() {
         _alreadyLinked = true;
         _isLoading = false;
@@ -61,10 +46,9 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
 
   Future<void> _startOAuthFlow() async {
     try {
-      final response = await _auth.requestTemporaryCredentials('oob');
-      _tempCredentials = response.credentials;
-
-      final authUrl = _auth.getResourceOwnerAuthorizationURI(_tempCredentials!.token);
+      final oauthData = await _discogsService.startOAuthFlow();
+      _tempCredentials = oauthData['tempCredentials'] as Map<String, String>;
+      final authUrl = oauthData['authUrl'] as String;
 
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -92,13 +76,13 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
     });
 
     try {
-      final response = await _auth.requestTokenCredentials(_tempCredentials!, pin);
-      final accessToken = response.credentials.token;
-      final accessSecret = response.credentials.tokenSecret;
+      final tokens = await _discogsService.exchangePinForTokens(_tempCredentials!, pin);
+      final accessToken = tokens['accessToken']!;
+      final accessSecret = tokens['accessSecret']!;
 
-      final username = await _fetchDiscogsUsername(accessToken, accessSecret);
+      final username = await _discogsService.getUsername(accessToken, accessSecret);
 
-      await _storeDiscogsData(accessToken, accessSecret, username);
+      await _discogsService.storeAuthData(accessToken, accessSecret, username);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -112,40 +96,7 @@ class _LinkDiscogsScreenState extends State<LinkDiscogsScreen> {
     }
   }
 
-  Future<String> _fetchDiscogsUsername(String token, String secret) async {
-    try {
-      final uri = Uri.parse('https://api.discogs.com/oauth/identity');
-      final client = oauth1.Client(
-        oauth1.SignatureMethods.hmacSha1,
-        oauth1.ClientCredentials(_consumerKey, _consumerSecret),
-        oauth1.Credentials(token, secret),
-      );
 
-      final response = await client.get(uri);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['username'] ?? '';
-      } else {
-        print('Discogs identity error: ${response.statusCode} => ${response.body}');
-        return '';
-      }
-    } catch (e) {
-      print('Error fetching Discogs username: $e');
-      return '';
-    }
-  }
-
-  Future<void> _storeDiscogsData(String token, String secret, String username) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw Exception('Not signed in');
-
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'discogsAccessToken': token,
-      'discogsTokenSecret': secret,
-      'discogsUsername': username,
-      'discogsLinked': true,
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
