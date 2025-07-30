@@ -317,54 +317,57 @@ Widget _buildDiscogsTabContent() {
     return const Center(child: Text('No items in Discogs wantlist.'));
   }
 
-  return Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 300),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _discogsItems.length,
-        itemBuilder: (context, index) {
-          final item = _discogsItems[index];
-          return GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: Text(item['album'] ?? 'Unknown'),
-                  content: Text('By ${item['artist'] ?? 'Unknown'}'),
-                ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      item['image'] ?? '',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    item['album'] ?? '',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    item['artist'] ?? '',
-                    style: const TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+  return GridView.builder(
+    padding: const EdgeInsets.all(8),
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      childAspectRatio: 0.8,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+    ),
+    itemCount: _discogsItems.length,
+    itemBuilder: (context, index) {
+      final item = _discogsItems[index];
+      return GestureDetector(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text(item['album'] ?? 'Unknown'),
+              content: Text('By ${item['artist'] ?? 'Unknown'}'),
             ),
           );
         },
-      ),
-    ),
+        child: Column(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  item['image'] ?? '',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              item['album'] ?? '',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              item['artist'] ?? '',
+              style: const TextStyle(fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
 

@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'package:oauth1/oauth1.dart' as oauth1;
 import '../widgets/grainy_background_widget.dart';
 import '../models/album_model.dart';
 import 'album_detail_screen.dart';
@@ -18,6 +21,20 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
   List<Map<String, dynamic>> _musicItems = [];
   String? _filterStatus;
 
+  // Discogs integration
+  bool _discogsLinked = false;
+  String? _discogsUsername;
+  String? _discogsAccessToken;
+  String? _discogsAccessSecret;
+  List<Map<String, String>> _discogsCollection = [];
+  bool _isLoadingDiscogs = false;
+
+  static const _discogsConsumerKey = 'EzVdIgMVbCnRNcwacndA';
+  static const _discogsConsumerSecret = 'CUqIDOCeEoFmREnzjKqTmKpstenTGnsE';
+
+  late oauth1.SignatureMethod _signatureMethod;
+  late oauth1.ClientCredentials _clientCredentials;
+
   bool get _isOwner {
     final currentUser = FirebaseAuth.instance.currentUser;
     return (currentUser != null && currentUser.uid == widget.userId);
@@ -27,6 +44,13 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
   void initState() {
     super.initState();
     _fetchMusicHistory();
+    _loadDiscogsTokens();
+
+    _signatureMethod = oauth1.SignatureMethods.hmacSha1;
+    _clientCredentials = oauth1.ClientCredentials(
+      _discogsConsumerKey,
+      _discogsConsumerSecret,
+    );
   }
 
   Future<void> _fetchMusicHistory() async {
@@ -149,71 +173,239 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
     );
   }
 
+  Future<void> _loadDiscogsTokens() async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .get();
+      final data = userDoc.data();
+      if (data == null || data['discogsLinked'] != true) return;
+
+      _discogsLinked = true;
+      _discogsAccessToken = data['discogsAccessToken'];
+      _discogsAccessSecret = data['discogsTokenSecret'];
+      _discogsUsername = data['discogsUsername'];
+
+      _fetchDiscogsCollection();
+    } catch (e) {
+      print('Error loading discogs tokens: $e');
+    }
+  }
+
+  Future<void> _fetchDiscogsCollection() async {
+    if (!_discogsLinked ||
+        _discogsAccessToken == null ||
+        _discogsAccessSecret == null) return;
+
+    setState(() => _isLoadingDiscogs = true);
+
+    try {
+      final client = oauth1.Client(
+        _signatureMethod,
+        _clientCredentials,
+        oauth1.Credentials(_discogsAccessToken!, _discogsAccessSecret!),
+      );
+
+      final response = await client.get(
+        Uri.parse('https://api.discogs.com/users/${_discogsUsername ?? 'placeholder'}/collection/folders/0/releases'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final releases = data['releases'] as List<dynamic>;
+        final items = <Map<String, String>>[];
+
+        for (var item in releases) {
+          final info = item['basic_information'];
+          if (info != null) {
+            items.add({
+              'image': info['cover_image'] ?? '',
+              'album': (info['title'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
+              'artist': (info['artists']?[0]?['name'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
+            });
+          }
+        }
+
+        setState(() => _discogsCollection = items);
+      }
+    } catch (e) {
+      print('Error fetching Discogs collection: $e');
+    } finally {
+      setState(() => _isLoadingDiscogs = false);
+    }
+  }
+
+  Widget _buildLocalLibraryTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_musicItems.isEmpty) {
+      return const Center(child: Text('No albums found.'));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(8.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8.0,
+        mainAxisSpacing: 8.0,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: _musicItems.length,
+      itemBuilder: (context, index) {
+        final item = _musicItems[index];
+        final coverUrl = item['albumImageUrl'] as String;
+        return GestureDetector(
+          onTap: () {
+            final album = Album(
+              albumId: item['albumId'],
+              albumName: item['albumName'],
+              artist: item['artist'],
+              releaseYear: item['releaseYear'],
+              albumImageUrl: coverUrl,
+            );
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AlbumDetailScreen(album: album),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: coverUrl.isNotEmpty
+                      ? Image.network(
+                          coverUrl,
+                          fit: BoxFit.contain,
+                        )
+                      : const Icon(Icons.album, size: 50),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item['albumName'],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                item['artist'],
+                style: const TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDiscogsCollectionTab() {
+    if (!_discogsLinked) {
+      return const Center(child: Text('Discogs account not linked.'));
+    }
+    if (_isLoadingDiscogs) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_discogsCollection.isEmpty) {
+      return const Center(child: Text('No albums in Discogs collection.'));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: _discogsCollection.length,
+      itemBuilder: (context, index) {
+        final item = _discogsCollection[index];
+        return GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: Text(item['album'] ?? 'Unknown'),
+                content: Text('By ${item['artist'] ?? 'Unknown'}'),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    item['image'] ?? '',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item['album'] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                item['artist'] ?? '',
+                style: const TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _isOwner ? 'My Music Library' : 'Music Library';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (_isOwner)
-            IconButton(
-              icon: const Icon(Icons.filter_list),
-              onPressed: _showFilterMenu,
-            ),
-        ],
-      ),
-      body: GrainyBackgroundWidget(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _musicItems.isEmpty
-                ? const Center(child: Text('No albums found.'))
-                : GridView.builder(
-                    padding: const EdgeInsets.all(8.0),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 8.0,
-                      mainAxisSpacing: 8.0,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: _musicItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _musicItems[index];
-                      final coverUrl = item['albumImageUrl'] as String;
-                      return GestureDetector(
-                        onTap: () {
-                          final album = Album(
-                            albumId: item['albumId'],
-                            albumName: item['albumName'],
-                            artist: item['artist'],
-                            releaseYear: item['releaseYear'],
-                            albumImageUrl: coverUrl,
-                          );
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AlbumDetailScreen(album: album),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8.0),
-                            child: coverUrl.isNotEmpty
-                                ? Image.network(
-                                    coverUrl,
-                                    fit: BoxFit.contain,
-                                  )
-                                : const Icon(Icons.album, size: 50),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+    // Determine number of tabs based on Discogs link status
+    final tabCount = _discogsLinked ? 2 : 1;
+    final tabs = <Widget>[
+      const Tab(text: 'Library'),
+      if (_discogsLinked) const Tab(text: 'Current Collection'),
+    ];
+    final tabViews = <Widget>[
+      _buildLocalLibraryTab(),
+      if (_discogsLinked) _buildDiscogsCollectionTab(),
+    ];
+
+    return DefaultTabController(
+      length: tabCount,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            if (_isOwner)
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                onPressed: _showFilterMenu,
+              ),
+          ],
+          bottom: tabCount > 1 ? TabBar(tabs: tabs) : null,
+        ),
+        body: GrainyBackgroundWidget(
+          child: tabCount > 1
+              ? TabBarView(children: tabViews)
+              : tabViews.first,
+        ),
       ),
     );
   }
