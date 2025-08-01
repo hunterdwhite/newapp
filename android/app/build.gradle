@@ -76,7 +76,7 @@ android {
     defaultConfig {
         applicationId "com.dissonant.dissonantapp2"
         minSdkVersion 24
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
