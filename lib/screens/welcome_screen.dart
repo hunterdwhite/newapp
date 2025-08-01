@@ -172,7 +172,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     )
                   else
                     Container(
-                      height: ResponsiveUtils.isMobile(context) ? 120 : 140,
+                      height: ResponsiveUtils.isMobile(context) ? 220 : 270,
                       child: CarouselWidget(imgList: _albumImages),
                     ),
 

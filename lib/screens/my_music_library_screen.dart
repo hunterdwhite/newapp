@@ -27,6 +27,10 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
   String? _discogsAccessSecret;
   List<Map<String, String>> _discogsCollection = [];
   bool _isLoadingDiscogs = false;
+  
+  // Pagination for Discogs collection
+  int _currentPage = 1;
+  int _albumsPerPage = 50;
 
   final DiscogsService _discogsService = DiscogsService();
 
@@ -187,16 +191,41 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
     setState(() => _isLoadingDiscogs = true);
 
     try {
+      print('Fetching Discogs collection for user: $_discogsUsername');
       final items = await _discogsService.getCollection(
         _discogsUsername!,
         _discogsAccessToken!,
         _discogsAccessSecret!,
       );
-      setState(() => _discogsCollection = items);
+      print('Successfully fetched ${items.length} albums from Discogs collection');
+      setState(() {
+        _discogsCollection = items;
+        _currentPage = 1; // Reset to first page when new data is loaded
+      });
     } catch (e) {
       print('Error fetching Discogs collection: $e');
     } finally {
       setState(() => _isLoadingDiscogs = false);
+    }
+  }
+
+  // Pagination helper methods
+  int get _totalPages => (_discogsCollection.length / _albumsPerPage).ceil();
+  
+  List<Map<String, String>> get _currentPageAlbums {
+    final startIndex = (_currentPage - 1) * _albumsPerPage;
+    final endIndex = startIndex + _albumsPerPage;
+    return _discogsCollection.sublist(
+      startIndex, 
+      endIndex > _discogsCollection.length ? _discogsCollection.length : endIndex
+    );
+  }
+  
+  void _goToPage(int page) {
+    if (page >= 1 && page <= _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
     }
   }
 
@@ -285,81 +314,170 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
-                          if (_isOwner)
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LinkDiscogsScreen()),
-                    ).then((_) {
-                      // Refresh tokens after returning from link screen
-                      _loadDiscogsTokens();
-                    });
-                  },
-                  child: const Text('Link Discogs Account'),
-                ),
+            if (_isOwner)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LinkDiscogsScreen()),
+                  ).then((_) {
+                    // Refresh tokens after returning from link screen
+                    _loadDiscogsTokens();
+                  });
+                },
+                child: const Text('Link Discogs Account'),
+              ),
           ],
         ),
       );
     }
     if (_isLoadingDiscogs) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading your Discogs collection...\nThis may take a moment for large collections.'),
+          ],
+        ),
+      );
     }
     if (_discogsCollection.isEmpty) {
       return const Center(child: Text('No albums in Discogs collection.'));
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: _discogsCollection.length,
-      itemBuilder: (context, index) {
-        final item = _discogsCollection[index];
-        return GestureDetector(
-          onTap: () {
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: Text(item['album'] ?? 'Unknown'),
-                content: Text('By ${item['artist'] ?? 'Unknown'}'),
-              ),
-            );
-          },
-          child: Column(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    item['image'] ?? '',
-                    fit: BoxFit.contain,
-                  ),
+    return Column(
+      children: [
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.8,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: _currentPageAlbums.length,
+            itemBuilder: (context, index) {
+              final item = _currentPageAlbums[index];
+              return GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text(item['album'] ?? 'Unknown'),
+                      content: Text('By ${item['artist'] ?? 'Unknown'}'),
+                    ),
+                  );
+                },
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          item['image'] ?? '',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item['album'] ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      item['artist'] ?? '',
+                      style: const TextStyle(fontSize: 12),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item['album'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                item['artist'] ?? '',
-                style: const TextStyle(fontSize: 12),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ),
+        // Pagination controls
+        if (_discogsCollection.isNotEmpty && _totalPages > 1)
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Previous page button
+                IconButton(
+                  onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                // Page numbers
+                ...List.generate(
+                  _totalPages,
+                  (index) {
+                    final pageNumber = index + 1;
+                    // Show current page, first page, last page, and pages around current
+                    if (pageNumber == 1 || 
+                        pageNumber == _totalPages || 
+                        (pageNumber >= _currentPage - 2 && pageNumber <= _currentPage + 2)) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: InkWell(
+                          onTap: () => _goToPage(pageNumber),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: pageNumber == _currentPage 
+                                  ? Theme.of(context).primaryColor 
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              pageNumber.toString(),
+                              style: TextStyle(
+                                color: pageNumber == _currentPage 
+                                    ? Colors.white 
+                                    : Theme.of(context).primaryColor,
+                                fontWeight: pageNumber == _currentPage 
+                                    ? FontWeight.bold 
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else if (pageNumber == _currentPage - 3 || pageNumber == _currentPage + 3) {
+                      // Show ellipsis
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4),
+                        child: Text('...'),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                // Next page button
+                IconButton(
+                  onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+          ),
+        // Page info
+        if (_discogsCollection.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              'Page $_currentPage of $_totalPages (${_discogsCollection.length} total albums)',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
+      ],
     );
   }
 

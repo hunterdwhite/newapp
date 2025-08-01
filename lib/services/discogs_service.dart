@@ -2,70 +2,33 @@ import 'dart:convert';
 import 'package:oauth1/oauth1.dart' as oauth1;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
-/// Secure service for managing Discogs API interactions
-/// Handles OAuth credentials securely through Firebase Cloud Functions
+/// Simple service for managing Discogs API interactions with hardcoded credentials
 class DiscogsService {
   static const String _baseUrl = 'https://api.discogs.com';
   
-  // Cache for OAuth credentials
-  oauth1.ClientCredentials? _clientCredentials;
-  oauth1.SignatureMethod? _signatureMethod;
+  // Hardcoded OAuth credentials
+  static const String _consumerKey = 'EzVdIgMVbCnRNcwacndA';
+  static const String _consumerSecret = 'CUqIDOCeEoFmREnzjKqTmKpstenTGnsE';
   
-  /// Initialize the service by fetching secure credentials
-  Future<void> initialize() async {
-    try {
-      // Fetch OAuth credentials securely from Cloud Function
-      final credentials = await _getOAuthCredentials();
-      _clientCredentials = oauth1.ClientCredentials(
-        credentials['consumerKey']!,
-        credentials['consumerSecret']!,
-      );
-      _signatureMethod = oauth1.SignatureMethods.hmacSha1;
-    } catch (e) {
-      print('Error initializing DiscogsService: $e');
-      rethrow;
-    }
-  }
+  late final oauth1.ClientCredentials _clientCredentials;
+  late final oauth1.SignatureMethod _signatureMethod;
   
-  /// Securely fetch OAuth credentials from Cloud Function
-  Future<Map<String, String>> _getOAuthCredentials() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      throw Exception('User must be authenticated to access Discogs credentials');
-    }
-    
-    try {
-      // Call secure Cloud Function to get credentials
-      final callable = FirebaseFunctions.instance.httpsCallable('getDiscogsCredentials');
-      final result = await callable.call();
-      
-      final data = result.data as Map<String, dynamic>;
-      return {
-        'consumerKey': data['consumerKey'] as String,
-        'consumerSecret': data['consumerSecret'] as String,
-      };
-    } catch (e) {
-      print('Error fetching Discogs credentials: $e');
-      throw Exception('Failed to fetch Discogs credentials securely');
-    }
+  DiscogsService() {
+    _clientCredentials = oauth1.ClientCredentials(_consumerKey, _consumerSecret);
+    _signatureMethod = oauth1.SignatureMethods.hmacSha1;
   }
   
   /// Start OAuth flow and return authorization URL
   Future<Map<String, dynamic>> startOAuthFlow() async {
-    if (_clientCredentials == null) {
-      await initialize();
-    }
-    
     final platform = oauth1.Platform(
       '$_baseUrl/oauth/request_token',
       'https://www.discogs.com/oauth/authorize',
       '$_baseUrl/oauth/access_token',
-      _signatureMethod!,
+      _signatureMethod,
     );
     
-    final auth = oauth1.Authorization(_clientCredentials!, platform);
+    final auth = oauth1.Authorization(_clientCredentials, platform);
     final response = await auth.requestTemporaryCredentials('oob');
     
     final authUrl = auth.getResourceOwnerAuthorizationURI(response.credentials.token);
@@ -84,18 +47,14 @@ class DiscogsService {
     Map<String, String> tempCredentials,
     String pin,
   ) async {
-    if (_clientCredentials == null) {
-      await initialize();
-    }
-    
     final platform = oauth1.Platform(
       '$_baseUrl/oauth/request_token',
       'https://www.discogs.com/oauth/authorize', 
       '$_baseUrl/oauth/access_token',
-      _signatureMethod!,
+      _signatureMethod,
     );
     
-    final auth = oauth1.Authorization(_clientCredentials!, platform);
+    final auth = oauth1.Authorization(_clientCredentials, platform);
     final tempCreds = oauth1.Credentials(
       tempCredentials['token']!,
       tempCredentials['tokenSecret']!,
@@ -111,13 +70,9 @@ class DiscogsService {
   
   /// Get authenticated Discogs username
   Future<String> getUsername(String accessToken, String accessSecret) async {
-    if (_clientCredentials == null) {
-      await initialize();
-    }
-    
     final client = oauth1.Client(
-      _signatureMethod!,
-      _clientCredentials!,
+      _signatureMethod,
+      _clientCredentials,
       oauth1.Credentials(accessToken, accessSecret),
     );
     
@@ -135,42 +90,61 @@ class DiscogsService {
   Future<List<Map<String, String>>> getCollection(
     String username,
     String accessToken,
-    String accessSecret,
-  ) async {
-    if (_clientCredentials == null) {
-      await initialize();
-    }
-    
+    String accessSecret, {
+    int perPage = 100, // Fetch 100 items per page
+  }) async {
     final client = oauth1.Client(
-      _signatureMethod!,
-      _clientCredentials!,
+      _signatureMethod,
+      _clientCredentials,
       oauth1.Credentials(accessToken, accessSecret),
     );
     
-    final response = await client.get(
-      Uri.parse('$_baseUrl/users/$username/collection/folders/0/releases'),
-    );
+    final items = <Map<String, String>>[];
+    int page = 1;
+    bool hasMorePages = true;
     
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final releases = data['releases'] as List<dynamic>;
-      final items = <Map<String, String>>[];
+    while (hasMorePages) {
+      final uri = Uri.parse('$_baseUrl/users/$username/collection/folders/0/releases')
+          .replace(queryParameters: {
+        'page': page.toString(),
+        'per_page': perPage.toString(),
+      });
       
-      for (var item in releases) {
-        final info = item['basic_information'];
-        if (info != null) {
-          items.add({
-            'image': info['cover_image'] ?? '',
-            'album': (info['title'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
-            'artist': (info['artists']?[0]?['name'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
-          });
+      final response = await client.get(uri);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final releases = data['releases'] as List<dynamic>;
+        
+        // If no releases returned, we've reached the end
+        if (releases.isEmpty) {
+          hasMorePages = false;
+          break;
         }
+        
+        for (var item in releases) {
+          final info = item['basic_information'];
+          if (info != null) {
+            items.add({
+              'image': info['cover_image'] ?? '',
+              'album': (info['title'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
+              'artist': (info['artists']?[0]?['name'] ?? '').toString().replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
+            });
+          }
+        }
+        
+        // If we got fewer items than requested, we've reached the end
+        if (releases.length < perPage) {
+          hasMorePages = false;
+        }
+        
+        page++;
+      } else {
+        throw Exception('Failed to fetch collection: ${response.statusCode}');
       }
-      
-      return items;
-    } else {
-      throw Exception('Failed to fetch collection: ${response.statusCode}');
     }
+    
+    return items;
   }
   
   /// Get user's Discogs wantlist
@@ -179,13 +153,9 @@ class DiscogsService {
     String accessToken,
     String accessSecret,
   ) async {
-    if (_clientCredentials == null) {
-      await initialize();
-    }
-    
     final client = oauth1.Client(
-      _signatureMethod!,
-      _clientCredentials!,
+      _signatureMethod,
+      _clientCredentials,
       oauth1.Credentials(accessToken, accessSecret),
     );
     
@@ -257,4 +227,4 @@ class DiscogsService {
       return null;
     }
   }
-}
+} 

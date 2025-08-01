@@ -146,27 +146,6 @@ exports.nightlyDiscogsSync = onSchedule("every 24 hours", async () => {
   console.log("Discogs sync complete.");
 });
 
-/**
- * Securely provides Discogs OAuth credentials to authenticated users
- * This keeps sensitive credentials on the backend instead of hardcoding in client
- */
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
-exports.getDiscogsCredentials = onCall({cors: true}, async (request) => {
-  // Verify user is authenticated
-  if (!request.auth) {
-    throw new HttpsError(
-      'unauthenticated',
-      'User must be authenticated to access Discogs credentials'
-    );
-  }
-
-  // Return OAuth credentials from environment variables
-  return {
-    consumerKey: process.env.DISCOGS_CONSUMER_KEY,
-    consumerSecret: process.env.DISCOGS_CONSUMER_SECRET,
-  };
-});
-
 // Import and export custom email service functions
 const { sendCustomEmailVerification, verifyCustomEmail } = require('./email-service');
 exports.sendCustomEmailVerification = sendCustomEmailVerification;
