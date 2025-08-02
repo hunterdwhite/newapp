@@ -17,7 +17,6 @@ import '../widgets/retro_button_widget.dart';
 import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
 import 'public_profile_screen.dart';
-import '../constants/responsive_utils.dart';
 
 class AlbumDetailScreen extends StatefulWidget {
   final Album album;
@@ -64,7 +63,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       Uri uri = Uri.parse(url);
       String extension = path.extension(uri.path).toLowerCase(); // e.g., '.png'
       // Removed debug print statement for production
-      return (extension == '.jpg' || extension == '.jpeg' || extension == '.png');
+      return (extension == '.jpg' ||
+          extension == '.jpeg' ||
+          extension == '.png');
     } catch (e) {
       // Only print errors in debug mode
       assert(() {
@@ -76,8 +77,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   Future<void> _fetchGenreData() async {
-    final albumRef =
-        FirebaseFirestore.instance.collection('albums').doc(widget.album.albumId);
+    final albumRef = FirebaseFirestore.instance
+        .collection('albums')
+        .doc(widget.album.albumId);
 
     DocumentSnapshot albumDoc = await albumRef.get();
 
@@ -251,7 +253,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             .limit(1)
             .get();
 
-        String orderId = orders.docs.isNotEmpty ? orders.docs.first.id : 'no_order';
+        String orderId =
+            orders.docs.isNotEmpty ? orders.docs.first.id : 'no_order';
 
         await _firestoreService.addReview(
           albumId: widget.album.albumId,
@@ -280,7 +283,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Filter out genres with 0 votes
-    final filteredGenres = _genreVotes.entries.where((entry) => entry.value > 0).toList()
+    final filteredGenres = _genreVotes.entries
+        .where((entry) => entry.value > 0)
+        .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     List<MapEntry<String, int>> topGenres = filteredGenres.take(2).toList();
 
@@ -399,7 +404,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red));
+          return Text('Error: ${snapshot.error}',
+              style: TextStyle(color: Colors.red));
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
@@ -408,7 +414,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           return Text('Album not found.', style: TextStyle(color: Colors.red));
         }
 
-        Map<String, dynamic> data = snapshot.data!.data() as Map<String, dynamic>;
+        Map<String, dynamic> data =
+            snapshot.data!.data() as Map<String, dynamic>;
         Map<String, dynamic> genreVotes = {};
         if (data.containsKey('genreVotes')) {
           genreVotes = Map<String, dynamic>.from(data['genreVotes']);
@@ -419,8 +426,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           stream: FirebaseFirestore.instance
               .collection('orders')
               .where('albumId', isEqualTo: widget.album.albumId)
-              .where('status', whereIn: ['kept', 'returnedConfirmed'])
-              .snapshots(),
+              .where('status',
+                  whereIn: ['kept', 'returnedConfirmed']).snapshots(),
           builder: (context, orderSnapshot) {
             if (orderSnapshot.hasError) {
               return Text('Error: ${orderSnapshot.error}',
@@ -549,7 +556,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         ),
         alignment: Alignment.center,
         child: Text(
-          _hasUserReview ? 'E' : '+', // Toggle between '+' and 'E' if user has review
+          _hasUserReview
+              ? 'E'
+              : '+', // Toggle between '+' and 'E' if user has review
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -598,22 +607,25 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             String comment = data['comment'] ?? '';
             Timestamp? ts = data['timestamp'];
             DateTime? dt = ts?.toDate();
-            String dateStr = dt != null ? DateFormat('MMM dd, yyyy').format(dt) : '';
+            String dateStr =
+                dt != null ? DateFormat('MMM dd, yyyy').format(dt) : '';
 
             String userId = data['userId'];
             String orderId = data['orderId'] ?? 'no_order';
 
             bool expanded = expandedReviews.contains(doc.id);
             bool needsMore = comment.length > 120 && !expanded;
-            String displayComment =
-                expanded || !needsMore ? comment : (comment.substring(0, 120) + '...');
+            String displayComment = expanded || !needsMore
+                ? comment
+                : (comment.substring(0, 120) + '...');
 
             return FutureBuilder<Map<String, String>>(
               future: _fetchUserAndStatusForReview(userId, orderId),
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Loading user info...',
                       style: TextStyle(color: Colors.black),
@@ -624,7 +636,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
                 if (userSnapshot.hasError || userSnapshot.data == null) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 4.0, horizontal: 12.0),
                     child: Text(
                       'Error loading user info',
                       style: TextStyle(color: Colors.red),
@@ -633,12 +646,14 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   );
                 }
 
-                String username = userSnapshot.data!['username'] ?? 'Unknown User';
-                String statusNote =
-                    userSnapshot.data!['statusNote'] ?? '(hasn\'t received this album)';
+                String username =
+                    userSnapshot.data!['username'] ?? 'Unknown User';
+                String statusNote = userSnapshot.data!['statusNote'] ??
+                    '(hasn\'t received this album)';
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 4.0, horizontal: 12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -648,7 +663,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PublicProfileScreen(userId: userId),
+                              builder: (context) =>
+                                  PublicProfileScreen(userId: userId),
                             ),
                           );
                         },
@@ -686,7 +702,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                         displayComment,
                         style: TextStyle(color: Colors.black),
                         maxLines: expanded ? null : 2,
-                        overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                        overflow: expanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
                         textAlign: TextAlign.left,
                       ),
                       // "more" link
@@ -762,151 +780,90 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             children: [
               // Top window: album cover & details
               Padding(
-                padding: ResponsiveUtils.getResponsivePadding(context),
+                padding: const EdgeInsets.all(16.0),
                 child: Windows95WindowWidget(
                   showTitleBar: true,
                   title: 'Album Details',
                   contentBackgroundColor: Color(0xFFC0C0C0),
-                  child: ResponsiveUtils.isMobile(context) 
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Album Cover on mobile (stacked)
-                          Windows95WindowWidget(
-                            showTitleBar: false,
-                            contentPadding: EdgeInsets.zero,
-                            contentBackgroundColor: Color(0xFFC0C0C0),
-                            child: SizedBox(
-                              height: 200,
-                              child: CustomAlbumImageWidget(
-                                imageUrl: widget.album.albumImageUrl,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Album Cover (no title bar)
+                      Expanded(
+                        flex: 1,
+                        child: Windows95WindowWidget(
+                          showTitleBar: false,
+                          contentPadding: EdgeInsets.zero,
+                          contentBackgroundColor: Color(0xFFC0C0C0),
+                          child: CustomAlbumImageWidget(
+                            imageUrl: widget.album.albumImageUrl,
+                            fit: BoxFit.contain,
                           ),
-                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                          // Album details on mobile
-                          Padding(
-                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildLabelValue('Artist:', widget.album.artist),
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-                                _buildLabelValue('Album:', widget.album.albumName),
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-                                _buildLabelValue('Release Year:', widget.album.releaseYear),
-                              ],
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Album Cover (no title bar)
-                          Expanded(
-                            flex: 1,
-                            child: Windows95WindowWidget(
-                              showTitleBar: false,
-                              contentPadding: EdgeInsets.zero,
-                              contentBackgroundColor: Color(0xFFC0C0C0),
-                              child: CustomAlbumImageWidget(
-                                imageUrl: widget.album.albumImageUrl,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                          // Album details (artist, name, etc.)
-                          Expanded(
-                            flex: 1,
-                            child: Padding(
-                              padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildLabelValue('Artist:', widget.album.artist),
-                                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-                                  _buildLabelValue('Album:', widget.album.albumName),
-                                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-                                  _buildLabelValue('Release Year:', widget.album.releaseYear),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
+                      SizedBox(width: 8.0),
+                      // Album details (artist, name, etc.)
+                      Expanded(
+                        flex: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildLabelValue('Artist:', widget.album.artist),
+                              SizedBox(height: 10),
+                              _buildLabelValue(
+                                  'Album:', widget.album.albumName),
+                              SizedBox(height: 10),
+                              _buildLabelValue(
+                                  'Release Year:', widget.album.releaseYear),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
               // Genres & Counter
               Padding(
-                padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
-                  mobile: 16, tablet: 20, desktop: 24).copyWith(
-                  top: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10),
-                  bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10),
-                ),
-                child: ResponsiveUtils.isMobile(context)
-                  ? Column(
-                      children: [
-                        // Genres window on mobile (stacked)
-                        Windows95WindowWidget(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Genres window
+                      Expanded(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Genres',
                           contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
-                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
+                            padding: const EdgeInsets.all(8.0),
                             child: _buildGenresSection(),
                           ),
                         ),
-                        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                        // Counter window on mobile
-                        Windows95WindowWidget(
+                      ),
+                      SizedBox(width: 8.0),
+                      // Counter window
+                      Expanded(
+                        child: Windows95WindowWidget(
                           showTitleBar: true,
                           title: 'Counter',
                           contentBackgroundColor: Color(0xFFC0C0C0),
                           child: Padding(
-                            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
+                            padding: const EdgeInsets.all(8.0),
                             child: _buildCounter(),
                           ),
                         ),
-                      ],
-                    )
-                  : IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Genres window
-                          Expanded(
-                            child: Windows95WindowWidget(
-                              showTitleBar: true,
-                              title: 'Genres',
-                              contentBackgroundColor: Color(0xFFC0C0C0),
-                              child: Padding(
-                                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
-                                child: _buildGenresSection(),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16)),
-                          // Counter window
-                          Expanded(
-                            child: Windows95WindowWidget(
-                              showTitleBar: true,
-                              title: 'Counter',
-                              contentBackgroundColor: Color(0xFFC0C0C0),
-                              child: Padding(
-                                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
-                                child: _buildCounter(),
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
-                    ),
+                    ],
+                  ),
+                ),
               ),
 
               // Reviews
