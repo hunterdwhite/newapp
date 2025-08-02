@@ -101,8 +101,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  // Helper method to dismiss keyboard
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   /// For orders with flowVersion == 2, simply mark as kept without charging.
   Future<void> _keepAlbum() async {
+    // Dismiss keyboard before processing
+    _dismissKeyboard();
     setState(() {
       _isProcessing = true;
     });
@@ -135,6 +142,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   /// For orders using the old flow, process payment.
   Future<void> _processPayment() async {
+    // Dismiss keyboard before processing
+    _dismissKeyboard();
     setState(() {
       _isProcessing = true;
     });
@@ -207,13 +216,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
       body: GrainyBackgroundWidget(
         child: _isProcessing || _isLoading
             ? Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 80.0, bottom: 30.0, left: 16.0, right: 16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
+            : GestureDetector(
+                // Add tap-to-dismiss keyboard functionality
+                onTap: _dismissKeyboard,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 80.0, bottom: 30.0, left: 16.0, right: 16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
                       if (_errorMessage != null) ...[
                         Text(
                           _errorMessage!,
@@ -270,6 +282,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               ),
                               style: TextStyle(color: Colors.black),
                               maxLines: 3,
+                              // Add proper keyboard handling
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (value) {
+                                _dismissKeyboard();
+                              },
                               onChanged: (value) {
                                 _review = value;
                               },
@@ -305,7 +322,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 ],
                               ),
                       ],
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -87,8 +87,15 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     );
   }
 
+  // Helper method to dismiss keyboard
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
+      // Dismiss keyboard before submitting
+      _dismissKeyboard();
       setState(() => _isSubmitting = true);
 
       Map<String, dynamic> feedback = {
@@ -122,12 +129,15 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
       body: GrainyBackgroundWidget(
         child: _isSubmitting || _isLoading
             ? Center(child: CircularProgressIndicator())
-            : Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+            : GestureDetector(
+                // Add tap-to-dismiss keyboard functionality
+                onTap: _dismissKeyboard,
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                       if (_albumCoverUrl.isNotEmpty)
                         Image.network(
                           _albumCoverUrl,
@@ -192,6 +202,11 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                               ),
                               style: TextStyle(color: Colors.white),
                               maxLines: 3,
+                              // Add proper keyboard handling
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (value) {
+                                _dismissKeyboard();
+                              },
                               onChanged: (value) => _review = value,
                             ),
                             const SizedBox(height: 24),
@@ -203,7 +218,8 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                           ],
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

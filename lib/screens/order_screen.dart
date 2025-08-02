@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'home_screen.dart';
 import 'how_it_works_screen.dart';
+import '../constants/responsive_utils.dart';
 
 // Add this import for XML parsing
 import 'package:xml/xml.dart' as xml;
@@ -206,165 +207,187 @@ class _OrderScreenState extends State<OrderScreen> {
             : "Choose your price");
 
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Order Your CD',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+      padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+          mobile: 16, tablet: 24, desktop: 32),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Order Your CD',
+              style: TextStyle(
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 24, tablet: 28, desktop: 32),
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8.0),
-          Container(
-            margin: EdgeInsets.symmetric(vertical: 8.0),
-            padding: EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.album, color: Colors.orangeAccent),
-                SizedBox(width: 8.0),
-                Expanded(
-                  child: InkWell(
-                    onTap: !_hasFreeOrder ? _showPaymentOptionsDialog : null,
-                    child: Text(
-                      '$priceInfo',
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_hasFreeOrder) ...[
-            SizedBox(height: 8.0),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
             Container(
-              margin: EdgeInsets.only(bottom: 8.0),
-              padding: EdgeInsets.all(12.0),
+              margin: EdgeInsets.symmetric(
+                vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)
+              ),
+              padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 10, tablet: 12, desktop: 14)),
               decoration: BoxDecoration(
-                color: Colors.green.shade700,
+                color: Colors.black54,
                 borderRadius: BorderRadius.circular(8.0),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8.0),
+                  Icon(Icons.album, 
+                      color: Colors.orangeAccent,
+                      size: ResponsiveUtils.isMobile(context) ? 20 : 24),
+                  SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
                   Expanded(
-                    child: Text(
-                      'You have a free album credit available!',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                    child: InkWell(
+                      onTap: !_hasFreeOrder ? _showPaymentOptionsDialog : null,
+                      child: Text(
+                        '$priceInfo',
+                        style: TextStyle(
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 20), 
+                          color: Colors.white
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-          SizedBox(height: 16.0),
-          if (_previousAddresses.isNotEmpty) ...[
-            Text(
-              'Use a previous address:',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            if (_hasFreeOrder) ...[
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)),
+              Container(
+                margin: EdgeInsets.only(
+                  bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 10)
+                ),
+                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 10, tablet: 12, desktop: 14)),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade700,
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, 
+                        color: Colors.white,
+                        size: ResponsiveUtils.isMobile(context) ? 20 : 24),
+                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
+                    Expanded(
+                      child: Text(
+                        'You have a free album credit available!',
+                        style: TextStyle(
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18), 
+                          color: Colors.white
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            SizedBox(height: 4.0),
+            ],
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
+            if (_previousAddresses.isNotEmpty) ...[
+              Text(
+                'Use a previous address:',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18),
+                ),
+              ),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 3, tablet: 4, desktop: 6)),
+              DropdownButtonFormField<String>(
+                value: _selectedAddress,
+                items: _previousAddresses.map((address) {
+                  return DropdownMenuItem<String>(
+                    value: address,
+                    child: Text(address, style: TextStyle(color: Colors.white)),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedAddress = value;
+                    if (value != null) _populateFieldsFromSelectedAddress(value);
+                  });
+                },
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white10,
+                ),
+                dropdownColor: Colors.black87,
+              ),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+              Text(
+                'Or enter a new address:',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18),
+                ),
+              ),
+            ],
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(controller: _firstNameController, label: 'First Name'),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(controller: _lastNameController, label: 'Last Name'),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(controller: _addressController, label: 'Address (including apartment number)'),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(controller: _cityController, label: 'City'),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
             DropdownButtonFormField<String>(
-              value: _selectedAddress,
-              items: _previousAddresses.map((address) {
-                return DropdownMenuItem<String>(
-                  value: address,
-                  child: Text(address, style: TextStyle(color: Colors.white)),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedAddress = value;
-                  if (value != null) _populateFieldsFromSelectedAddress(value);
-                });
-              },
               decoration: InputDecoration(
+                labelText: 'State',
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white10,
               ),
+              style: TextStyle(color: Colors.white),
               dropdownColor: Colors.black87,
+              value: _state.isNotEmpty ? _state : null,
+              items: _states.map((String state) {
+                return DropdownMenuItem<String>(
+                  value: state,
+                  child: Text(
+                    state,
+                    style: TextStyle(color: Colors.white),
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                setState(() {
+                  _state = newValue ?? '';
+                });
+              },
+              validator: (value) =>
+                  value == null || value.isEmpty ? 'Please select your state' : null,
             ),
-            SizedBox(height: 16.0),
-            Text(
-              'Or enter a new address:',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(
+              controller: _zipcodeController,
+              label: 'Zipcode',
+              focusNode: _zipcodeFocusNode,
+              keyboardType: TextInputType.number,
             ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 32, desktop: 40)),
+            _isProcessing
+                ? Center(child: CircularProgressIndicator())
+                : RetroButtonWidget(
+                    text: 'Place Order',
+                    onPressed: user == null
+                        ? null
+                        : () async {
+                            FocusScope.of(context).unfocus();
+                            if (_formKey.currentState?.validate() ?? false) {
+                              await _handlePlaceOrder(user.uid);
+                            }
+                          },
+                    style: RetroButtonStyle.light,
+                  ),
           ],
-          SizedBox(height: 16.0),
-          _buildTextField(controller: _firstNameController, label: 'First Name'),
-          SizedBox(height: 16.0),
-          _buildTextField(controller: _lastNameController, label: 'Last Name'),
-          SizedBox(height: 16.0),
-          _buildTextField(controller: _addressController, label: 'Address (including apartment number)'),
-          SizedBox(height: 16.0),
-          _buildTextField(controller: _cityController, label: 'City'),
-          SizedBox(height: 16.0),
-          DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              labelText: 'State',
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Colors.white10,
-            ),
-            style: TextStyle(color: Colors.white),
-            dropdownColor: Colors.black87,
-            value: _state.isNotEmpty ? _state : null,
-            items: _states.map((String state) {
-              return DropdownMenuItem<String>(
-                value: state,
-                child: Text(
-                  state,
-                  style: TextStyle(color: Colors.white),
-                ),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _state = newValue ?? '';
-              });
-            },
-            validator: (value) =>
-                value == null || value.isEmpty ? 'Please select your state' : null,
-          ),
-          SizedBox(height: 16.0),
-          _buildTextField(
-            controller: _zipcodeController,
-            label: 'Zipcode',
-            focusNode: _zipcodeFocusNode,
-            keyboardType: TextInputType.number,
-          ),
-          SizedBox(height: 24.0),
-          _isProcessing
-              ? Center(child: CircularProgressIndicator())
-              : RetroButtonWidget(
-                  text: 'Place Order',
-                  onPressed: user == null
-                      ? null
-                      : () async {
-                          FocusScope.of(context).unfocus();
-                          if (_formKey.currentState?.validate() ?? false) {
-                            await _handlePlaceOrder(user.uid);
-                          }
-                        },
-                  style: RetroButtonStyle.light,
-                ),
-        ],
+        ),
       ),
     );
   }
@@ -383,8 +406,18 @@ class _OrderScreenState extends State<OrderScreen> {
         border: OutlineInputBorder(),
         filled: true,
         fillColor: Colors.white10,
+        labelStyle: TextStyle(
+          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+          vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+        ),
       ),
-      style: TextStyle(color: Colors.white),
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+      ),
       keyboardType: keyboardType,
       validator: (value) => value == null || value.trim().isEmpty
           ? 'Please enter your $label'
