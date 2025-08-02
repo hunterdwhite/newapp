@@ -1,13 +1,14 @@
 // lib/widgets/windows95_window.dart
 
 import 'package:flutter/material.dart';
+import '../constants/responsive_utils.dart';
 
 class Windows95WindowWidget extends StatelessWidget {
   final String? title;
   final Widget? titleWidget;
   final bool showCloseButton;
   final bool showTitleBar;
-  final EdgeInsets contentPadding;
+  final EdgeInsets? contentPadding; // Made optional for responsive calculation
   final Widget child;
   final Color backgroundColor; // Background color for the entire window
   final Color? contentBackgroundColor; // Background color for the content area
@@ -18,7 +19,7 @@ class Windows95WindowWidget extends StatelessWidget {
     this.titleWidget,
     this.showCloseButton = false,
     this.showTitleBar = true, // Named parameter with default value
-    this.contentPadding = const EdgeInsets.all(4.0),
+    this.contentPadding, // Now optional
     required this.child,
     this.backgroundColor = const Color(0xFFC0C0C0), // Default grey color
     this.contentBackgroundColor, // Will default to backgroundColor if not specified
@@ -37,13 +38,18 @@ class Windows95WindowWidget extends StatelessWidget {
             Expanded(
               child: Text(
                 title!,
-                style: TextStyle(color: Colors.black, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.black, 
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 11, tablet: 12, desktop: 12),
+                ),
               ),
             ),
             if (showCloseButton)
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Icon(Icons.close, color: Colors.white, size: 12),
+                child: Icon(Icons.close, 
+                    color: Colors.white, 
+                    size: ResponsiveUtils.isMobile(context) ? 11 : 12),
               ),
           ],
         );
@@ -54,7 +60,9 @@ class Windows95WindowWidget extends StatelessWidget {
             if (showCloseButton)
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Icon(Icons.close, color: Colors.white, size: 12),
+                child: Icon(Icons.close, 
+                    color: Colors.white, 
+                    size: ResponsiveUtils.isMobile(context) ? 11 : 12),
               ),
           ],
         );
@@ -63,6 +71,10 @@ class Windows95WindowWidget extends StatelessWidget {
 
     // Use contentBackgroundColor if provided; otherwise, default to backgroundColor
     final Color contentBgColor = contentBackgroundColor ?? backgroundColor;
+    
+    // Calculate responsive content padding
+    final EdgeInsets effectivePadding = contentPadding ?? 
+        EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 3, tablet: 4, desktop: 4));
 
     return Container(
       decoration: BoxDecoration(
@@ -80,11 +92,14 @@ class Windows95WindowWidget extends StatelessWidget {
           if (showTitleBar)
             Container(
               color: Color(0xFFFFA12C),
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 3, tablet: 4, desktop: 4), 
+                vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 1, tablet: 2, desktop: 2)
+              ),
               child: titleRow,
             ),
           Container(
-            padding: contentPadding,
+            padding: effectivePadding,
             color: contentBgColor,
             child: child,
           ),

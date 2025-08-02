@@ -22,7 +22,7 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = '36'
+def flutterVersionCode = '37'
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }
@@ -76,7 +76,7 @@ android {
     defaultConfig {
         applicationId "com.dissonant.dissonantapp2"
         minSdkVersion 24
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true

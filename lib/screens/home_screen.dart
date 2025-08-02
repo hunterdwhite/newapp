@@ -16,6 +16,7 @@ import 'album_detail_screen.dart';
 import 'earn_credits_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
 import '../widgets/windows95_window.dart'; // Corrected import for Windows95WindowWidget
+import '../constants/responsive_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -596,13 +597,16 @@ Widget _buildFreeOrderBar() {
           Container(
             color: const Color(0xFFE0E0E0),
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8), // less padding
+            padding: EdgeInsets.symmetric(
+              vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 10), 
+              horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_freeOrdersAvailable > 0) ...[
                   Container(
-                    padding: const EdgeInsets.all(4), // less padding
+                    padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, mobile: 3, tablet: 4, desktop: 4)),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFA500),
                       border: Border.all(color: Colors.white, width: 1),
@@ -611,28 +615,28 @@ Widget _buildFreeOrderBar() {
                       _freeOrdersAvailable == 1
                           ? 'You have 1 free order available!'
                           : 'You have $_freeOrdersAvailable free orders available!',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.black,
-                        fontSize: 12, // smaller font
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 11, tablet: 12, desktop: 12),
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: 8), // less spacing
+                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
                 ],
                 Text(
                   '$creditsNeeded credits until next free order',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.black,
-                    fontSize: 12, // smaller font
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 11, tablet: 12, desktop: 12),
                     fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 6), // less spacing
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 4, tablet: 6, desktop: 6)),
                 Container(
-                  height: 16, // smaller progress bar
+                  height: ResponsiveUtils.isMobile(context) ? 14 : 16,
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.black, width: 1),
                   ),
@@ -652,10 +656,10 @@ Widget _buildFreeOrderBar() {
                     }),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
                 SizedBox(
-                  width: 120,
-                  height: 36,
+                  width: ResponsiveUtils.isMobile(context) ? 110 : 120,
+                  height: ResponsiveUtils.isMobile(context) ? 32 : 36,
                   child: RetroButtonWidget(
                     text: 'Earn Credits',
                     onPressed: () {
@@ -666,6 +670,7 @@ Widget _buildFreeOrderBar() {
                     },
                     style: RetroButtonStyle.light,
                     fixedHeight: true,
+                    customWidth: ResponsiveUtils.isMobile(context) ? 110 : 120,
                   ),
                 ),
               ],
@@ -699,12 +704,15 @@ Widget _buildFreeOrderBar() {
   Widget _buildNewsCarousel() {
     if (_newsLoading) {
       return SizedBox(
-        height: MediaQuery.of(context).size.height * 0.30,
+        height: ResponsiveUtils.isMobile(context) ? 250 : 300,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final double cardHeight = MediaQuery.of(context).size.height * 0.30;
+    // Responsive card height calculation
+    final double cardHeight = ResponsiveUtils.isMobile(context) ? 
+        MediaQuery.of(context).size.height * 0.28 : 
+        MediaQuery.of(context).size.height * 0.30;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -719,8 +727,10 @@ Widget _buildFreeOrderBar() {
               final hasImage = (item['imageUrl'] as String).isNotEmpty;
 
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
+                padding: EdgeInsets.symmetric(
+                  horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 16), 
+                  vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 4, tablet: 6, desktop: 8)
+                ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -743,8 +753,8 @@ Widget _buildFreeOrderBar() {
                                 alignment: Alignment.centerLeft,
                                 child: Text(
                                   item['title'] ?? '',
-                                  style: const TextStyle(
-                                    fontSize: 16,
+                                  style: TextStyle(
+                                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
                                     color: Colors.black,
                                     fontWeight: FontWeight.normal,
                                   ),
@@ -808,12 +818,14 @@ Widget _buildFreeOrderBar() {
                                   if (item['iconPath'] != null &&
                                       item['iconPath'].toString().isNotEmpty)
                                     Padding(
-                                      padding: const EdgeInsets.only(
-                                          left: 24, right: 8),
+                                      padding: EdgeInsets.only(
+                                        left: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24), 
+                                        right: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)
+                                      ),
                                       child: Image.asset(
                                         item['iconPath'],
-                                        width: 60,
-                                        height: 60,
+                                        width: ResponsiveUtils.isMobile(context) ? 50 : 60,
+                                        height: ResponsiveUtils.isMobile(context) ? 50 : 60,
                                         fit: BoxFit.contain,
                                       ),
                                     ),
@@ -826,10 +838,10 @@ Widget _buildFreeOrderBar() {
                                               mainAxisAlignment:
                                                   MainAxisAlignment.center,
                                               children: [
-                                                const Text(
+                                                Text(
                                                   'Connect with us on these platforms!',
                                                   style: TextStyle(
-                                                    fontSize: 15,
+                                                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 15, desktop: 15),
                                                     color: Colors.black,
                                                   ),
                                                   textAlign: TextAlign.center,
@@ -857,8 +869,8 @@ Widget _buildFreeOrderBar() {
                                           : Text(
                                               item['subtitle'] ?? '',
                                               textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 15,
+                                              style: TextStyle(
+                                                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 15, desktop: 15),
                                                 color: Colors.black87,
                                               ),
                                             ),
@@ -1024,32 +1036,34 @@ Widget _buildLatestAlbumsStrip() {
         final double albumSize = (constraints.maxWidth - totalSpacing) / 3;
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          margin: ResponsiveUtils.getResponsiveHorizontalPadding(context),
+          padding: EdgeInsets.symmetric(
+            vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 12)
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title + arrow
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'Latest Albums',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 15,
+                      fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 15, desktop: 15),
                       fontWeight: FontWeight.normal,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, mobile: 4, tablet: 6, desktop: 6)),
                   Image.asset(
                     'assets/orangearrow.png',
-                    width: 12,
-                    height: 12,
+                    width: ResponsiveUtils.isMobile(context) ? 10 : 12,
+                    height: ResponsiveUtils.isMobile(context) ? 10 : 12,
                     fit: BoxFit.contain,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 12, desktop: 12)),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: latestAlbums.map((feedItem) {
@@ -1100,23 +1114,27 @@ Widget _buildLatestAlbumsStrip() {
           child: _pageReady
               ? LayoutBuilder(
                   builder: (context, constraints) {
+                    // Responsive max width calculation
+                    final double maxWidth = ResponsiveUtils.getContainerMaxWidth(context);
+                    final double effectiveMaxWidth = maxWidth == double.infinity ? 
+                        constraints.maxWidth : 
+                        constraints.maxWidth.clamp(0, maxWidth);
+                    
                     return ConstrainedBox(
-                      constraints:
-                          BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
                       child: Center(
                         child: SizedBox(
-                          width: 600,
+                          width: effectiveMaxWidth,
                           child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const SizedBox(height: 24),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                                 _buildNewsCarousel(),
                                 _buildLatestAlbumsStrip(),
                                 _buildFreeOrderBar(),
-                                const SizedBox(height: 24),
+                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                               ],
                             ),
                           ),
