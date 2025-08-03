@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import '../services/firestore_service.dart';
+import '../services/usps_address_service.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
 import '../widgets/app_bar_widget.dart';
@@ -14,9 +15,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'home_screen.dart';
 import 'how_it_works_screen.dart';
 import '../constants/responsive_utils.dart';
-
-// Add this import for XML parsing
-import 'package:xml/xml.dart' as xml;
+import '../constants/app_constants.dart';
 
 class OrderScreen extends StatefulWidget {
   @override
@@ -27,6 +26,13 @@ class _OrderScreenState extends State<OrderScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirestoreService _firestoreService = FirestoreService();
   final PaymentService _paymentService = PaymentService();
+  
+  // USPS Address Validation Service
+  late final UspsAddressService _uspsService;
+  bool _isAddressValidated = false;
+  bool _isValidating = false;
+  String? _addressValidationError;
+  ValidatedAddress? _validatedAddress;
 
   // Controllers
   final TextEditingController _firstNameController = TextEditingController();
@@ -64,12 +70,16 @@ class _OrderScreenState extends State<OrderScreen> {
 
   final FocusNode _zipcodeFocusNode = FocusNode();
 
-  // Replace with your actual USPS Web Tools USERID:
-  final String _uspsUserId = '1933R3DISSO13';
-
   @override
   void initState() {
     super.initState();
+    
+    // Initialize USPS service
+    _uspsService = UspsAddressService(
+      clientId: ApiConstants.uspsClientId,
+      clientSecret: ApiConstants.uspsClientSecret,
+    );
+    
     _fetchMostRecentOrderStatus();
     _loadPreviousAddresses();
     _loadUserData();
@@ -308,7 +318,13 @@ class _OrderScreenState extends State<OrderScreen> {
                 onChanged: (value) {
                   setState(() {
                     _selectedAddress = value;
-                    if (value != null) _populateFieldsFromSelectedAddress(value);
+                    if (value != null) {
+                      _populateFieldsFromSelectedAddress(value);
+                      // Auto-validate the selected address
+                      Future.delayed(Duration(milliseconds: 100), () {
+                        _validateAddress();
+                      });
+                    }
                   });
                 },
                 decoration: InputDecoration(
@@ -333,44 +349,29 @@ class _OrderScreenState extends State<OrderScreen> {
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
             _buildTextField(controller: _lastNameController, label: 'Last Name'),
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-            _buildTextField(controller: _addressController, label: 'Address (including apartment number)'),
-            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-            _buildTextField(controller: _cityController, label: 'City'),
-            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'State',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white10,
-              ),
-              style: TextStyle(color: Colors.white),
-              dropdownColor: Colors.black87,
-              value: _state.isNotEmpty ? _state : null,
-              items: _states.map((String state) {
-                return DropdownMenuItem<String>(
-                  value: state,
-                  child: Text(
-                    state,
-                    style: TextStyle(color: Colors.white),
-                  ),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _state = newValue ?? '';
-                });
-              },
-              validator: (value) =>
-                  value == null || value.isEmpty ? 'Please select your state' : null,
+            _buildTextField(
+              controller: _addressController, 
+              label: 'Address (including apartment number)',
+              isAddressField: true,
             ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildTextField(
+              controller: _cityController, 
+              label: 'City',
+              isAddressField: true,
+            ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildStateDropdown(),
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
             _buildTextField(
               controller: _zipcodeController,
               label: 'Zipcode',
               focusNode: _zipcodeFocusNode,
               keyboardType: TextInputType.number,
+              isAddressField: true,
             ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
+            _buildValidateAddressButton(),
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 32, desktop: 40)),
             _isProcessing
                 ? Center(child: CircularProgressIndicator())
@@ -381,11 +382,46 @@ class _OrderScreenState extends State<OrderScreen> {
                         : () async {
                             FocusScope.of(context).unfocus();
                             if (_formKey.currentState?.validate() ?? false) {
+                              if (!_isAddressValidated) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Please validate your address before placing an order.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
                               await _handlePlaceOrder(user.uid);
                             }
                           },
                     style: RetroButtonStyle.light,
                   ),
+            if (!_isAddressValidated && user != null) ...[
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Please validate your address with USPS before placing your order',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -397,31 +433,80 @@ class _OrderScreenState extends State<OrderScreen> {
     required String label,
     FocusNode? focusNode,
     TextInputType? keyboardType,
+    bool isAddressField = false,
   }) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(),
-        filled: true,
-        fillColor: Colors.white10,
-        labelStyle: TextStyle(
-          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+    Color? borderColor;
+    Widget? suffixIcon;
+    
+    if (isAddressField) {
+      if (_isValidating) {
+        borderColor = Colors.orange;
+        suffixIcon = SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+          ),
+        );
+      } else if (_isAddressValidated) {
+        borderColor = Colors.green;
+        suffixIcon = Icon(Icons.check_circle, color: Colors.green);
+      } else if (_addressValidationError != null) {
+        borderColor = Colors.red;
+        suffixIcon = Icon(Icons.error, color: Colors.red);
+      }
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: isAddressField ? (_) => _onAddressFieldChanged() : null,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(
+              borderSide: BorderSide(color: borderColor ?? Colors.grey),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: borderColor ?? Colors.grey),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: borderColor ?? Colors.blue, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.white10,
+            suffixIcon: suffixIcon,
+            labelStyle: TextStyle(
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+              vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+            ),
+          ),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+          ),
+          keyboardType: keyboardType,
+          validator: (value) => value == null || value.trim().isEmpty
+              ? 'Please enter your $label'
+              : null,
         ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
-          vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
-        ),
-      ),
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
-      ),
-      keyboardType: keyboardType,
-      validator: (value) => value == null || value.trim().isEmpty
-          ? 'Please enter your $label'
-          : null,
+        if (isAddressField && _addressValidationError != null) ...[
+          SizedBox(height: 4),
+          Text(
+            _addressValidationError!,
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -746,7 +831,173 @@ class _OrderScreenState extends State<OrderScreen> {
         }
       }
     }
+    
+    // Reset validation state when address is populated from dropdown
+    _isAddressValidated = false;
+    _addressValidationError = null;
+    _validatedAddress = null;
+    
     setState(() {});
+  }
+
+  /// Validates the current address using USPS API
+  Future<void> _validateAddress() async {
+    // Check if all required fields are filled
+    final street = _addressController.text.trim();
+    final city = _cityController.text.trim();
+    final state = _state.trim();
+    final zip = _zipcodeController.text.trim();
+    
+    if (street.isEmpty || city.isEmpty || state.isEmpty || zip.isEmpty) {
+      return; // Don't validate incomplete addresses
+    }
+    
+    if (!mounted) return;
+    setState(() {
+      _isValidating = true;
+      _addressValidationError = null;
+    });
+
+    try {
+      final validatedAddress = await _uspsService.validate(
+        street: street,
+        city: city,
+        state: state,
+        zip: zip,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isValidating = false;
+        if (validatedAddress != null) {
+          _isAddressValidated = true;
+          _validatedAddress = validatedAddress;
+          _addressValidationError = null;
+          
+          // Update form fields with validated address
+          _addressController.text = validatedAddress.street;
+          _cityController.text = validatedAddress.city;
+          _state = validatedAddress.state;
+          _zipcodeController.text = validatedAddress.zip4 != null 
+              ? '${validatedAddress.zip5}-${validatedAddress.zip4}'
+              : validatedAddress.zip5;
+        } else {
+          _isAddressValidated = false;
+          _validatedAddress = null;
+          _addressValidationError = 'This address could not be validated by USPS. Please check your address and try again.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isValidating = false;
+        _isAddressValidated = false;
+        _validatedAddress = null;
+        _addressValidationError = 'Unable to validate address at this time. Please try again later.';
+      });
+      print('Address validation error: $e');
+    }
+  }
+
+  /// Called when any address field changes to reset validation
+  void _onAddressFieldChanged() {
+    if (_isAddressValidated) {
+      setState(() {
+        _isAddressValidated = false;
+        _addressValidationError = null;
+        _validatedAddress = null;
+      });
+    }
+  }
+
+  Widget _buildStateDropdown() {
+    Color? borderColor;
+    if (_isValidating) {
+      borderColor = Colors.orange;
+    } else if (_isAddressValidated) {
+      borderColor = Colors.green;
+    } else if (_addressValidationError != null) {
+      borderColor = Colors.red;
+    }
+    
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        labelText: 'State',
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: borderColor ?? Colors.grey),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: borderColor ?? Colors.grey),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: borderColor ?? Colors.blue, width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.white10,
+      ),
+      style: TextStyle(color: Colors.white),
+      dropdownColor: Colors.black87,
+      value: _state.isNotEmpty ? _state : null,
+      items: _states.map((String state) {
+        return DropdownMenuItem<String>(
+          value: state,
+          child: Text(
+            state,
+            style: TextStyle(color: Colors.white),
+          ),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {
+        setState(() {
+          _state = newValue ?? '';
+        });
+        _onAddressFieldChanged();
+      },
+      validator: (value) =>
+          value == null || value.isEmpty ? 'Please select your state' : null,
+    );
+  }
+
+  Widget _buildValidateAddressButton() {
+    final street = _addressController.text.trim();
+    final city = _cityController.text.trim();
+    final state = _state.trim();
+    final zip = _zipcodeController.text.trim();
+    
+    final isFormComplete = street.isNotEmpty && city.isNotEmpty && state.isNotEmpty && zip.isNotEmpty;
+    
+    return Container(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: (isFormComplete && !_isValidating) ? _validateAddress : null,
+        icon: _isValidating 
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Icon(_isAddressValidated ? Icons.check_circle : Icons.verified_user),
+        label: Text(
+          _isValidating 
+              ? 'Validating...'
+              : _isAddressValidated 
+                  ? 'Address Validated ✓'
+                  : 'Validate Address with USPS',
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isAddressValidated 
+              ? Colors.green 
+              : _addressValidationError != null 
+                  ? Colors.red 
+                  : Colors.blue,
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    );
   }
 }
 
