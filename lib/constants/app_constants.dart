@@ -88,4 +88,9 @@ class AppStrings {
 class ApiConstants {
   static const int timeoutDuration = 30; // seconds
   static const int maxRetries = 3;
+  
+  // USPS Address Validation API
+  // TODO: Replace with actual USPS API credentials from environment variables
+  static const String uspsClientId = 'YOUR_USPS_CLIENT_ID';
+  static const String uspsClientSecret = 'YOUR_USPS_CLIENT_SECRET';
 }
