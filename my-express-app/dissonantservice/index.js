@@ -6,6 +6,7 @@ const serverless = require('serverless-http');
 
 app.use(bodyParser.json());
 
+// Stripe payment endpoint
 app.post('/create-payment-intent', async (req, res) => {
   const { amount } = req.body;
 
@@ -21,6 +22,20 @@ app.post('/create-payment-intent', async (req, res) => {
   } catch (error) {
     res.status(500).send(error.message);
   }
+});
+
+// PayPal verification endpoint (for webhook verification if needed)
+app.post('/verify-paypal-payment', async (req, res) => {
+  const { paymentId, status } = req.body;
+  
+  // Here you could add verification logic if needed
+  // For now, we'll just log the payment for audit purposes
+  console.log('PayPal payment verification:', { paymentId, status });
+  
+  res.send({
+    verified: true,
+    paymentId: paymentId
+  });
 });
 
 module.exports.handler = serverless(app);

@@ -39,6 +39,7 @@ dependencies:
   provider: ^6.0.5
   shared_preferences: ^2.0.15
   flutter_stripe: ^11.2.0 
+  flutter_paypal_payment: ^1.0.6
   carousel_slider: ^5.0.0 
   google_fonts: 6.2.1 
   image_picker: 1.1.2
