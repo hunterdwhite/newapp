@@ -24,7 +24,14 @@ class _ReviewDialogState extends State<ReviewDialog> {
     _controller = TextEditingController(text: widget.initialComment);
   }
 
+  // Helper method to dismiss keyboard
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   void _onOkPressed() {
+    // Dismiss keyboard before processing
+    _dismissKeyboard();
     final text = _controller.text.trim();
     if (text.isEmpty) {
       setState(() {
@@ -57,32 +64,35 @@ class _ReviewDialogState extends State<ReviewDialog> {
             BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Title bar
-            Container(
-              color: Colors.deepOrange,
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Write/Edit Review',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
+        child: GestureDetector(
+          // Add tap-to-dismiss keyboard functionality
+          onTap: _dismissKeyboard,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Title bar
+              Container(
+                color: Colors.deepOrange,
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Write/Edit Review',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(Icons.close, color: Colors.white, size: 12),
-                  ),
-                ],
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Icon(Icons.close, color: Colors.white, size: 12),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Content
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Column(
+              // Content
+              Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -100,6 +110,11 @@ class _ReviewDialogState extends State<ReviewDialog> {
                       controller: _controller,
                       maxLines: 5,
                       style: TextStyle(color: Colors.black),
+                      // Add proper keyboard handling
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (value) {
+                        _dismissKeyboard();
+                      },
                       decoration: InputDecoration(
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.all(8.0),
@@ -165,7 +180,8 @@ class _ReviewDialogState extends State<ReviewDialog> {
                 ],
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
