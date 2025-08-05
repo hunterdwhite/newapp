@@ -36,6 +36,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String _review = '';
   // New: track the order's flowVersion (default to 1)
   int _flowVersion = 1;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.stripe;
 
   @override
   void initState() {
@@ -149,39 +150,58 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
 
     try {
-      print('Creating PaymentIntent...');
-      final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
-        body: jsonEncode({'amount': 899}), // price in cents for old flow
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final paymentIntentData = jsonDecode(response.body);
-        if (!paymentIntentData.containsKey('clientSecret')) {
-          throw Exception('Invalid PaymentIntent response: ${response.body}');
-        }
-        print('Initializing payment sheet...');
-        await _paymentService.initPaymentSheet(paymentIntentData['clientSecret']);
-        print('Presenting payment sheet...');
-        await _paymentService.presentPaymentSheet();
-
-        print('Payment completed successfully.');
-        await _firestoreService.updateOrderStatus(widget.orderId, 'kept');
-        if (_review.trim().isNotEmpty && _albumId != null) {
-          await _submitReview(_review.trim());
-        }
-        if (!mounted) return;
-        setState(() {
-          _isProcessing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment successful. Enjoy your new album!')),
+      if (_selectedPaymentMethod == PaymentMethod.stripe) {
+        // Stripe payment processing
+        print('Creating PaymentIntent...');
+        final response = await http.post(
+          Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
+          body: jsonEncode({'amount': 899}), // price in cents for old flow
+          headers: {'Content-Type': 'application/json'},
         );
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+
+        if (response.statusCode == 200) {
+          final paymentIntentData = jsonDecode(response.body);
+          if (!paymentIntentData.containsKey('clientSecret')) {
+            throw Exception('Invalid PaymentIntent response: ${response.body}');
+          }
+          print('Initializing payment sheet...');
+          await _paymentService.initPaymentSheet(paymentIntentData['clientSecret']);
+          print('Presenting payment sheet...');
+          await _paymentService.presentPaymentSheet();
+
+          print('Payment completed successfully.');
+        } else {
+          throw Exception('Failed to create PaymentIntent. Server error: ${response.body}');
+        }
       } else {
-        throw Exception('Failed to create PaymentIntent. Server error: ${response.body}');
+        // PayPal payment processing
+        print('Processing PayPal payment for \$8.99...');
+        final paymentId = await _paymentService.processPayPalPayment(
+          context: context,
+          amount: 8.99,
+          description: 'Album Purchase - Dissonant',
+        );
+
+        if (paymentId == null) {
+          throw Exception('PayPal payment was cancelled or failed');
+        }
+
+        print('PayPal payment completed successfully. Payment ID: $paymentId');
       }
+
+      // Common processing after successful payment
+      await _firestoreService.updateOrderStatus(widget.orderId, 'kept');
+      if (_review.trim().isNotEmpty && _albumId != null) {
+        await _submitReview(_review.trim());
+      }
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payment successful. Enjoy your new album!')),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     } on StripeException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -205,6 +225,44 @@ class _PaymentScreenState extends State<PaymentScreen> {
         SnackBar(content: Text('Payment failed: ${e.toString()}')),
       );
     }
+  }
+
+  Widget _paymentMethodButton(String title, PaymentMethod method) {
+    final isSelected = _selectedPaymentMethod == method;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedPaymentMethod = method;
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Color(0xFFFFA12C) : Colors.white,
+          border: Border.all(
+            color: isSelected ? Colors.black : Colors.grey,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              offset: Offset(2, 2),
+              blurRadius: 2,
+            ),
+          ] : null,
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: Colors.black,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -301,23 +359,49 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 style: RetroButtonStyle.light,
                                 fixedHeight: true,
                               )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                            : Column(
                                 children: [
+                                  // Payment method selection
                                   Text(
-                                    '\$8.99',
+                                    'Select Payment Method',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 24,
+                                      fontSize: 18,
                                     ),
                                   ),
-                                  SizedBox(width: 20.0),
-                                  RetroButtonWidget(
-                                    text: 'Purchase',
-                                    onPressed: _processPayment,
-                                    style: RetroButtonStyle.light,
-                                    fixedHeight: true,
+                                  SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _paymentMethodButton('Stripe', PaymentMethod.stripe),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: _paymentMethodButton('PayPal', PaymentMethod.paypal),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 20),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        '\$8.99',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                        ),
+                                      ),
+                                      SizedBox(width: 20.0),
+                                      RetroButtonWidget(
+                                        text: 'Purchase',
+                                        onPressed: _processPayment,
+                                        style: RetroButtonStyle.light,
+                                        fixedHeight: true,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

@@ -55,6 +55,7 @@ class _OrderScreenState extends State<OrderScreen> {
   // Default payment amount is 11.99, but the user hasn't selected one until they tap.
   double _selectedPaymentAmount = 11.99;
   bool _hasSelectedPrice = false;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.stripe;
 
   List<String> _previousAddresses = [];
 
@@ -516,128 +517,214 @@ class _OrderScreenState extends State<OrderScreen> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black, width: 2),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title bar
-                Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Color(0xFFFFA12C),
-                    border: Border(
-                      bottom: BorderSide(color: Colors.black, width: 1),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                          child: Text(
-                            'Select Payment Option',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title bar
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFFA12C),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.black, width: 1),
                         ),
                       ),
-                      Positioned(
-                        right: 8,
-                        top: 6,
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Color(0xFFCBCACB),
-                              border: Border.all(color: Colors.black, width: 1),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'X',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                      child: Stack(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                              child: Text(
+                                'Select Payment Option',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          Positioned(
+                            right: 8,
+                            top: 6,
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFCBCACB),
+                                  border: Border.all(color: Colors.black, width: 1),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'X',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    Container(
+                      color: Color(0xFFE0E0E0),
+                      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Payment Method Selection
+                          Text(
+                            'Choose Payment Method',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _paymentMethodButton(
+                                  'Stripe',
+                                  PaymentMethod.stripe,
+                                  setDialogState,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: _paymentMethodButton(
+                                  'PayPal',
+                                  PaymentMethod.paypal,
+                                  setDialogState,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 20),
+                          
+                          // Price Selection
+                          Text(
+                            'Choose Price',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          _windows97OptionButton(
+                            label: "\$8.99",
+                            description: "I can't afford a full price album right now",
+                            onTap: () {
+                              setState(() {
+                                _selectedPaymentAmount = 8.99;
+                                _hasSelectedPrice = true;
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          _windows97OptionButton(
+                            label: "\$11.99",
+                            description: "I'll buy at full price!",
+                            onTap: () {
+                              setState(() {
+                                _selectedPaymentAmount = 11.99;
+                                _hasSelectedPrice = true;
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          _windows97OptionButton(
+                            label: "\$14.99",
+                            description: "I want to pay full price and help contribute so others don't have to pay full price!",
+                            onTap: () {
+                              setState(() {
+                                _selectedPaymentAmount = 14.99;
+                                _hasSelectedPrice = true;
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                          SizedBox(height: 18),
+                          Text(
+                            'All prices are for the same service',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                Container(
-                  color: Color(0xFFE0E0E0),
-                  padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _windows97OptionButton(
-                        label: "\$8.99",
-                        description: "I can't afford a full price album right now",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 8.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      _windows97OptionButton(
-                        label: "\$11.99",
-                        description: "I'll buy at full price!",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 11.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      _windows97OptionButton(
-                        label: "\$14.99",
-                        description: "I want to pay full price and help contribute so others don't have to pay full price!",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 14.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 18),
-                      Text(
-                        'All prices are for the same service',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _paymentMethodButton(String title, PaymentMethod method, void Function(void Function()) setDialogState) {
+    final isSelected = _selectedPaymentMethod == method;
+    return GestureDetector(
+      onTap: () {
+        setDialogState(() {
+          _selectedPaymentMethod = method;
+        });
+        setState(() {
+          _selectedPaymentMethod = method;
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Color(0xFFFFA12C) : Colors.white,
+          border: Border.all(
+            color: isSelected ? Colors.black : Colors.grey,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              offset: Offset(2, 2),
+              blurRadius: 2,
+            ),
+          ] : null,
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: Colors.black,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -718,44 +805,63 @@ class _OrderScreenState extends State<OrderScreen> {
         return;
       }
 
-      int amountInCents = (_selectedPaymentAmount * 100).round();
-      print('Creating PaymentIntent for $amountInCents cents...');
-      final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
-        body: jsonEncode({'amount': amountInCents}),
-        headers: {'Content-Type': 'application/json'},
-      );
+      if (_selectedPaymentMethod == PaymentMethod.stripe) {
+        // Stripe payment processing
+        int amountInCents = (_selectedPaymentAmount * 100).round();
+        print('Creating PaymentIntent for $amountInCents cents...');
+        final response = await http.post(
+          Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
+          body: jsonEncode({'amount': amountInCents}),
+          headers: {'Content-Type': 'application/json'},
+        );
 
-      if (response.statusCode == 200) {
-        final paymentIntentData = jsonDecode(response.body);
-        if (!paymentIntentData.containsKey('clientSecret')) {
-          throw Exception('Invalid PaymentIntent response: ${response.body}');
+        if (response.statusCode == 200) {
+          final paymentIntentData = jsonDecode(response.body);
+          if (!paymentIntentData.containsKey('clientSecret')) {
+            throw Exception('Invalid PaymentIntent response: ${response.body}');
+          }
+
+          print('Initializing payment sheet...');
+          await _paymentService.initPaymentSheet(paymentIntentData['clientSecret']);
+          print('Presenting payment sheet...');
+          await _paymentService.presentPaymentSheet();
+
+          print('Payment completed successfully.');
+        } else {
+          throw Exception('Failed to create PaymentIntent. Server error: ${response.body}');
+        }
+      } else {
+        // PayPal payment processing
+        print('Processing PayPal payment for \$${_selectedPaymentAmount.toStringAsFixed(2)}...');
+        final paymentId = await _paymentService.processPayPalPayment(
+          context: context,
+          amount: _selectedPaymentAmount,
+          description: 'Album Purchase - Dissonant',
+        );
+
+        if (paymentId == null) {
+          throw Exception('PayPal payment was cancelled or failed');
         }
 
-        print('Initializing payment sheet...');
-        await _paymentService.initPaymentSheet(paymentIntentData['clientSecret']);
-        print('Presenting payment sheet...');
-        await _paymentService.presentPaymentSheet();
-
-        print('Payment completed successfully.');
-        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
-        
-        // Award 1 credit for placing an order
-        await HomeScreen.addFreeOrderCredits(uid, 1);
-
-        if (!mounted) return;
-        setState(() {
-          _isProcessing = false;
-          _hasOrdered = true;
-          _mostRecentOrderStatus = 'new';
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment successful. Your order has been placed!')),
-        );
-      } else {
-        throw Exception('Failed to create PaymentIntent. Server error: ${response.body}');
+        print('PayPal payment completed successfully. Payment ID: $paymentId');
       }
+
+      // Common order processing after successful payment
+      await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+      
+      // Award 1 credit for placing an order
+      await HomeScreen.addFreeOrderCredits(uid, 1);
+
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+        _hasOrdered = true;
+        _mostRecentOrderStatus = 'new';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payment successful. Your order has been placed!')),
+      );
     } on StripeException catch (e) {
       if (!mounted) return;
       setState(() {
