@@ -55,7 +55,7 @@ class _OrderScreenState extends State<OrderScreen> {
   bool _hasSelectedPrice = false;
   
   // Payment method selection
-  String _selectedPaymentMethod = 'stripe'; // 'stripe' or 'paypal'
+  // String _selectedPaymentMethod = 'stripe'; // 'stripe' or 'paypal'
 
   List<String> _previousAddresses = [];
 
@@ -226,6 +226,7 @@ class _OrderScreenState extends State<OrderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 32, desktop: 40)),
             Text(
               'Order Your CD',
               style: TextStyle(
@@ -297,10 +298,10 @@ class _OrderScreenState extends State<OrderScreen> {
               ),
             ],
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
-            if (!_hasFreeOrder) ...[
-              _buildPaymentMethodSelection(),
-              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
-            ],
+            // if (!_hasFreeOrder) ...[
+            //   _buildPaymentMethodSelection(),
+            //   SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
+            // ],
             if (_previousAddresses.isNotEmpty) ...[
               Text(
                 'Use a previous address:',
@@ -705,10 +706,10 @@ class _OrderScreenState extends State<OrderScreen> {
 
       int amountInCents = (_selectedPaymentAmount * 100).round();
       
-      if (_selectedPaymentMethod == 'paypal') {
-        await _handlePayPalPayment(amountInCents, uid, fullAddress);
-        return;
-      }
+      // if (_selectedPaymentMethod == 'paypal') {
+      //   await _handlePayPalPayment(amountInCents, uid, fullAddress);
+      //   return;
+      // }
       
       print('Creating PaymentIntent for $amountInCents cents...');
       final response = await http.post(
@@ -950,166 +951,166 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  Widget _buildPaymentMethodSelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Payment Method',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 20),
-          ),
-        ),
-        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedPaymentMethod = 'stripe'),
-                child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.white10,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.grey,
-                      width: 2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.credit_card,
-                        color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Card',
-                        style: TextStyle(
-                          color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedPaymentMethod = 'paypal'),
-                child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.white10,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.grey,
-                      width: 2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.payment,
-                        color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'PayPal',
-                        style: TextStyle(
-                          color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  // Widget _buildPaymentMethodSelection() {
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       Text(
+  //         'Payment Method',
+  //         style: TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.bold,
+  //           fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 20),
+  //         ),
+  //       ),
+  //       SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+  //       Row(
+  //         children: [
+  //           Expanded(
+  //             child: GestureDetector(
+  //               onTap: () => setState(() => _selectedPaymentMethod = 'stripe'),
+  //               child: Container(
+  //                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+  //                 decoration: BoxDecoration(
+  //                   color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.white10,
+  //                   borderRadius: BorderRadius.circular(8),
+  //                   border: Border.all(
+  //                     color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.grey,
+  //                     width: 2,
+  //                   ),
+  //                 ),
+  //                 child: Row(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     Icon(
+  //                       Icons.credit_card,
+  //                       color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
+  //                     ),
+  //                     SizedBox(width: 8),
+  //                     Text(
+  //                       'Card',
+  //                       style: TextStyle(
+  //                         color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
+  //                         fontWeight: FontWeight.w600,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //           SizedBox(width: 12),
+  //           Expanded(
+  //             child: GestureDetector(
+  //               onTap: () => setState(() => _selectedPaymentMethod = 'paypal'),
+  //               child: Container(
+  //                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+  //                 decoration: BoxDecoration(
+  //                   color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.white10,
+  //                   borderRadius: BorderRadius.circular(8),
+  //                   border: Border.all(
+  //                     color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.grey,
+  //                     width: 2,
+  //                   ),
+  //                 ),
+  //                 child: Row(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     Icon(
+  //                       Icons.payment,
+  //                       color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
+  //                     ),
+  //                     SizedBox(width: 8),
+  //                     Text(
+  //                       'PayPal',
+  //                       style: TextStyle(
+  //                         color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
+  //                         fontWeight: FontWeight.w600,
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ],
+  //   );
+  // }
 
-  Future<void> _handlePayPalPayment(int amountInCents, String uid, String fullAddress) async {
-    try {
-      print('Creating PayPal payment for $amountInCents cents...');
-      final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-paypal-payment'),
-        body: jsonEncode({
-          'amount': (_selectedPaymentAmount).toStringAsFixed(2),
-          'currency': 'USD',
-          'return_url': 'com.dissonant.app://paypal-success',
-          'cancel_url': 'com.dissonant.app://paypal-cancel',
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+  // Future<void> _handlePayPalPayment(int amountInCents, String uid, String fullAddress) async {
+  //   try {
+  //     print('Creating PayPal payment for $amountInCents cents...');
+  //     final response = await http.post(
+  //       Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-paypal-payment'),
+  //       body: jsonEncode({
+  //         'amount': (_selectedPaymentAmount).toStringAsFixed(2),
+  //         'currency': 'USD',
+  //         'return_url': 'com.dissonant.app://paypal-success',
+  //         'cancel_url': 'com.dissonant.app://paypal-cancel',
+  //       }),
+  //       headers: {'Content-Type': 'application/json'},
+  //     );
 
-      if (response.statusCode == 200) {
-        final paymentData = jsonDecode(response.body);
-        final approvalUrl = paymentData['approval_url'];
+  //     if (response.statusCode == 200) {
+  //       final paymentData = jsonDecode(response.body);
+  //       final approvalUrl = paymentData['approval_url'];
         
-        if (approvalUrl != null) {
-          // For now, show a simple message. In a full implementation, you'd:
-          // 1. Open the PayPal approval URL in a web view
-          // 2. Handle the callback to execute the payment
-          // 3. Show success/failure accordingly
+  //       if (approvalUrl != null) {
+  //         // For now, show a simple message. In a full implementation, you'd:
+  //         // 1. Open the PayPal approval URL in a web view
+  //         // 2. Handle the callback to execute the payment
+  //         // 3. Show success/failure accordingly
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('PayPal payment initiated! This would open PayPal in a full implementation.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text('PayPal payment initiated! This would open PayPal in a full implementation.'),
+  //             duration: Duration(seconds: 3),
+  //           ),
+  //         );
           
-          // For demo purposes, simulate successful payment after delay
-          await Future.delayed(Duration(seconds: 2));
+  //         // For demo purposes, simulate successful payment after delay
+  //         await Future.delayed(Duration(seconds: 2));
           
-          // Create shipping labels
-          print('🔄 About to create shipping labels (PayPal)...');
-          await _createShippingLabels(uid, fullAddress);
-          print('✅ Shipping labels creation completed (PayPal)');
+  //         // Create shipping labels
+  //         print('🔄 About to create shipping labels (PayPal)...');
+  //         await _createShippingLabels(uid, fullAddress);
+  //         print('✅ Shipping labels creation completed (PayPal)');
           
-          await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
-          await HomeScreen.addFreeOrderCredits(uid, 1);
+  //         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+  //         await HomeScreen.addFreeOrderCredits(uid, 1);
 
-          if (!mounted) return;
-          setState(() {
-            _isProcessing = false;
-            _hasOrdered = true;
-            _mostRecentOrderStatus = 'new';
-          });
+  //         if (!mounted) return;
+  //         setState(() {
+  //           _isProcessing = false;
+  //           _hasOrdered = true;
+  //           _mostRecentOrderStatus = 'new';
+  //         });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('PayPal payment successful! Your order has been placed!')),
-          );
-        } else {
-          throw Exception('No approval URL received from PayPal');
-        }
-      } else {
-        throw Exception('Failed to create PayPal payment. Server error: ${response.body}');
-      }
-    } catch (e, stackTrace) {
-      if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-      });
-      print('PayPal payment error: $e');
-      try {
-        FirebaseCrashlytics.instance.recordError(e, stackTrace);
-      } catch (_) {}
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PayPal payment failed: ${e.toString()}')),
-      );
-    }
-  }
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text('PayPal payment successful! Your order has been placed!')),
+  //         );
+  //       } else {
+  //         throw Exception('No approval URL received from PayPal');
+  //       }
+  //     } else {
+  //       throw Exception('Failed to create PayPal payment. Server error: ${response.body}');
+  //     }
+  //   } catch (e, stackTrace) {
+  //     if (!mounted) return;
+  //     setState(() {
+  //       _isProcessing = false;
+  //     });
+  //     print('PayPal payment error: $e');
+  //     try {
+  //       FirebaseCrashlytics.instance.recordError(e, stackTrace);
+  //     } catch (_) {}
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('PayPal payment failed: ${e.toString()}')),
+  //     );
+  //   }
+  // }
 
   Future<void> _createShippingLabels(String uid, String fullAddress) async {
     try {

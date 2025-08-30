@@ -541,9 +541,9 @@ Dissonant Team`;
       // Send tracking information only to customer
       if (customer_email) {
         try {
-          const customerEmailContent = `DISSONANT ORDER RECEIVED
+          const customerEmailContent = `
 
-Hi ${customer_name},
+Hello!
 
 Your order has been receieved. A curator will select an album for you and ship it soon!
 TRACKING #: ${outboundLabel.tracking_number}
@@ -551,21 +551,12 @@ TRACKING #: ${outboundLabel.tracking_number}
 Questions? Reply to this email or contact us at dissonant.helpdesk@gmail.com
 
 DISSONANT
-
---
-Order processed: ${new Date().toLocaleString('en-US', { 
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})} EST`;
+`;
 
           const customerMailOptions = {
             from: process.env.EMAIL_USER || 'noreply@dissonant.com',
             to: customer_email,
-            subject: `DISSONANT ORDER RECEIVED`,
+            subject: `We've receieved your order!`,
             text: customerEmailContent,
           };
 
@@ -941,9 +932,7 @@ async function sendStatusUpdateEmail(trackingNumber, orderStatus, statusDescript
     switch (orderStatus) {
       case 'sent':
         // SHIPPED EMAIL TEMPLATE
-        emailContent = `YOUR DISSONANT ORDER HAS SHIPPED
-
-Hi ${customerName},
+        emailContent = `
 
 Hello!
 
@@ -957,21 +946,14 @@ We hope you enjoy!
 
 DISSONANT
 
---
-Shipped: ${new Date().toLocaleString('en-US', { 
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})} EST`;
-        subject = 'YOUR DISSONANT ORDER HAS SHIPPED';
+`;
+        subject = 'Your Dissonant order has shipped!';
         break;
 
       case 'delivered':
         // DELIVERED EMAIL TEMPLATE
-        emailContent = `YOUR DISSONANT ORDER HAS BEEN DELIVERED
+        emailContent = `
+Hello!
 
 Your order has arrived.
 Live with it, listen to it, and enjoy the music!
@@ -983,16 +965,8 @@ Questions? Reply to this email or contact us at dissonant.helpdesk@gmail.com
 
 DISSONANT
 
---
-Delivered: ${new Date().toLocaleString('en-US', { 
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})} EST`;
-        subject = 'YOUR DISSONANT ORDER HAS BEEN DELIVERED';
+`;
+        subject = 'Your Dissonant order has been delivered!';
         break;
 
       default:
@@ -1008,15 +982,7 @@ Questions? Reply to this email or contact us at dissonant.helpdesk@gmail.com
 
 DISSONANT
 
---
-Updated: ${new Date().toLocaleString('en-US', { 
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})} EST`;
+`;
         subject = `DISSONANT ORDER UPDATE - ${statusDescription.toUpperCase()}`;
         break;
     }
