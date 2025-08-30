@@ -1,6 +1,7 @@
 // lib/widgets/dialog/genre_selection_dialog.dart
 
 import 'package:flutter/material.dart';
+import '../../constants/constants.dart';
 
 class GenreSelectionDialog extends StatefulWidget {
   final String? currentGenre; // Optional parameter to pre-select genre
@@ -12,20 +13,7 @@ class GenreSelectionDialog extends StatefulWidget {
 }
 
 class _GenreSelectionDialogState extends State<GenreSelectionDialog> {
-  final genres = [
-    'Rock',
-    'Pop',
-    'Jazz',
-    'Classical',
-    'Hip-hop',
-    'Country',
-    'Electronic',
-    'Metal',
-    'Folk',
-    'Experimental',
-    'Alternative',
-    'R&B'
-  ];
+  final genres = MusicConstants.availableGenres;
 
   String? _selectedGenre;
 

@@ -106,6 +106,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     FocusScope.of(context).unfocus();
   }
 
+  // Handle return key press - add new line instead of dismissing keyboard
+  void _handleReturnKey(String value) {
+    // Allow multi-line input by not dismissing keyboard
+    // The return key will naturally add a new line
+  }
+
   /// For orders with flowVersion == 2, simply mark as kept without charging.
   Future<void> _keepAlbum() async {
     // Dismiss keyboard before processing
@@ -212,6 +218,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     // For old flow (flowVersion != 2), the UI shows price and payment step.
     // For new flow (flowVersion == 2), we remove price and payment, and only show the "Keep Album" option.
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: CustomAppBarWidget(title: 'Keep Your Album'),
       body: GrainyBackgroundWidget(
         child: _isProcessing || _isLoading
@@ -220,6 +227,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 // Add tap-to-dismiss keyboard functionality
                 onTap: _dismissKeyboard,
                 child: SingleChildScrollView(
+                  physics: ClampingScrollPhysics(),
                   child: Padding(
                     padding: const EdgeInsets.only(top: 80.0, bottom: 30.0, left: 16.0, right: 16.0),
                     child: Column(
@@ -258,7 +266,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                           ),
                         SizedBox(height: 20.0),
-                          Text(
+                        Text(
                           'We\'re glad you enjoyed the album!',
                           style: TextStyle(
                             fontSize: 20,
@@ -266,32 +274,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ),
                         ),
                         SizedBox(height: 10.0),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Write your review here...',
-                                filled: true,
-                                fillColor: Colors.black,
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.black, width: 2),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.black, width: 2),
-                                ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Write your review here...',
+                              hintStyle: TextStyle(color: Colors.grey.shade600),
+                              filled: true,
+                              fillColor: Colors.white,
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.white, width: 2),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                              style: TextStyle(color: Colors.black),
-                              maxLines: 3,
-                              // Add proper keyboard handling
-                              textInputAction: TextInputAction.done,
-                              onSubmitted: (value) {
-                                _dismissKeyboard();
-                              },
-                              onChanged: (value) {
-                                _review = value;
-                              },
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.orange, width: 2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                             ),
+                            style: TextStyle(color: Colors.black, fontSize: 16),
+                            maxLines: 3,
+                            // Improved keyboard handling
+                            textInputAction: TextInputAction.newline,
+                            onSubmitted: _handleReturnKey,
+                            onChanged: (value) {
+                              _review = value;
+                            },
                           ),
+                        ),
                         SizedBox(height: 20.0),
                         // Conditional UI:
                         _flowVersion == 2
@@ -321,8 +330,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   ),
                                 ],
                               ),
-                      ],
-                      ],
+                      ],]
                     ),
                   ),
                 ),

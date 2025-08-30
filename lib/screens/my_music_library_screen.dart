@@ -198,6 +198,14 @@ class _MyMusicLibraryScreenState extends State<MyMusicLibraryScreen> {
         _discogsAccessSecret!,
       );
       print('Successfully fetched ${items.length} albums from Discogs collection');
+      
+      // Sort albums alphabetically by artist name
+      items.sort((a, b) {
+        final artistA = (a['artist'] ?? '').toLowerCase();
+        final artistB = (b['artist'] ?? '').toLowerCase();
+        return artistA.compareTo(artistB);
+      });
+      
       setState(() {
         _discogsCollection = items;
         _currentPage = 1; // Reset to first page when new data is loaded

@@ -24,6 +24,12 @@ class _ReviewDialogState extends State<ReviewDialog> {
     _controller = TextEditingController(text: widget.initialComment);
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _onOkPressed() {
     final text = _controller.text.trim();
     if (text.isEmpty) {
@@ -44,11 +50,45 @@ class _ReviewDialogState extends State<ReviewDialog> {
     Navigator.pop(context, '__DELETE_REVIEW__');
   }
 
+  // Handle return key press - add new line instead of closing dialog
+  void _handleReturnKey() {
+    // Insert a new line at cursor position
+    final currentText = _controller.text;
+    final selection = _controller.selection;
+    if (selection.isValid) {
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        '\n',
+      );
+      _controller.text = newText;
+      // Move cursor to end of new line
+      _controller.selection = TextSelection.collapsed(
+        offset: selection.start + 1,
+      );
+    }
+  }
+
+  // Clear error message when user starts typing
+  void _onTextChanged(String value) {
+    if (_errorMessage != null && value.trim().isNotEmpty) {
+      setState(() {
+        _errorMessage = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      // Make dialog resize when keyboard appears
+      insetPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
+        ),
         decoration: BoxDecoration(
           color: Color(0xFFC0C0C0),
           border: Border.all(color: Colors.black),
@@ -79,47 +119,78 @@ class _ReviewDialogState extends State<ReviewDialog> {
                 ],
               ),
             ),
-            // Content
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Your Review:',
-                    style: TextStyle(color: Colors.black, fontSize: 14),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black),
-                      color: Color(0xFFF4F4F4),
+            // Content - wrapped in SingleChildScrollView for keyboard handling
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(8.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Your Review:',
+                      style: TextStyle(color: Colors.black, fontSize: 14),
                     ),
-                    child: TextField(
-                      controller: _controller,
-                      maxLines: 5,
-                      style: TextStyle(color: Colors.black),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(8.0),
+                    SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black),
+                        color: Color(0xFFF4F4F4),
+                      ),
+                      child: TextField(
+                        controller: _controller,
+                        maxLines: 5,
+                        style: TextStyle(color: Colors.black),
+                        // Handle return key properly
+                        textInputAction: TextInputAction.newline,
+                        // Handle return key to add new lines
+                        onEditingComplete: _handleReturnKey,
+                        // Don't close dialog on return key
+                        onSubmitted: (value) {
+                          // Do nothing - keep dialog open
+                        },
+                        // Clear error message when user types
+                        onChanged: _onTextChanged,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(8.0),
+                          // Add hint text
+                          hintText: 'Write your review here...',
+                          hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        ),
                       ),
                     ),
-                  ),
-                  // Display error message if any
-                  if (_errorMessage != null) ...[
-                    SizedBox(height: 8),
-                    Text(
-                      _errorMessage!,
-                      style: TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ],
-                  SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // Conditionally show "Delete" if user already has a review
-                      if (widget.showDeleteButton) ...[
+                    // Display error message if any
+                    if (_errorMessage != null) ...[
+                      SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ],
+                    SizedBox(height: 16),
+                    // Buttons row - moved to bottom for better keyboard handling
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Conditionally show "Delete" if user already has a review
+                        if (widget.showDeleteButton) ...[
+                          ElevatedButton(
+                            style: ButtonStyle(
+                              backgroundColor:
+                                  MaterialStateProperty.all(Color(0xFFD24407)),
+                              elevation: MaterialStateProperty.all(0),
+                              side: MaterialStateProperty.all(
+                                  BorderSide(color: Colors.black, width: 2)),
+                            ),
+                            onPressed: _onDeletePressed,
+                            child: Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                        ],
                         ElevatedButton(
                           style: ButtonStyle(
                             backgroundColor:
@@ -128,41 +199,26 @@ class _ReviewDialogState extends State<ReviewDialog> {
                             side: MaterialStateProperty.all(
                                 BorderSide(color: Colors.black, width: 2)),
                           ),
-                          onPressed: _onDeletePressed,
-                          child: Text(
-                            'Delete',
-                            style: TextStyle(color: Colors.white),
-                          ),
+                          onPressed: _onOkPressed,
+                          child: Text('OK', style: TextStyle(color: Colors.white)),
                         ),
                         SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ButtonStyle(
+                            backgroundColor:
+                                MaterialStateProperty.all(Color(0xFFD24407)),
+                            elevation: MaterialStateProperty.all(0),
+                            side: MaterialStateProperty.all(
+                                BorderSide(color: Colors.black, width: 2)),
+                          ),
+                          onPressed: _onCancelPressed,
+                          child:
+                              Text('Cancel', style: TextStyle(color: Colors.white)),
+                        ),
                       ],
-                      ElevatedButton(
-                        style: ButtonStyle(
-                          backgroundColor:
-                              MaterialStateProperty.all(Color(0xFFD24407)),
-                          elevation: MaterialStateProperty.all(0),
-                          side: MaterialStateProperty.all(
-                              BorderSide(color: Colors.black, width: 2)),
-                        ),
-                        onPressed: _onOkPressed,
-                        child: Text('OK', style: TextStyle(color: Colors.white)),
-                      ),
-                      SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ButtonStyle(
-                          backgroundColor:
-                              MaterialStateProperty.all(Color(0xFFD24407)),
-                          elevation: MaterialStateProperty.all(0),
-                          side: MaterialStateProperty.all(
-                              BorderSide(color: Colors.black, width: 2)),
-                        ),
-                        onPressed: _onCancelPressed,
-                        child:
-                            Text('Cancel', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

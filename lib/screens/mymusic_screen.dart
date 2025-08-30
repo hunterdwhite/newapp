@@ -19,6 +19,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
   bool _isLoading = true;
   bool _hasOrdered = false;
   bool _orderSent = false;
+  bool _orderDelivered = false; // New variable to track if the order is delivered
   bool _returnConfirmed = false;
   bool _orderReturned = false;
   bool _orderKept = false; // New variable to track if the order is kept
@@ -60,6 +61,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
               _hasOrdered = true;
               _order = order;
               _orderSent = status == 'sent';
+              _orderDelivered = status == 'delivered';
               _orderReturned = status == 'returned';
               _returnConfirmed = status == 'returnedConfirmed';
               _orderKept = status == 'kept';
@@ -241,10 +243,10 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                 ),
                             ],
                           ),
-                          if (_orderSent && !_isAlbumRevealed) ...[
+                          if (_orderSent && !_orderDelivered && !_isAlbumRevealed) ...[
                             SizedBox(height: 16.0),
                             Text(
-                              'Your album is on its way!',
+                              'Your album is on the way!',
                               style:
                                   TextStyle(fontSize: 24, color: Colors.white),
                               textAlign: TextAlign.center,
@@ -253,7 +255,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                           if (!_orderSent && !_isAlbumRevealed) ...[
                             SizedBox(height: 16.0),
                             Text(
-                              'We will ship your album soon!',
+                              'A curator will choose an album for you soon.',
                               style:
                                   TextStyle(fontSize: 24, color: Colors.white),
                               textAlign: TextAlign.center,
@@ -269,8 +271,8 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                         ),
                       ),
               ),
-              // Updated condition here
-              if (_hasOrdered && !_isAlbumRevealed && _orderSent)
+              // Updated condition here - only show swipe when delivered
+              if (_hasOrdered && !_isAlbumRevealed && _orderDelivered)
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(

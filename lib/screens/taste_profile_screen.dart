@@ -2,6 +2,7 @@ import 'package:dissonantapp2/main.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../constants/constants.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/windows95_window.dart';
 import '../widgets/retro_button_widget.dart';
@@ -22,31 +23,13 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
   String _albumsListened = '';
 
   // New variables for decades and musical bio
-  final List<String> _decades = ['60s', '70s', '80s', '90s', '00s', '10s', '20s'];
+  final List<String> _decades = MusicConstants.availableDecades;
   List<String> _selectedDecades = [];
   String _musicalBio = '';
 
-  final List<String> _genres = [
-    'Rock',
-    'Pop',
-    'Jazz',
-    'Classical',
-    'Hip-hop',
-    'Country',
-    'Electronic',
-    'Metal',
-    'Folk',
-    'Experimental',
-    'Alternative',
-    'R&B'
-  ];
+  final List<String> _genres = MusicConstants.availableGenres;
 
-  final List<String> _albumsListenedOptions = [
-    'Music Enjoyer (0-200)',
-    'Music Lover (200-1000)',
-    'Music Nerd (1000-4000)',
-    'Music Fanatic (4000+)'
-  ];
+  final List<String> _albumsListenedOptions = MusicConstants.albumListeningLevels;
 
   bool _isLoading = true; // Added to track loading state
 

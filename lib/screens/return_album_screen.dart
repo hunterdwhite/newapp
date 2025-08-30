@@ -92,6 +92,12 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     FocusScope.of(context).unfocus();
   }
 
+  // Handle return key press - add new line instead of dismissing keyboard
+  void _handleReturnKey(String value) {
+    // Allow multi-line input by not dismissing keyboard
+    // The return key will naturally add a new line
+  }
+
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       // Dismiss keyboard before submitting
@@ -125,6 +131,7 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: CustomAppBarWidget(title: 'Return Album'),
       body: GrainyBackgroundWidget(
         child: _isSubmitting || _isLoading
@@ -134,6 +141,7 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                 onTap: _dismissKeyboard,
                 child: Center(
                   child: SingleChildScrollView(
+                    physics: ClampingScrollPhysics(),
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -197,16 +205,24 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                                 labelText: 'Leave a review!',
                                 labelStyle: TextStyle(color: Colors.white),
                                 filled: true,
-                                fillColor: Colors.white10,
-                                border: OutlineInputBorder(),
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white, width: 2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
                               ),
-                              style: TextStyle(color: Colors.white),
+                              style: TextStyle(color: Colors.black, fontSize: 16),
                               maxLines: 3,
-                              // Add proper keyboard handling
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (value) {
-                                _dismissKeyboard();
-                              },
+                              // Improved keyboard handling
+                              textInputAction: TextInputAction.newline,
+                              onFieldSubmitted: _handleReturnKey,
                               onChanged: (value) => _review = value,
                             ),
                             const SizedBox(height: 24),

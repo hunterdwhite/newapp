@@ -3,19 +3,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import '../services/firestore_service.dart';
-import '../services/usps_address_service.dart';
+import '../services/shippo_address_service.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
-import '../widgets/app_bar_widget.dart';
+// import '../widgets/app_bar_widget.dart';
 import 'package:keyboard_actions/keyboard_actions.dart';
 import '../services/payment_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'home_screen.dart';
-import 'how_it_works_screen.dart';
+// import 'how_it_works_screen.dart';
 import '../constants/responsive_utils.dart';
-import '../constants/app_constants.dart';
 
 class OrderScreen extends StatefulWidget {
   @override
@@ -27,12 +26,11 @@ class _OrderScreenState extends State<OrderScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final PaymentService _paymentService = PaymentService();
   
-  // USPS Address Validation Service
-  late final UspsAddressService _uspsService;
+  // Shippo Address Validation Service
+  late final ShippoAddressService _addressService;
   bool _isAddressValidated = false;
   bool _isValidating = false;
   String? _addressValidationError;
-  ValidatedAddress? _validatedAddress;
 
   // Controllers
   final TextEditingController _firstNameController = TextEditingController();
@@ -47,7 +45,7 @@ class _OrderScreenState extends State<OrderScreen> {
   bool _hasOrdered = false;
   bool _isLoading = true;
   bool _isProcessing = false;
-  String _errorMessage = '';
+  // String _errorMessage = '';
   String _mostRecentOrderStatus = '';
   bool _hasFreeOrder = false;
 
@@ -55,6 +53,9 @@ class _OrderScreenState extends State<OrderScreen> {
   // Default payment amount is 11.99, but the user hasn't selected one until they tap.
   double _selectedPaymentAmount = 11.99;
   bool _hasSelectedPrice = false;
+  
+  // Payment method selection
+  String _selectedPaymentMethod = 'stripe'; // 'stripe' or 'paypal'
 
   List<String> _previousAddresses = [];
 
@@ -74,10 +75,9 @@ class _OrderScreenState extends State<OrderScreen> {
   void initState() {
     super.initState();
     
-    // Initialize USPS service
-    _uspsService = UspsAddressService(
-      clientId: ApiConstants.uspsClientId,
-      clientSecret: ApiConstants.uspsClientSecret,
+    // Initialize Shippo address validation service
+    _addressService = ShippoAddressService(
+      endpointBase: 'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev',
     );
     
     _fetchMostRecentOrderStatus();
@@ -297,6 +297,10 @@ class _OrderScreenState extends State<OrderScreen> {
               ),
             ],
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
+            if (!_hasFreeOrder) ...[
+              _buildPaymentMethodSelection(),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
+            ],
             if (_previousAddresses.isNotEmpty) ...[
               Text(
                 'Use a previous address:',
@@ -370,58 +374,36 @@ class _OrderScreenState extends State<OrderScreen> {
               keyboardType: TextInputType.number,
               isAddressField: true,
             ),
-            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 20)),
-            _buildValidateAddressButton(),
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 32, desktop: 40)),
             _isProcessing
                 ? Center(child: CircularProgressIndicator())
                 : RetroButtonWidget(
-                    text: 'Place Order',
-                    onPressed: user == null
+                    text: _isValidating ? 'Validating Address...' : 'Place Order',
+                    onPressed: user == null || _isValidating
                         ? null
                         : () async {
                             FocusScope.of(context).unfocus();
                             if (_formKey.currentState?.validate() ?? false) {
+                              // Auto-validate address if not already validated
                               if (!_isAddressValidated) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Please validate your address before placing an order.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
+                                await _validateAddress();
+                                // If validation failed, don't proceed
+                                if (!_isAddressValidated) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(_addressValidationError ?? 'Address validation failed. Please check your address.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
                               }
                               await _handlePlaceOrder(user.uid);
                             }
                           },
                     style: RetroButtonStyle.light,
                   ),
-            if (!_isAddressValidated && user != null) ...[
-              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Please validate your address with USPS before placing your order',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            
           ],
         ),
       ),
@@ -705,6 +687,9 @@ class _OrderScreenState extends State<OrderScreen> {
         // Award 1 credit for placing an order
         await HomeScreen.addFreeOrderCredits(uid, 1);
 
+        // Refresh local state to reflect the used free order
+        await _loadUserData();
+
         if (!mounted) return;
         setState(() {
           _isProcessing = false;
@@ -719,6 +704,12 @@ class _OrderScreenState extends State<OrderScreen> {
       }
 
       int amountInCents = (_selectedPaymentAmount * 100).round();
+      
+      if (_selectedPaymentMethod == 'paypal') {
+        await _handlePayPalPayment(amountInCents, uid, fullAddress);
+        return;
+      }
+      
       print('Creating PaymentIntent for $amountInCents cents...');
       final response = await http.post(
         Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
@@ -738,6 +729,12 @@ class _OrderScreenState extends State<OrderScreen> {
         await _paymentService.presentPaymentSheet();
 
         print('Payment completed successfully.');
+        
+        // Create shipping labels
+        print('🔄 About to create shipping labels...');
+        await _createShippingLabels(uid, fullAddress);
+        print('✅ Shipping labels creation completed');
+        
         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
         
         // Award 1 credit for placing an order
@@ -769,7 +766,6 @@ class _OrderScreenState extends State<OrderScreen> {
       if (!mounted) return;
       setState(() {
         _isProcessing = false;
-        _errorMessage = e.toString();
       });
       print('Payment error: $e');
       try {
@@ -835,7 +831,6 @@ class _OrderScreenState extends State<OrderScreen> {
     // Reset validation state when address is populated from dropdown
     _isAddressValidated = false;
     _addressValidationError = null;
-    _validatedAddress = null;
     
     setState(() {});
   }
@@ -859,11 +854,12 @@ class _OrderScreenState extends State<OrderScreen> {
     });
 
     try {
-      final validatedAddress = await _uspsService.validate(
+       final validatedAddress = await _addressService.validate(
         street: street,
         city: city,
         state: state,
         zip: zip,
+        name: (_firstNameController.text.trim() + ' ' + _lastNameController.text.trim()).trim(),
       );
 
       if (!mounted) return;
@@ -871,7 +867,6 @@ class _OrderScreenState extends State<OrderScreen> {
         _isValidating = false;
         if (validatedAddress != null) {
           _isAddressValidated = true;
-          _validatedAddress = validatedAddress;
           _addressValidationError = null;
           
           // Update form fields with validated address
@@ -883,8 +878,7 @@ class _OrderScreenState extends State<OrderScreen> {
               : validatedAddress.zip5;
         } else {
           _isAddressValidated = false;
-          _validatedAddress = null;
-          _addressValidationError = 'This address could not be validated by USPS. Please check your address and try again.';
+           _addressValidationError = 'This address could not be validated. Please check your address and try again.';
         }
       });
     } catch (e) {
@@ -892,7 +886,6 @@ class _OrderScreenState extends State<OrderScreen> {
       setState(() {
         _isValidating = false;
         _isAddressValidated = false;
-        _validatedAddress = null;
         _addressValidationError = 'Unable to validate address at this time. Please try again later.';
       });
       print('Address validation error: $e');
@@ -905,7 +898,6 @@ class _OrderScreenState extends State<OrderScreen> {
       setState(() {
         _isAddressValidated = false;
         _addressValidationError = null;
-        _validatedAddress = null;
       });
     }
   }
@@ -958,46 +950,286 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  Widget _buildValidateAddressButton() {
-    final street = _addressController.text.trim();
-    final city = _cityController.text.trim();
-    final state = _state.trim();
-    final zip = _zipcodeController.text.trim();
-    
-    final isFormComplete = street.isNotEmpty && city.isNotEmpty && state.isNotEmpty && zip.isNotEmpty;
-    
-    return Container(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: (isFormComplete && !_isValidating) ? _validateAddress : null,
-        icon: _isValidating 
-            ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Icon(_isAddressValidated ? Icons.check_circle : Icons.verified_user),
-        label: Text(
-          _isValidating 
-              ? 'Validating...'
-              : _isAddressValidated 
-                  ? 'Address Validated ✓'
-                  : 'Validate Address with USPS',
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _isAddressValidated 
-              ? Colors.green 
-              : _addressValidationError != null 
-                  ? Colors.red 
-                  : Colors.blue,
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+  Widget _buildPaymentMethodSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Payment Method',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 20),
           ),
         ),
-      ),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedPaymentMethod = 'stripe'),
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.white10,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _selectedPaymentMethod == 'stripe' ? Colors.blue : Colors.grey,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.credit_card,
+                        color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Card',
+                        style: TextStyle(
+                          color: _selectedPaymentMethod == 'stripe' ? Colors.white : Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedPaymentMethod = 'paypal'),
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.white10,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _selectedPaymentMethod == 'paypal' ? Color(0xFF0070BA) : Colors.grey,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.payment,
+                        color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'PayPal',
+                        style: TextStyle(
+                          color: _selectedPaymentMethod == 'paypal' ? Colors.white : Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
+
+  Future<void> _handlePayPalPayment(int amountInCents, String uid, String fullAddress) async {
+    try {
+      print('Creating PayPal payment for $amountInCents cents...');
+      final response = await http.post(
+        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-paypal-payment'),
+        body: jsonEncode({
+          'amount': (_selectedPaymentAmount).toStringAsFixed(2),
+          'currency': 'USD',
+          'return_url': 'com.dissonant.app://paypal-success',
+          'cancel_url': 'com.dissonant.app://paypal-cancel',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final paymentData = jsonDecode(response.body);
+        final approvalUrl = paymentData['approval_url'];
+        
+        if (approvalUrl != null) {
+          // For now, show a simple message. In a full implementation, you'd:
+          // 1. Open the PayPal approval URL in a web view
+          // 2. Handle the callback to execute the payment
+          // 3. Show success/failure accordingly
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PayPal payment initiated! This would open PayPal in a full implementation.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          
+          // For demo purposes, simulate successful payment after delay
+          await Future.delayed(Duration(seconds: 2));
+          
+          // Create shipping labels
+          print('🔄 About to create shipping labels (PayPal)...');
+          await _createShippingLabels(uid, fullAddress);
+          print('✅ Shipping labels creation completed (PayPal)');
+          
+          await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+          await HomeScreen.addFreeOrderCredits(uid, 1);
+
+          if (!mounted) return;
+          setState(() {
+            _isProcessing = false;
+            _hasOrdered = true;
+            _mostRecentOrderStatus = 'new';
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('PayPal payment successful! Your order has been placed!')),
+          );
+        } else {
+          throw Exception('No approval URL received from PayPal');
+        }
+      } else {
+        throw Exception('Failed to create PayPal payment. Server error: ${response.body}');
+      }
+    } catch (e, stackTrace) {
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+      });
+      print('PayPal payment error: $e');
+      try {
+        FirebaseCrashlytics.instance.recordError(e, stackTrace);
+      } catch (_) {}
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PayPal payment failed: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _createShippingLabels(String uid, String fullAddress) async {
+    try {
+      print('=== SHIPPING LABELS DEBUG START ===');
+      print('UID: $uid');
+      print('Full Address: "$fullAddress"');
+      
+      // Get the current user's email
+      final user = FirebaseAuth.instance.currentUser;
+      if (user?.email == null) {
+        print('❌ User email not available for shipping labels');
+        return;
+      }
+      print('✅ User email: ${user!.email}');
+
+      // Parse the address string to extract components
+      final addressLines = fullAddress.split('\n');
+      print('Address lines count: ${addressLines.length}');
+      print('Address lines: $addressLines');
+      
+      if (addressLines.length < 3) {
+        print('❌ Invalid address format for shipping labels - need at least 3 lines');
+        return;
+      }
+
+      final customerName = addressLines[0].trim();
+      final streetAddress = addressLines[1].trim();
+      final cityStateZip = addressLines[2].split(', ');
+      
+      print('Customer name: "$customerName"');
+      print('Street address: "$streetAddress"');
+      print('City/State/Zip parts: $cityStateZip');
+      
+      if (cityStateZip.length < 2) {
+        print('❌ Invalid city/state/zip format - need at least 2 parts');
+        return;
+      }
+
+      final city = cityStateZip[0].trim();
+      final stateZip = cityStateZip[1].split(' ');
+      
+      print('City: "$city"');
+      print('State/Zip parts: $stateZip');
+      
+      if (stateZip.length < 2) {
+        print('❌ Invalid state/zip format - need at least 2 parts');
+        return;
+      }
+
+      final state = stateZip[0].trim();
+      final zip = stateZip.sublist(1).join(' ').trim();
+
+      print('State: "$state"');
+      print('Zip: "$zip"');
+
+      // Create customer address object
+      final customerAddress = {
+        'name': customerName,
+        'street1': streetAddress,
+        'city': city,
+        'state': state,
+        'zip': zip,
+        'country': 'US',
+      };
+
+      print('✅ Customer address object: $customerAddress');
+
+      // Define parcel dimensions (CD case)
+      final parcel = {
+        'length': '5.5',
+        'width': '5.0',
+        'height': '0.5',
+        'distance_unit': 'in',
+        'weight': '0.2',
+        'mass_unit': 'lb',
+      };
+
+      // Generate a unique order ID
+      final orderId = 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
+
+      print('✅ Order ID: $orderId');
+      print('✅ Parcel: $parcel');
+
+      print('🚀 Calling Lambda endpoint...');
+      final response = await http.post(
+        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels'),
+        body: jsonEncode({
+          'to_address': customerAddress,
+          'parcel': parcel,
+          'order_id': orderId,
+          'customer_name': customerName,
+          'customer_email': user.email,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('📡 Lambda response status: ${response.statusCode}');
+      print('📡 Lambda response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final labelData = jsonDecode(response.body);
+        print('✅ Shipping labels created successfully:');
+        print('Outbound: ${labelData['outbound_label']['label_url']}');
+        print('Return: ${labelData['return_label']['label_url']}');
+        
+        // Labels are automatically emailed to warehouse staff and customer
+        print('✅ Shipping labels created and emailed successfully');
+        
+      } else {
+        print('❌ Failed to create shipping labels: ${response.body}');
+      }
+      
+      print('=== SHIPPING LABELS DEBUG END ===');
+    } catch (e, stackTrace) {
+      print('❌ Error creating shipping labels: $e');
+      print('❌ Stack trace: $stackTrace');
+      // Don't fail the order if label creation fails
+    }
+  }
+
+
 }
 

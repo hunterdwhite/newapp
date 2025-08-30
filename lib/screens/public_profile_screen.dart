@@ -23,9 +23,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   int _albumsSentBack = 0;
   int _albumsKept = 0;
 
-  // For “Their Music” and “Wishlist”
+  // For "Their Music" and "Wishlist"
   List<String> _historyCoverUrls = [];
   List<String> _wishlistCoverUrls = [];
+
+  // Profile customization
+  String _bio = '';
+  List<String> _favoriteGenres = [];
+  String? _favoriteAlbumId;
+  String _favoriteAlbumTitle = '';
+  String _favoriteAlbumCover = '';
 
   bool _isLoading = true;
 
@@ -55,6 +62,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       final userData = userDoc.data()!;
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
+
+      // Load profile customization
+      final customization = userData['profileCustomization'] as Map<String, dynamic>?;
+      if (customization != null) {
+        _bio = customization['bio'] ?? '';
+        _favoriteGenres = List<String>.from(customization['favoriteGenres'] ?? []);
+        _favoriteAlbumId = customization['favoriteAlbumId'];
+        _favoriteAlbumTitle = customization['favoriteAlbumTitle'] ?? '';
+        _favoriteAlbumCover = customization['favoriteAlbumCover'] ?? '';
+      }
 
       // 2) Orders: 'kept', 'returned', 'returnedConfirmed'
       final ordersSnapshot = await FirebaseFirestore.instance
@@ -190,6 +207,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       const SizedBox(height: 16),
                       Center(child: _buildProfileAvatar()),
                       const SizedBox(height: 24),
+                      // Profile customization sections
+                      if (_bio.isNotEmpty) ...[
+                        _buildBioSection(),
+                        const SizedBox(height: 20),
+                      ],
+                      if (_favoriteGenres.isNotEmpty) ...[
+                        _buildFavoriteGenresSection(),
+                        const SizedBox(height: 20),
+                      ],
+                      if (_favoriteAlbumId != null && _favoriteAlbumCover.isNotEmpty) ...[
+                        _buildFavoriteAlbumSection(),
+                        const SizedBox(height: 20),
+                      ],
                       _buildStatsSection(),
                       const SizedBox(height: 24),
                       _buildMusicRow(context),
@@ -472,5 +502,143 @@ Widget _buildWishlistRow(BuildContext context) {
     ),
   );
 }
+
+  Widget _buildBioSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _isOwner ? 'About Me' : 'About ${_username}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _bio,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoriteGenresSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Favorite Genres',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _favoriteGenres.map((genre) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE46A14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  genre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoriteAlbumSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Current Favorite Album',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  _favoriteAlbumCover,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey[700],
+                      child: const Icon(Icons.music_note, color: Colors.white54),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _favoriteAlbumTitle,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
 }

@@ -124,13 +124,13 @@ service cloud.firestore {
     // Albums Collection Rules
     match /albums/{albumId} {
       allow read: if true;
+      // Admins can write everything on album docs
       allow write: if isAuthenticated() && isAdmin();
 
-      // Allow authenticated users to update only the genreVotes field
+      // Loosened: any authenticated user can update ONLY the genreVotes field
+      // This checks the changed keys between old and new data, not the full document keys
       allow update: if isAuthenticated() &&
-        request.resource.data.keys().hasOnly(['genreVotes']) &&
-        resource.data.genreVotes is map &&
-        request.resource.data.genreVotes is map;
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['genreVotes']);
 
       match /genreUserVotes/{userId} {
         // Allow all authenticated users to read genre votes

@@ -89,8 +89,48 @@ class ApiConstants {
   static const int timeoutDuration = 30; // seconds
   static const int maxRetries = 3;
   
-  // USPS Address Validation API
-  // TODO: Replace with actual USPS API credentials from environment variables
-  static const String uspsClientId = 'YOUR_USPS_CLIENT_ID';
-  static const String uspsClientSecret = 'YOUR_USPS_CLIENT_SECRET';
+  // Note: Shippo API token is stored securely in AWS Lambda
+  // Address validation is handled server-side via our API endpoint
+}
+
+// Music Constants
+class MusicConstants {
+  // Available music genres for taste profiles and album classification
+  static const List<String> availableGenres = [
+    'Rock',
+    'Pop',
+    'Jazz',
+    'Classical',
+    'Hip-hop',
+    'Country',
+    'Electronic',
+    'Metal',
+    'Folk',
+    'Experimental',
+    'Alternative',
+    'R&B',
+    'World',
+    'Punk',
+    'Emo',
+    'Singer-Songwriter'
+  ];
+  
+  // Available decades for music taste preferences
+  static const List<String> availableDecades = [
+    '60s',
+    '70s',
+    '80s',
+    '90s',
+    '00s',
+    '10s',
+    '20s'
+  ];
+  
+  // Album listening level options
+  static const List<String> albumListeningLevels = [
+    'Music Enjoyer (0-200)',
+    'Music Lover (200-1000)',
+    'Music Nerd (1000-4000)',
+    'Music Fanatic (4000+)'
+  ];
 }
