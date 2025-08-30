@@ -36,6 +36,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<String> _historyCoverUrls = [];
   List<String> _wishlistCoverUrls = [];
 
+  // Profile customization
+  String _bio = '';
+  List<String> _favoriteGenres = [];
+  String? _favoriteAlbumId;
+  String _favoriteAlbumTitle = '';
+  String _favoriteAlbumCover = '';
+
   bool _isLoading = true;
   bool _isOwnProfile = false;
 
@@ -70,6 +77,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userData = userDoc.data()!;
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
+
+      // Load profile customization
+      final customization = userData['profileCustomization'] as Map<String, dynamic>?;
+      if (customization != null) {
+        _bio = customization['bio'] ?? '';
+        _favoriteGenres = List<String>.from(customization['favoriteGenres'] ?? []);
+        _favoriteAlbumId = customization['favoriteAlbumId'];
+        _favoriteAlbumTitle = customization['favoriteAlbumTitle'] ?? '';
+        _favoriteAlbumCover = customization['favoriteAlbumCover'] ?? '';
+      }
 
       // 2) Orders: 'kept', 'returned', 'returnedConfirmed'
       final ordersSnapshot = await FirebaseFirestore.instance
@@ -209,6 +226,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                         Center(child: _buildProfileAvatar()),
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        // Profile customization sections
+                        if (_bio.isNotEmpty) ...[
+                          _buildBioSection(),
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        ],
+                        if (_favoriteGenres.isNotEmpty) ...[
+                          _buildFavoriteGenresSection(),
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        ],
+                        if (_favoriteAlbumId != null && _favoriteAlbumCover.isNotEmpty) ...[
+                          _buildFavoriteAlbumSection(),
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        ],
                         _buildStatsSection(),
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
                         _buildMusicRow(context),
@@ -496,6 +526,144 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBioSection() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'About Me',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            _bio,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoriteGenresSection() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Favorite Genres',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _favoriteGenres.map((genre) {
+              return Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Color(0xFFE46A14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  genre,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoriteAlbumSection() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Current Favorite Album',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  _favoriteAlbumCover,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey[700],
+                      child: Icon(Icons.music_note, color: Colors.white54),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _favoriteAlbumTitle,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
