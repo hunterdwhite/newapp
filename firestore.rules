@@ -38,17 +38,17 @@ service cloud.firestore {
       // Let admins read user documents
       allow read: if isAuthenticated() && isAdmin();
       
+      // Allow authenticated users to read public profile data from other users
+      // This includes: username, profilePictureUrl, profileCustomization (bio, favoriteGenres, favoriteAlbum)
+      allow get: if isAuthenticated();
+      
       // Allow authenticated users to query users collection for referral code validation
       allow list: if isAuthenticated();
       
       // Allow authenticated users to update credit fields for referral system (simplified)
       allow update: if isAuthenticated();
       
-      // Allow authenticated users to read user documents for referral stats
-      allow get: if isAuthenticated();
-      
-      // Owner can get/update/delete their own document (restored original)
-      allow get: if request.auth != null && request.auth.uid == userId;
+      // Owner can update/delete their own document
       allow update, delete: if request.auth != null && request.auth.uid == userId;
 
       match /public/{documentId} {
