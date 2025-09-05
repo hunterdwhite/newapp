@@ -682,6 +682,11 @@ class _OrderScreenState extends State<OrderScreen> {
       final fullAddress = _buildAddressString();
 
       if (_hasFreeOrder) {
+        // Create shipping labels for free orders (same as paid orders)
+        print('🔄 About to create shipping labels for free order...');
+        await _createShippingLabels(uid, fullAddress);
+        print('✅ Shipping labels creation completed for free order');
+        
         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
         await HomeScreen.useFreeOrder(uid); // Properly decrement free order count
         
