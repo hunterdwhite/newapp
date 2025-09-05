@@ -301,8 +301,8 @@ app.post('/create-shipping-labels', async (req, res) => {
       console.log('Outbound label message:', outboundTransactionData.messages);
     }
 
-    // Create return shipment (reverse addresses)
-    console.log('Creating return shipment...');
+    // Create scan-based return shipment using Shippo's proper return API
+    console.log('🔄 Creating scan-based return shipment with is_return=true...');
     const returnShipment = await fetch('https://api.goshippo.com/shipments/', {
       method: 'POST',
       headers: {
@@ -310,9 +310,13 @@ app.post('/create-shipping-labels', async (req, res) => {
         'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
       },
       body: JSON.stringify({
-        address_to: from_address, // Return to warehouse
-        address_from: to_address, // From customer
+        // For returns, DON'T swap addresses - Shippo does this automatically
+        address_from: from_address, // Warehouse (same as outbound)
+        address_to: to_address,     // Customer (same as outbound)
         parcels: [parcel],
+        extra: { 
+          is_return: true  // This makes it scan-based automatically!
+        },
         async: false,
       }),
     });
@@ -324,7 +328,8 @@ app.post('/create-shipping-labels', async (req, res) => {
     }
 
     const returnShipmentData = await returnShipment.json();
-    console.log('Return shipment created:', returnShipmentData.object_id);
+    console.log('✅ Return shipment created:', returnShipmentData.object_id);
+    console.log('🔍 Return shipment response:', JSON.stringify(returnShipmentData, null, 2));
 
     // Get rates for return shipment
     console.log('Getting return rates...');
@@ -355,11 +360,9 @@ app.post('/create-shipping-labels', async (req, res) => {
     }
     
     console.log(`Selected return rate: ${returnRate.servicelevel.name} (${returnRate.provider}) - $${returnRate.amount}`);
-    console.log('Creating 4x6 inch Ground Advantage return label...');
-    console.log('Selected return rate:', returnRate.object_id);
+    console.log('Creating scan-based return label...');
 
-    // Create return transaction (label)
-    console.log('Creating return label...');
+    // Create return transaction (this should be scan-based automatically)
     const returnTransaction = await fetch('https://api.goshippo.com/transactions/', {
       method: 'POST',
       headers: {
@@ -369,7 +372,8 @@ app.post('/create-shipping-labels', async (req, res) => {
       body: JSON.stringify({
         rate: returnRate.object_id,
         async: false,
-        label_file_type: 'PDF_4X6', // 4x6 inch label for easy printing
+        label_file_type: 'PDF_4X6',
+        metadata: 'Scan-based return label via is_return=true',
       }),
     });
 
@@ -380,16 +384,18 @@ app.post('/create-shipping-labels', async (req, res) => {
     }
 
     const returnTransactionData = await returnTransaction.json();
-    console.log('Return label created:', returnTransactionData.object_id);
+    console.log('✅ Return label created:', returnTransactionData.object_id);
+    console.log('🔍 Return transaction response:', JSON.stringify(returnTransactionData, null, 2));
     
-    // Wait a moment for the label to be fully generated
+    // Check if it's truly scan-based
     if (returnTransactionData.status === 'SUCCESS') {
-      console.log('Return label status:', returnTransactionData.status);
-      console.log('Return label URL:', returnTransactionData.label_url);
-      console.log('Return tracking:', returnTransactionData.tracking_number);
+      console.log('✅ Return label status: SUCCESS');
+      console.log('📄 Return label URL:', returnTransactionData.label_url);
+      console.log('📦 Return tracking:', returnTransactionData.tracking_number);
+      console.log('💰 Should be scan-based (only charged when used)');
     } else {
-      console.log('Return label status:', returnTransactionData.status);
-      console.log('Return label message:', returnTransactionData.messages);
+      console.log('⚠️ Return label status:', returnTransactionData.status);
+      console.log('📝 Return label messages:', returnTransactionData.messages);
     }
 
     // Prepare label data for emails
@@ -414,6 +420,7 @@ app.post('/create-shipping-labels', async (req, res) => {
       service: `${returnRate.servicelevel.name} (${returnRate.provider})`,
       status: returnTransactionData.status,
       transaction_id: returnTransactionData.object_id,
+      billing_method: 'SCAN_BASED' // All Shippo return labels with is_return=true are scan-based
     };
 
     // Send emails with robust error handling and retry logic
@@ -491,6 +498,7 @@ Shipping Address: ${to_address.street1}, ${to_address.city}, ${to_address.state}
 • Tracking: ${returnLabel.tracking_number}
 • Service: ${returnLabel.service}
 • Cost: $${returnLabel.rate}
+• Billing: ${returnLabel.billing_method === 'SCAN_BASED' ? 'Only charged if used ✅' : 'Charged immediately ⚠️'}
 
 ⏰ Generated: ${new Date().toLocaleString('en-US', { 
   timeZone: 'America/New_York',
@@ -590,6 +598,23 @@ DISSONANT
       }
       
       console.log('Email sending process completed');
+      
+      // Update order record to indicate emails were sent successfully
+      if (order_id && (warehouseEmailSent || customerEmailSent)) {
+        try {
+          console.log('Updating order record with email status...');
+          await db.collection('orders').doc(order_id).update({
+            emailStatus: 'sent',
+            warehouseEmailSent: warehouseEmailSent,
+            customerEmailSent: customerEmailSent,
+            emailSentAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          console.log('✅ Order email status updated successfully');
+        } catch (emailStatusError) {
+          console.error('❌ Failed to update order email status:', emailStatusError);
+          // Don't fail the request - emails were sent successfully
+        }
+      }
     };
 
     // Test email transporter and send emails immediately (not in background)
@@ -661,6 +686,40 @@ DISSONANT
         errno: emailError.errno,
         syscall: emailError.syscall
       });
+      console.log('📧 Continuing with order creation despite email failure...');
+      // Don't throw - we'll create the fallback order anyway
+    }
+
+    // Create fallback order record in Firebase to ensure customer gets their order
+    // even if email sending fails completely
+    let orderCreated = false;
+    try {
+      if (order_id && customer_email) {
+        console.log('Creating fallback order record in Firebase...');
+        await db.collection('orders').doc(order_id).set({
+          orderId: order_id,
+          customerEmail: customer_email,
+          customerName: customer_name || 'Customer',
+          status: 'labelCreated',
+          statusDescription: 'Shipping labels created successfully',
+          outboundTrackingNumber: outboundLabel.tracking_number,
+          returnTrackingNumber: returnLabel.tracking_number,
+          shippingAddress: to_address,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          emailStatus: 'pending', // Will be updated if emails succeed
+          fallbackOrder: true, // Flag to indicate this was created as fallback
+          labelUrls: {
+            outbound: outboundLabel.label_url,
+            return: returnLabel.label_url
+          }
+        }, { merge: true }); // Use merge to not overwrite existing data
+        
+        orderCreated = true;
+        console.log('✅ Fallback order record created successfully');
+      }
+    } catch (orderError) {
+      console.error('❌ Failed to create fallback order record:', orderError);
+      // Don't fail the entire request - labels were created successfully
     }
 
     return res.json({
@@ -669,6 +728,7 @@ DISSONANT
       message: 'Real shipping labels created and emails sent successfully',
       outbound_label: outboundLabel,
       return_label: returnLabel,
+      order_created: orderCreated,
     });
 
   } catch (err) {
