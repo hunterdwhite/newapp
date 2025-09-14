@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../widgets/grainy_background_widget.dart';
+import '../widgets/star_rating_widget.dart';
+import '../services/curator_service.dart';
 import 'my_music_library_screen.dart';
 import 'wishlist_screen.dart';
 
@@ -22,6 +23,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   // Stats
   int _albumsSentBack = 0;
   int _albumsKept = 0;
+
+  // Curator info
+  bool _isCurator = false;
+  bool _isFavorited = false;
+  double _curatorRating = 0.0;
+  int _reviewCount = 0;
+  List<Map<String, dynamic>> _curatorReviews = [];
+  bool _reviewsExpanded = false;
+  final CuratorService _curatorService = CuratorService();
 
   // For "Their Music" and "Wishlist"
   List<String> _historyCoverUrls = [];
@@ -62,6 +72,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       final userData = userDoc.data()!;
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
+
+      // Load curator info
+      _isCurator = userData['isCurator'] ?? false;
+
+      // Check if current user has favorited this curator
+      await _checkIfFavorited();
+      
+      // Load curator rating and reviews if this is a curator
+      if (_isCurator) {
+        await _loadCuratorRatingAndReviews();
+      }
 
       // Load profile customization
       final customization = userData['profileCustomization'] as Map<String, dynamic>?;
@@ -168,7 +189,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
-  /// Load each album’s coverUrl from albums/{albumId}
+  /// Load each album's coverUrl from albums/{albumId}
   Future<List<String>> _fetchAlbumCovers(Set<String> albumIds) async {
     List<String> covers = [];
     for (final albumId in albumIds) {
@@ -185,6 +206,87 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     }
     return covers;
+  }
+
+  /// Check if current user has favorited this curator
+  Future<void> _checkIfFavorited() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && _isCurator && currentUser.uid != widget.userId) {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final favoriteCurators = List<String>.from(userData['favoriteCurators'] ?? []);
+          _isFavorited = favoriteCurators.contains(widget.userId);
+        }
+      } catch (e) {
+        print('Error checking favorite status: $e');
+      }
+    }
+  }
+
+  /// Toggle favorite status for this curator
+  Future<void> _toggleFavorite() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || !_isCurator || currentUser.uid == widget.userId) return;
+
+    try {
+      final userDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid);
+
+      if (_isFavorited) {
+        // Remove from favorites
+        await userDocRef.update({
+          'favoriteCurators': FieldValue.arrayRemove([widget.userId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        setState(() {
+          _isFavorited = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed $_username from your favorite curators')),
+        );
+      } else {
+        // Add to favorites
+        await userDocRef.update({
+          'favoriteCurators': FieldValue.arrayUnion([widget.userId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        setState(() {
+          _isFavorited = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added $_username to your favorite curators')),
+        );
+      }
+    } catch (e) {
+      print('Error toggling favorite: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error updating favorites')),
+      );
+    }
+  }
+
+  Future<void> _loadCuratorRatingAndReviews() async {
+    try {
+      // Load rating information
+      final ratingInfo = await _curatorService.getCuratorRating(widget.userId);
+      _curatorRating = ratingInfo['rating'];
+      _reviewCount = ratingInfo['reviewCount'];
+      
+      // Load reviews
+      _curatorReviews = await _curatorService.getCuratorReviews(widget.userId);
+    } catch (e) {
+      print('Error loading curator rating and reviews: $e');
+      _curatorRating = 0.0;
+      _reviewCount = 0;
+      _curatorReviews = [];
+    }
   }
 
   @override
@@ -207,6 +309,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       const SizedBox(height: 16),
                       Center(child: _buildProfileAvatar()),
                       const SizedBox(height: 24),
+                      // Curator badge section (if curator)
+                      if (_isCurator) ...[
+                        _buildCuratorBadgeSection(),
+                        const SizedBox(height: 20),
+                        // Expandable reviews section
+                        if (_reviewsExpanded && _curatorReviews.isNotEmpty) ...[
+                          _buildReviewsSection(),
+                          const SizedBox(height: 20),
+                        ],
+                      ],
                       // Profile customization sections
                       if (_bio.isNotEmpty) ...[
                         _buildBioSection(),
@@ -234,46 +346,95 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
   }
 
-  /// If it's owner, display a white settings icon
+  /// Header with back button, username, curator badge, and favorite star
   Widget _buildHeaderRow() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final canFavorite = currentUser != null && _isCurator && currentUser.uid != widget.userId;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Show the user’s Firestore "username"
-        Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: const Text(
-              '<',
-              style: TextStyle(
-                fontSize: 24,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+        // Back button and username with curator badge
+        Expanded(
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: const Text(
+                  '<',
+                  style: TextStyle(
+                    fontSize: 24,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _username,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (_isCurator) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE46A14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'CURATOR',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            _username,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
+        ),
 
-        // If it’s their own profile, show settings
-        if (_isOwner)
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              // e.g. Navigator.push(...);
-              print('Settings tapped, but typically goes to OptionsScreen');
-            },
-          ),
+        // Right side actions
+        Row(
+          children: [
+            // Favorite star for curators (only show to other users)
+            if (canFavorite)
+              GestureDetector(
+                onTap: _toggleFavorite,
+                child: Icon(
+                  _isFavorited ? Icons.star : Icons.star_border,
+                  color: _isFavorited ? Colors.orangeAccent : Colors.white,
+                  size: 28,
+                ),
+              ),
+            
+            // Settings for owner
+            if (_isOwner) ...[
+              if (canFavorite) const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white),
+                onPressed: () {
+                  print('Settings tapped, but typically goes to OptionsScreen');
+                },
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -502,6 +663,287 @@ Widget _buildWishlistRow(BuildContext context) {
     ),
   );
 }
+
+  Widget _buildCuratorBadgeSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE46A14), width: 1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.music_note,
+                color: Color(0xFFE46A14),
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isOwner ? 'You\'re a Community Curator!' : 'Community Curator',
+                      style: const TextStyle(
+                        color: Color(0xFFE46A14),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _isOwner 
+                        ? 'You curate music for the community'
+                        : 'This user curates music for the community',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_reviewCount > 0) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const SizedBox(width: 36), // Align with text above
+                StarRatingWidget(
+                  rating: _curatorRating,
+                  size: 16,
+                  totalReviews: _reviewCount,
+                  showRatingText: true,
+                ),
+              ],
+            ),
+          ],
+          if (_curatorReviews.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _reviewsExpanded = !_reviewsExpanded;
+                });
+              },
+              child: Row(
+                children: [
+                  const SizedBox(width: 36), // Align with text above
+                  Icon(
+                    _reviewsExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: const Color(0xFFE46A14),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _reviewsExpanded ? 'Hide Reviews' : 'Show Reviews (${_curatorReviews.length})',
+                    style: const TextStyle(
+                      color: Color(0xFFE46A14),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewsSection() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.reviews,
+                  color: Color(0xFFE46A14),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Curator Reviews (${_curatorReviews.length})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white24, height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _curatorReviews.length,
+            separatorBuilder: (context, index) => const Divider(color: Colors.white12, height: 1),
+            itemBuilder: (context, index) {
+              final review = _curatorReviews[index];
+              return _buildReviewItem(review);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(Map<String, dynamic> review) {
+    final rating = (review['rating'] as num?)?.toInt() ?? 0;
+    final comment = review['comment'] as String? ?? '';
+    final reviewerUsername = review['reviewerUsername'] as String? ?? 'Anonymous';
+    final albumTitle = review['albumTitle'] as String? ?? 'Unknown Album';
+    final albumArtist = review['albumArtist'] as String? ?? 'Unknown Artist';
+    final albumCoverUrl = review['albumCoverUrl'] as String?;
+    final createdAt = review['createdAt'] as Timestamp?;
+
+    String timeAgo = 'Recently';
+    if (createdAt != null) {
+      final now = DateTime.now();
+      final reviewDate = createdAt.toDate();
+      final difference = now.difference(reviewDate);
+      
+      if (difference.inDays > 0) {
+        timeAgo = '${difference.inDays}d ago';
+      } else if (difference.inHours > 0) {
+        timeAgo = '${difference.inHours}h ago';
+      } else if (difference.inMinutes > 0) {
+        timeAgo = '${difference.inMinutes}m ago';
+      } else {
+        timeAgo = 'Just now';
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Album cover
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: albumCoverUrl != null
+                      ? Image.network(
+                          albumCoverUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[800],
+                              child: const Icon(Icons.album, color: Colors.white54),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey[800],
+                          child: const Icon(Icons.album, color: Colors.white54),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      albumTitle,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      albumArtist,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        StarRatingWidget(
+                          rating: rating.toDouble(),
+                          size: 12,
+                          showRatingText: false,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'by $reviewerUsername',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          timeAgo,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                comment,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildBioSection() {
     return Container(

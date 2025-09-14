@@ -1,6 +1,5 @@
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
@@ -11,7 +10,6 @@ import '../widgets/grainy_background_widget.dart';
 import '/services/firestore_service.dart';
 import '/services/payment_service.dart';
 import '../widgets/retro_button_widget.dart';
-import '../widgets/windows95_window.dart';
 
 class PaymentScreen extends StatefulWidget {
   final String orderId;

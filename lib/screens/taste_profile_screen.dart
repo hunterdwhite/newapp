@@ -6,7 +6,7 @@ import '../constants/constants.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/windows95_window.dart';
 import '../widgets/retro_button_widget.dart';
-import 'home_screen.dart'; // Make sure to import MyHomePage
+ // Make sure to import MyHomePage
 
 class TasteProfileScreen extends StatefulWidget {
   @override

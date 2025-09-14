@@ -482,7 +482,7 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     });
   }
 
-  Future<void> addOrder(String userId, String address, {int flowVersion = 1,}) async {
+  Future<void> addOrder(String userId, String address, {int flowVersion = 1, String? curatorId}) async {
     // Check if this is the user's first order
     QuerySnapshot existingOrders = await _firestore
         .collection('orders')
@@ -491,15 +491,22 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     
     bool isFirstOrder = existingOrders.docs.isEmpty;
 
-    await _firestore.collection('orders').add({
+    final orderData = {
       'userId': userId,
       'address': address,
-      'status': 'new',
+      'status': curatorId != null ? 'curator_assigned' : 'new',
       'flowVersion': flowVersion,
       'timestamp': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(), 
       'details': {},
-    });
+    };
+    
+    // Add curator ID if provided
+    if (curatorId != null) {
+      orderData['curatorId'] = curatorId;
+    }
+    
+    await _firestore.collection('orders').add(orderData);
 
     await _firestore.collection('users').doc(userId).update({
       'hasOrdered': true,

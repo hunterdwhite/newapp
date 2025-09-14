@@ -11,46 +11,52 @@ const admin = require('firebase-admin');
 let firebaseApp;
 try {
   if (admin.apps.length === 0) {
+    // Try to initialize Firebase with different credential methods
+    let credential;
+    
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      // Use service account key if provided
+      console.log('Using Firebase service account key from environment');
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      credential = admin.credential.cert(serviceAccount);
+    } else {
+      // Fallback to application default (works in Google Cloud, may fail in AWS)
+      console.log('Using Firebase application default credentials');
+      credential = admin.credential.applicationDefault();
+    }
+    
     firebaseApp = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
+      credential: credential,
       projectId: process.env.FIREBASE_PROJECT_ID || 'dissonantapp2',
     });
+    console.log('✅ Firebase initialized successfully');
   } else {
     firebaseApp = admin.app();
+    console.log('✅ Using existing Firebase app');
   }
 } catch (error) {
-  console.log('Firebase Admin already initialized');
-  firebaseApp = admin.app();
+  console.error('❌ Firebase initialization error:', error);
+  console.error('This will prevent fallback order record creation, but shipping labels will still work');
+  firebaseApp = null;
 }
 
-const db = admin.firestore();
+let db;
+try {
+  db = admin.firestore();
+  console.log('✅ Firestore database initialized');
+} catch (error) {
+  console.error('❌ Firestore initialization failed:', error);
+  db = null;
+}
 
 app.use(bodyParser.json());
 
 // Configure email transporter with multiple fallback options
 let transporter;
 
-// Try to use Amazon SES first (recommended for Lambda)
-if (process.env.AWS_SES_REGION) {
-  console.log('Using Amazon SES for email transport');
-  console.log('SES Region:', process.env.AWS_SES_REGION);
-  console.log('SES Email User:', process.env.EMAIL_USER);
-  
-  const aws = require('aws-sdk');
-  // In Lambda, use IAM role instead of explicit credentials
-  aws.config.update({
-    region: process.env.AWS_SES_REGION,
-  });
-  
-  transporter = nodemailer.createTransport({
-    SES: new aws.SES({ apiVersion: '2010-12-01' }),
-    sendingRate: 14, // max 14 messages/second
-  });
-  
-  console.log('✅ Amazon SES transporter configured');
-} else if (process.env.SENDGRID_API_KEY) {
-  // Use SendGrid as fallback
-  console.log('Using SendGrid for email transport');
+// Prioritize SendGrid first (no verification restrictions)
+if (process.env.SENDGRID_API_KEY) {
+  console.log('Using SendGrid for email transport (primary)');
   const sgMail = require('@sendgrid/mail');
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   
@@ -70,9 +76,10 @@ if (process.env.AWS_SES_REGION) {
       return true; // SendGrid doesn't need verification
     }
   };
+  console.log('✅ SendGrid transporter configured');
 } else {
   // Fallback to Gmail with better configuration
-  console.log('Using Gmail for email transport (fallback)');
+  console.log('Using Gmail for email transport (last resort)');
   transporter = nodemailer.createTransport({
     service: 'gmail',
     host: 'smtp.gmail.com',
@@ -212,24 +219,68 @@ app.post('/create-shipping-labels', async (req, res) => {
 
     // Create outbound shipment
     console.log('Creating outbound shipment...');
-    const outboundShipment = await fetch('https://api.goshippo.com/shipments/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
-      },
-      body: JSON.stringify({
-        address_to: to_address,
-        address_from: from_address,
-        parcels: [parcel],
-        async: false,
-      }),
-    });
+    const outboundShipmentPayload = {
+      address_to: to_address,
+      address_from: from_address,
+      parcels: [parcel],
+      async: false,
+    };
+    
+    console.log('🔍 Outbound shipment payload:', JSON.stringify(outboundShipmentPayload, null, 2));
+    
+    // Retry mechanism for Shippo API calls
+    let outboundShipment;
+    let shipmentAttempt = 0;
+    const maxShipmentRetries = 3;
+    
+    while (shipmentAttempt < maxShipmentRetries) {
+      shipmentAttempt++;
+      console.log(`🔄 Shipment creation attempt ${shipmentAttempt}/${maxShipmentRetries}`);
+      
+      try {
+        outboundShipment = await fetch('https://api.goshippo.com/shipments/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
+          },
+          body: JSON.stringify(outboundShipmentPayload),
+        });
+        
+        if (outboundShipment.ok) {
+          console.log(`✅ Shipment creation succeeded on attempt ${shipmentAttempt}`);
+          break;
+        } else {
+          console.log(`⚠️ Shipment creation failed on attempt ${shipmentAttempt}, status: ${outboundShipment.status}`);
+        }
+      } catch (fetchError) {
+        console.error(`❌ Network error on shipment attempt ${shipmentAttempt}:`, fetchError);
+      }
+      
+      // Wait before retrying (exponential backoff)
+      if (shipmentAttempt < maxShipmentRetries) {
+        const waitTime = Math.pow(2, shipmentAttempt) * 1000; // 2s, 4s, 8s
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+
+    console.log('📡 Outbound shipment response status:', outboundShipment.status);
 
     if (!outboundShipment.ok) {
-      const errorData = await outboundShipment.json();
-      console.error('Outbound shipment creation failed:', errorData);
-      throw new Error(`Failed to create outbound shipment: ${errorData.detail || errorData.message}`);
+      const errorText = await outboundShipment.text();
+      console.error('❌ Outbound shipment failed - Raw response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (parseError) {
+        console.error('❌ Could not parse shipment error response as JSON:', parseError);
+        errorData = { detail: errorText, raw_response: errorText };
+      }
+      
+      console.error('❌ Outbound shipment creation failed:', errorData);
+      throw new Error(`Failed to create outbound shipment: ${errorData.detail || errorData.message || errorText}`);
     }
 
     const outboundShipmentData = await outboundShipment.json();
@@ -269,23 +320,44 @@ app.post('/create-shipping-labels', async (req, res) => {
 
     // Create outbound transaction (label)
     console.log('Creating outbound label...');
+    const outboundPayload = {
+      rate: outboundRate.object_id,
+      async: false,
+      label_file_type: 'PDF_4X6', // 4x6 inch label for easy printing
+    };
+    
+    console.log('🔍 Outbound transaction payload:', JSON.stringify(outboundPayload, null, 2));
+    console.log('🔍 Using Shippo token:', process.env.SHIPPO_TOKEN ? `${process.env.SHIPPO_TOKEN.substring(0, 20)}...` : 'NOT SET');
+    
     const outboundTransaction = await fetch('https://api.goshippo.com/transactions/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
       },
-      body: JSON.stringify({
-        rate: outboundRate.object_id,
-        async: false,
-        label_file_type: 'PDF_4X6', // 4x6 inch label for easy printing
-      }),
+      body: JSON.stringify(outboundPayload),
     });
 
+    console.log('📡 Outbound transaction response status:', outboundTransaction.status);
+    console.log('📡 Outbound transaction response headers:', JSON.stringify([...outboundTransaction.headers.entries()]));
+
     if (!outboundTransaction.ok) {
-      const errorData = await outboundTransaction.json();
-      console.error('Outbound transaction creation failed:', errorData);
-      throw new Error(`Failed to create outbound transaction: ${errorData.detail || errorData.message}`);
+      const errorText = await outboundTransaction.text();
+      console.error('❌ Outbound transaction failed - Raw response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (parseError) {
+        console.error('❌ Could not parse error response as JSON:', parseError);
+        errorData = { detail: errorText, raw_response: errorText };
+      }
+      
+      console.error('❌ Outbound transaction creation failed:', errorData);
+      console.error('❌ Rate used:', outboundRate.object_id);
+      console.error('❌ Rate details:', JSON.stringify(outboundRate, null, 2));
+      
+      throw new Error(`Failed to create outbound transaction: ${errorData.detail || errorData.message || errorText}`);
     }
 
     const outboundTransactionData = await outboundTransaction.json();
@@ -427,6 +499,8 @@ app.post('/create-shipping-labels', async (req, res) => {
     const sendEmails = async () => {
       const maxRetries = 3;
       let attempt = 0;
+      let warehouseEmailSent = false;
+      let customerEmailSent = false;
       
       console.log('Starting email sending process...');
       console.log('Email function variables:', {
@@ -522,13 +596,16 @@ Dissonant Team`;
         };
 
         await sendEmailWithRetry(warehouseMailOptions, 'warehouse shipping label email');
+        warehouseEmailSent = true;
+        console.log('✅ Warehouse email sent successfully');
         
       } catch (emailError) {
         console.error('❌ Final failure sending warehouse shipping label email:', emailError);
         
         // Store failed email to database for manual retry
         try {
-          await db.collection('failed_emails').add({
+          if (db) {
+            await db.collection('failed_emails').add({
             type: 'warehouse_shipping_labels',
             order_id,
             error: emailError.message,
@@ -539,8 +616,11 @@ Dissonant Team`;
               outbound_tracking: outboundLabel.tracking_number,
               return_tracking: returnLabel.tracking_number
             }
-          });
-          console.log('Failed email logged to database for manual retry');
+            });
+            console.log('Failed email logged to database for manual retry');
+          } else {
+            console.log('⚠️ Database not available - cannot log failed email');
+          }
         } catch (dbError) {
           console.error('Failed to log email failure to database:', dbError);
         }
@@ -569,13 +649,16 @@ DISSONANT
           };
 
           await sendEmailWithRetry(customerMailOptions, 'customer tracking email');
+          customerEmailSent = true;
+          console.log('✅ Customer email sent successfully');
           
         } catch (emailError) {
           console.error('❌ Final failure sending customer tracking email:', emailError);
           
           // Store failed customer email to database for manual retry
           try {
-            await db.collection('failed_emails').add({
+            if (db) {
+              await db.collection('failed_emails').add({
               type: 'customer_tracking',
               order_id,
               customer_email,
@@ -587,8 +670,11 @@ DISSONANT
                 outbound_tracking: outboundLabel.tracking_number,
                 return_tracking: returnLabel.tracking_number
               }
-            });
-            console.log('Failed customer email logged to database for manual retry');
+              });
+              console.log('Failed customer email logged to database for manual retry');
+            } else {
+              console.log('⚠️ Database not available - cannot log failed customer email');
+            }
           } catch (dbError) {
             console.error('Failed to log customer email failure to database:', dbError);
           }
@@ -600,7 +686,7 @@ DISSONANT
       console.log('Email sending process completed');
       
       // Update order record to indicate emails were sent successfully
-      if (order_id && (warehouseEmailSent || customerEmailSent)) {
+      if (order_id && (warehouseEmailSent || customerEmailSent) && db) {
         try {
           console.log('Updating order record with email status...');
           await db.collection('orders').doc(order_id).update({
@@ -660,13 +746,17 @@ DISSONANT
       
       // Log to database for debugging
       try {
-        await db.collection('email_debug').add({
+        if (db) {
+          await db.collection('email_debug').add({
           type: 'transporter_verification_failed',
           error: verifyError.message,
           error_code: verifyError.code,
           timestamp: new Date().toISOString(),
           order_id
         });
+        } else {
+          console.log('⚠️ Database not available - cannot log debug info');
+        }
       } catch (dbError) {
         console.error('Failed to log verification error to database:', dbError);
       }
@@ -694,7 +784,7 @@ DISSONANT
     // even if email sending fails completely
     let orderCreated = false;
     try {
-      if (order_id && customer_email) {
+      if (order_id && customer_email && db) {
         console.log('Creating fallback order record in Firebase...');
         await db.collection('orders').doc(order_id).set({
           orderId: order_id,
@@ -702,6 +792,7 @@ DISSONANT
           customerName: customer_name || 'Customer',
           status: 'labelCreated',
           statusDescription: 'Shipping labels created successfully',
+          trackingNumber: outboundLabel.tracking_number,
           outboundTrackingNumber: outboundLabel.tracking_number,
           returnTrackingNumber: returnLabel.tracking_number,
           shippingAddress: to_address,
@@ -716,6 +807,10 @@ DISSONANT
         
         orderCreated = true;
         console.log('✅ Fallback order record created successfully');
+      } else if (!db) {
+        console.log('⚠️ Skipping fallback order record - Firebase not available');
+      } else {
+        console.log('⚠️ Skipping fallback order record - missing order_id or customer_email');
       }
     } catch (orderError) {
       console.error('❌ Failed to create fallback order record:', orderError);
@@ -836,6 +931,48 @@ app.post('/check-order-status', async (req, res) => {
   }
 });
 
+// Test endpoint to simulate webhook events for debugging
+app.post('/test-webhook', async (req, res) => {
+  try {
+    const { tracking_number, status } = req.body;
+    
+    if (!tracking_number || !status) {
+      return res.status(400).json({ 
+        error: 'Both tracking_number and status are required',
+        example: {
+          tracking_number: "1Z999AA1234567890",
+          status: "delivered" // or "transit", "delivered", "returned", etc.
+        }
+      });
+    }
+    
+    console.log(`🧪 Testing webhook simulation for tracking: ${tracking_number} with status: ${status}`);
+    
+    // Create a mock tracking status object
+    const mockTrackingStatus = {
+      status: status,
+      status_detail: `Simulated ${status} status for testing`,
+      substatus: status === 'delivered' ? 'delivered' : 'in_transit'
+    };
+    
+    // Update order status using the same function as the real webhook
+    const updatedStatus = await updateOrderStatusFromTracking(tracking_number, mockTrackingStatus);
+    
+    res.json({
+      success: true,
+      message: 'Webhook simulation completed',
+      tracking_number,
+      simulated_status: status,
+      updated: updatedStatus,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('Webhook simulation error:', err);
+    res.status(500).json({ error: `Webhook simulation failed: ${err.message}` });
+  }
+});
+
 // Function to update order status in Firestore based on tracking
 async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, orderId = null) {
   try {
@@ -904,7 +1041,7 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
     let updatedOrders = [];
     
     // If we have an order ID, update that specific order
-    if (orderId) {
+    if (orderId && db) {
       try {
         const orderRef = db.collection('orders').doc(orderId);
         await orderRef.update({
@@ -921,24 +1058,44 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
     }
     
     // Also search for orders with this tracking number and update them
+    // Check both 'trackingNumber' and 'outboundTrackingNumber' fields for compatibility
     try {
-      const ordersQuery = await db.collection('orders')
+      if (db) {
+        // First, search by 'trackingNumber' field
+        const ordersQuery1 = await db.collection('orders')
         .where('trackingNumber', '==', trackingNumber)
         .get();
+        
+        // Also search by 'outboundTrackingNumber' field for older orders
+        const ordersQuery2 = await db.collection('orders')
+        .where('outboundTrackingNumber', '==', trackingNumber)
+        .get();
+        
+        // Combine results and deduplicate
+        const allOrders = new Map();
+        ordersQuery1.forEach(doc => allOrders.set(doc.id, doc));
+        ordersQuery2.forEach(doc => allOrders.set(doc.id, doc));
       
-      if (!ordersQuery.empty) {
-        const batch = db.batch();
-        ordersQuery.forEach(doc => {
-          batch.update(doc.ref, {
-            status: orderStatus,
-            statusDescription: statusDescription,
-            updatedAt: new Date().toISOString(),
-            trackingStatus: trackingStatus,
+        if (allOrders.size > 0) {
+          const batch = db.batch();
+          allOrders.forEach((doc, docId) => {
+            batch.update(doc.ref, {
+              status: orderStatus,
+              statusDescription: statusDescription,
+              updatedAt: new Date().toISOString(),
+              trackingStatus: trackingStatus,
+              // Ensure trackingNumber field is set for future compatibility
+              trackingNumber: trackingNumber,
+            });
+            updatedOrders.push(docId);
           });
-          updatedOrders.push(doc.id);
-        });
-        await batch.commit();
-        console.log(`Updated ${ordersQuery.size} orders with tracking ${trackingNumber}`);
+          await batch.commit();
+          console.log(`Updated ${allOrders.size} orders with tracking ${trackingNumber} (searched both trackingNumber and outboundTrackingNumber fields)`);
+        } else {
+          console.log(`No orders found with tracking number ${trackingNumber}`);
+        }
+      } else {
+        console.log('⚠️ Database not available - cannot search orders by tracking number');
       }
     } catch (error) {
       console.error(`Failed to search orders by tracking number:`, error);
@@ -969,6 +1126,11 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
 // Function to send status update emails to customers with specific templates
 async function sendStatusUpdateEmail(trackingNumber, orderStatus, statusDescription, orderIds) {
   try {
+    if (!db) {
+      console.log('⚠️ Database not available - cannot send status update email');
+      return;
+    }
+    
     // Get customer information from the first updated order
     const orderDoc = await db.collection('orders').doc(orderIds[0]).get();
     if (!orderDoc.exists) {
