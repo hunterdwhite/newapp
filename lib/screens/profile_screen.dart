@@ -43,6 +43,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _favoriteAlbumTitle = '';
   String _favoriteAlbumCover = '';
 
+  // Curator info
+  bool _isCurator = false;
+
   bool _isLoading = true;
   bool _isOwnProfile = false;
 
@@ -77,6 +80,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userData = userDoc.data()!;
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
+
+      // Load curator info
+      _isCurator = userData['isCurator'] ?? false;
 
       // Load profile customization
       final customization = userData['profileCustomization'] as Map<String, dynamic>?;
@@ -226,6 +232,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                         Center(child: _buildProfileAvatar()),
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        // Curator badge section (if curator)
+                        if (_isCurator) ...[
+                          _buildCuratorBadgeSection(),
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        ],
                         // Profile customization sections
                         if (_bio.isNotEmpty) ...[
                           _buildBioSection(),
@@ -258,13 +269,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Show the user's Firestore "username"
-        Text(
-          _username,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 22, tablet: 24, desktop: 26),
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  _username,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 22, tablet: 24, desktop: 26),
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_isCurator) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE46A14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'CURATOR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         // If it's their own profile, show a white settings icon
@@ -662,6 +699,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCuratorBadgeSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE46A14), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.music_note,
+            color: Color(0xFFE46A14),
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'You\'re a Community Curator!',
+                  style: TextStyle(
+                    color: Color(0xFFE46A14),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'You curate music for the community',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

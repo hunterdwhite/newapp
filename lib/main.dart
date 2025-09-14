@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'navigator_service.dart';
 import 'routes.dart';
 import 'screens/home_screen.dart';
 import 'screens/mymusic_screen.dart';
-import 'screens/order_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/curator_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -22,6 +20,9 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'screens/order_selection_screen.dart';
+
+// Global navigator key for push notifications
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -147,6 +148,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ChangeNotifierProvider(create: (_) => OrderModel()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'DISSONANT',
         debugShowCheckedModeBanner: false,
         
@@ -192,7 +194,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             },
           ),
         ),
-        navigatorKey: NavigatorService.navigatorKey,
         routes: {
           welcomeRoute: (context) => WelcomeScreen(),
           homeRoute: (context) => HomeScreen(),
@@ -303,9 +304,6 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
   Future<T?> pushInOrderTab<T>(Route<T> route) {
     return _orderNavigatorKey.currentState!.push(route);
   }
-
-  static _MyHomePageState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_MyHomePageState>();
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) {

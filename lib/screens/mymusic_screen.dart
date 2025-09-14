@@ -57,6 +57,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
           if (mounted) {
             String status =
                 orderData['status'] ?? ''; // Handle missing 'status' field
+            print('DEBUG: MyMusic - Order status: "$status"'); // Debug logging
             setState(() {
               _hasOrdered = true;
               _order = order;

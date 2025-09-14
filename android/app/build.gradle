@@ -85,6 +85,12 @@ android {
         vectorDrawables.useSupportLibrary = true
         resConfigs "en" // Only include English resources to reduce APK size
         
+        // Support for 16 KB memory page sizes (required for Android 15+)
+        ndk {
+            // Ensure compatibility with 16 KB page sizes
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+        
         // Proguard optimization for release builds
         proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
     }

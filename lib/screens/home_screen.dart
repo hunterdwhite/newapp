@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
@@ -12,10 +11,9 @@ import '../services/firestore_service.dart';
 import '../models/album_model.dart';
 import '../models/feed_item_model.dart';
 import 'feed_screen.dart';
-import 'album_detail_screen.dart';
 import 'earn_credits_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
-import '../widgets/windows95_window.dart'; // Corrected import for Windows95WindowWidget
+ // Corrected import for Windows95WindowWidget
 import '../constants/responsive_utils.dart';
 
 class HomeScreen extends StatefulWidget {

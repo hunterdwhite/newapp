@@ -31,13 +31,28 @@ class _SwipeSpoilerWidgetState extends State<SwipeSpoilerWidget> {
   Widget build(BuildContext context) {
     final orderDetails = widget.order.data() as Map<String, dynamic>?;
 
-    if (orderDetails == null ||
-        !orderDetails.containsKey('details') ||
-        !orderDetails['details'].containsKey('albumId')) {
+    if (orderDetails == null) {
       return Text('Error loading order details.', style: TextStyle(color: Colors.white));
     }
 
-    final albumId = orderDetails['details']['albumId'];
+    // Check for albumId in two possible locations:
+    // 1. Directly on the order document: orderDetails['albumId']
+    // 2. In the details object: orderDetails['details']['albumId']
+    String? albumId;
+    if (orderDetails.containsKey('albumId')) {
+      albumId = orderDetails['albumId'];
+    } else if (orderDetails.containsKey('details') && 
+               orderDetails['details'] != null &&
+               orderDetails['details'].containsKey('albumId')) {
+      albumId = orderDetails['details']['albumId'];
+    }
+
+    if (albumId == null) {
+      print('DEBUG: SwipeSpoilerWidget - No albumId found in order. Order keys: ${orderDetails.keys}');
+      return Text('Album not yet assigned to this order.', style: TextStyle(color: Colors.white));
+    }
+
+    print('DEBUG: SwipeSpoilerWidget - Found albumId: $albumId');
 
     return GestureDetector(
       onPanStart: (_) {
@@ -54,7 +69,7 @@ class _SwipeSpoilerWidgetState extends State<SwipeSpoilerWidget> {
       onPanEnd: (_) async {
         if (_dragDistance < -100) { // Adjust this threshold based on testing
           print('Swipe up released, triggering action!');
-          await _fetchAlbumDetails(albumId);
+          await _fetchAlbumDetails(albumId!); // albumId is guaranteed non-null here due to earlier check
         }
         // Reset the drag distance and opacity after the gesture ends
         setState(() {

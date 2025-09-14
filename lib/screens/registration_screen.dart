@@ -7,11 +7,6 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../routes.dart';
 import '/services/firestore_service.dart';
 import '/services/referral_service.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'email_verification_screen.dart';
 import '../widgets/responsive_form_container.dart';
 import '../constants/responsive_utils.dart';
 import '../screens/login_screen.dart'; // For ResponsiveRetroButton

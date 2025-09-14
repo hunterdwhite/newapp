@@ -150,3 +150,94 @@ exports.nightlyDiscogsSync = onSchedule("every 24 hours", async () => {
 const { sendCustomEmailVerification, verifyCustomEmail } = require('./email-service');
 exports.sendCustomEmailVerification = sendCustomEmailVerification;
 exports.verifyCustomEmail = verifyCustomEmail;
+
+/**
+ * Cloud Function: Send push notification to curator when order is assigned
+ */
+const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+
+exports.notifyCuratorOnOrderAssignment = onDocumentCreated("orders/{orderId}", async (event) => {
+  const orderData = event.data.data();
+  const orderId = event.params.orderId;
+  
+  console.log(`Processing order ${orderId}:`, orderData);
+  
+  // Only send notification if order has a curator assigned
+  if (!orderData.curatorId) {
+    console.log(`Order ${orderId} has no curator assigned, skipping notification`);
+    return;
+  }
+  
+  try {
+    // Get curator's FCM token from user document
+    const curatorDoc = await db.collection('users').doc(orderData.curatorId).get();
+    
+    if (!curatorDoc.exists) {
+      console.log(`Curator ${orderData.curatorId} not found`);
+      return;
+    }
+    
+    const curatorData = curatorDoc.data();
+    const fcmToken = curatorData.fcmToken;
+    
+    if (!fcmToken) {
+      console.log(`No FCM token found for curator ${orderData.curatorId}`);
+      return;
+    }
+    
+    // Get customer name from address (first line)
+    const customerName = orderData.address ? orderData.address.split('\n')[0] : 'Unknown Customer';
+    
+    // Send push notification
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: 'New Curator Order!',
+        body: `${customerName} has requested your curation expertise`,
+      },
+      data: {
+        type: 'curator_order',
+        orderId: orderId,
+        curatorId: orderData.curatorId,
+      },
+      android: {
+        notification: {
+          icon: 'ic_launcher',
+          color: '#E46A14',
+          channelId: 'curator_orders',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            badge: 1,
+            sound: 'default',
+          },
+        },
+      },
+    };
+    
+    const response = await admin.messaging().send(message);
+    console.log(`Successfully sent notification to curator ${orderData.curatorId}:`, response);
+    
+    // Also send to topic for backup
+    const topicMessage = {
+      topic: `curator_${orderData.curatorId}`,
+      notification: {
+        title: 'New Curator Order!',
+        body: `${customerName} has requested your curation expertise`,
+      },
+      data: {
+        type: 'curator_order',
+        orderId: orderId,
+        curatorId: orderData.curatorId,
+      },
+    };
+    
+    await admin.messaging().send(topicMessage);
+    console.log(`Successfully sent topic notification for curator ${orderData.curatorId}`);
+    
+  } catch (error) {
+    console.error(`Error sending notification for order ${orderId}:`, error);
+  }
+});
