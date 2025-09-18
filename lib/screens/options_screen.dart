@@ -4,7 +4,6 @@ import '../widgets/grainy_background_widget.dart';
 import 'link_discogs_screen.dart';
 import 'taste_profile_screen.dart';
 import 'change_password_screen.dart';
-import 'profile_customization_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
  // Add this import
@@ -247,6 +246,14 @@ class _OptionsScreenState extends State<OptionsScreen> {
                               );
                             },
                             style: RetroButtonStyle.light,
+                            fixedHeight: true,
+                          ),
+                          SizedBox(height: 20),
+                          // Admin-only logout button
+                          RetroButtonWidget(
+                            text: 'Logout',
+                            onPressed: _logout,
+                            style: RetroButtonStyle.dark,
                             fixedHeight: true,
                           ),
                           SizedBox(height: 20),

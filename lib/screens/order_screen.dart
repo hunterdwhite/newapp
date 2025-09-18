@@ -204,25 +204,15 @@ class _OrderScreenState extends State<OrderScreen> {
       message = "Thanks for placing an order! You will be able to place another once this one is completed.";
     }
     return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: _buildHeader(),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            message,
+            style: TextStyle(fontSize: 24, color: Colors.white),
+            textAlign: TextAlign.center,
           ),
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  message,
-                  style: TextStyle(fontSize: 24, color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

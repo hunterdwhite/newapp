@@ -24,9 +24,12 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   String _ownAlbum = 'Yes';
   String _likedAlbum = 'Yes!';
   String _review = '';
+  String _curatorReview = '';
+  double _curatorRating = 5.0;
   String _albumCoverUrl = '';
   String _albumInfo = '';
   String? _albumId;
+  String? _curatorId;
   int _flowVersion = 1;
 
   @override
@@ -43,6 +46,7 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
         _flowVersion = orderData['flowVersion'] ?? 1;
         final albumId = orderData['details']['albumId'] as String;
         _albumId = albumId;
+        _curatorId = orderData['curatorId'];
 
         final albumDoc = await _firestoreService.getAlbumById(albumId);
         if (albumDoc.exists) {
@@ -86,6 +90,19 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     );
   }
 
+  Future<void> _submitCuratorReview(String comment, double rating) async {
+    if (_curatorId == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await _firestoreService.addCuratorReview(
+      curatorId: _curatorId!,
+      userId: user.uid,
+      orderId: widget.orderId,
+      comment: comment,
+      rating: rating,
+    );
+  }
+
   // Helper method to dismiss keyboard
   void _dismissKeyboard() {
     FocusScope.of(context).unfocus();
@@ -112,6 +129,9 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
       await _firestoreService.submitFeedback(widget.orderId, feedback);
       if (_review.trim().isNotEmpty && _albumId != null) {
         await _submitReview(_review.trim());
+      }
+      if (_curatorReview.trim().isNotEmpty && _curatorId != null) {
+        await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
       }
 
       await _firestoreService.updateOrderStatus(widget.orderId, 'returned');
@@ -223,6 +243,60 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                               textInputAction: TextInputAction.newline,
                               onFieldSubmitted: _handleReturnKey,
                               onChanged: (value) => _review = value,
+                            ),
+                            const SizedBox(height: 24),
+                            // Curator Rating Section
+                            Text(
+                              'Rate Your Curator',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(5, (index) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _curatorRating = index + 1.0;
+                                    });
+                                  },
+                                  child: Icon(
+                                    index < _curatorRating ? Icons.star : Icons.star_border,
+                                    color: Colors.orange,
+                                    size: 30,
+                                  ),
+                                );
+                              }),
+                            ),
+                            const SizedBox(height: 10),
+                            // Curator Review Field
+                            TextFormField(
+                              decoration: InputDecoration(
+                                labelText: 'Leave feedback for your curator!',
+                                labelStyle: TextStyle(color: Colors.white),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white, width: 2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                              style: TextStyle(color: Colors.black, fontSize: 16),
+                              maxLines: 3,
+                              textInputAction: TextInputAction.newline,
+                              onFieldSubmitted: _handleReturnKey,
+                              onChanged: (value) => _curatorReview = value,
                             ),
                             const SizedBox(height: 24),
                             RetroButtonWidget(

@@ -289,6 +289,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
+  Future<void> _refreshProfileData() async {
+    // Refresh all profile data
+    await _fetchProfileData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -297,12 +302,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : GrainyBackgroundWidget(
               child: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  child: Column(
+                child: RefreshIndicator(
+                  onRefresh: _refreshProfileData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeaderRow(),
@@ -343,6 +351,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 ),
               ),
             ),
+          ),
     );
   }
 
