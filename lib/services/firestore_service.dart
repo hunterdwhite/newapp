@@ -253,6 +253,27 @@ class FirestoreService {
     });
   }
 
+  Future<void> addCuratorReview({
+    required String curatorId,
+    required String userId,
+    required String orderId,
+    required String comment,
+    required double rating,
+  }) {
+    final reviewRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(curatorId)
+        .collection('curatorReviews')
+        .doc();
+    return reviewRef.set({
+      'userId': userId,
+      'orderId': orderId,
+      'comment': comment,
+      'rating': rating,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateReview({
     required String albumId,
     required String reviewId,
@@ -474,6 +495,16 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
 }
 
 
+  /// Get stream of new curator orders for the current user
+  Stream<bool> hasNewCuratorOrders(String curatorId) {
+    return _firestore
+        .collection('orders')
+        .where('curatorId', isEqualTo: curatorId)
+        .where('status', isEqualTo: 'curator_assigned')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.isNotEmpty);
+  }
+
   Future<void> updateOrderReturnStatus(
       String orderId, bool returnConfirmed) async {
     await _firestore.collection('orders').doc(orderId).update({
@@ -635,6 +666,15 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
 
   Future<List<DocumentSnapshot>> getAllAlbums() async {
     QuerySnapshot snapshot = await _firestore.collection('albums').get();
+    return snapshot.docs;
+  }
+
+  /// Get all available inventory items (albums that are actually in stock)
+  Future<List<DocumentSnapshot>> getAvailableInventory() async {
+    QuerySnapshot snapshot = await _firestore
+        .collection('inventory')
+        .where('quantity', isGreaterThan: 0)
+        .get();
     return snapshot.docs;
   }
 

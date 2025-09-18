@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'my_music_library_screen.dart';
 import 'wishlist_screen.dart';
 import 'options_screen.dart';
+import 'profile_customization_screen.dart';
 
 // Import your custom grainy background widget:
 import '../widgets/grainy_background_widget.dart';
@@ -211,6 +212,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _refreshProfileData() async {
+    // Refresh all profile data
+    await _fetchProfileData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -218,14 +224,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
-                    mobile: 16, tablet: 24, desktop: 32),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
-                    ),
-                    child: Column(
+              : RefreshIndicator(
+                  onRefresh: _refreshProfileData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+                      mobile: 16, tablet: 24, desktop: 32),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
+                      ),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeaderRow(),
@@ -260,6 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
+              ),
         ),
       ),
     );
@@ -304,16 +314,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
-        // If it's their own profile, show a white settings icon
+        // If it's their own profile, show edit and settings icons
         if (_isOwnProfile)
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => OptionsScreen()),
-              );
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ProfileCustomizationScreen()),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => OptionsScreen()),
+                  );
+                },
+              ),
+            ],
           ),
       ],
     );

@@ -24,6 +24,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final PaymentService _paymentService = PaymentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _reviewFocusNode = FocusNode();
 
   bool _isProcessing = false;
   bool _isLoading = true;
@@ -31,7 +33,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String _albumCoverUrl = '';
   String _albumInfo = '';
   String? _albumId;
+  String? _curatorId;
   String _review = '';
+  String _curatorReview = '';
+  double _curatorRating = 5.0;
   // New: track the order's flowVersion (default to 1)
   int _flowVersion = 1;
 
@@ -39,6 +44,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void initState() {
     super.initState();
     _fetchAlbumDetails();
+    _reviewFocusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _reviewFocusNode.removeListener(_onFocusChange);
+    _reviewFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_reviewFocusNode.hasFocus) {
+      // Scroll to the review text field when it gains focus
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
   }
 
   Future<void> _fetchAlbumDetails() async {
@@ -48,9 +77,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
         final orderData = orderDoc!.data() as Map<String, dynamic>;
         // Read flowVersion; if not present, default to 1 (old flow)
         _flowVersion = orderData['flowVersion'] ?? 1;
-        // Get albumId from order details (assumes your order doc has a 'details' map)
+        // Get albumId and curatorId from order details
         final albumId = orderData['details']['albumId'];
         _albumId = albumId;
+        _curatorId = orderData['curatorId'];
         final albumDoc = await _firestoreService.getAlbumById(albumId);
         if (albumDoc.exists) {
           final album = albumDoc.data() as Map<String, dynamic>;
@@ -99,8 +129,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  Future<void> _submitCuratorReview(String comment, double rating) async {
+    if (_curatorId == null) return;
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await _firestoreService.addCuratorReview(
+      curatorId: _curatorId!,
+      userId: user.uid,
+      orderId: widget.orderId,
+      comment: comment,
+      rating: rating,
+    );
+  }
+
   // Helper method to dismiss keyboard
   void _dismissKeyboard() {
+    _reviewFocusNode.unfocus();
     FocusScope.of(context).unfocus();
   }
 
@@ -121,6 +165,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await _firestoreService.updateOrderStatus(widget.orderId, 'kept');
       if (_review.trim().isNotEmpty && _albumId != null) {
         await _submitReview(_review.trim());
+      }
+      if (_curatorReview.trim().isNotEmpty && _curatorId != null) {
+        await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
       }
       if (!mounted) return;
       setState(() {
@@ -175,6 +222,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         if (_review.trim().isNotEmpty && _albumId != null) {
           await _submitReview(_review.trim());
         }
+        if (_curatorReview.trim().isNotEmpty && _curatorId != null) {
+          await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
+        }
         if (!mounted) return;
         setState(() {
           _isProcessing = false;
@@ -225,9 +275,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 // Add tap-to-dismiss keyboard functionality
                 onTap: _dismissKeyboard,
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   physics: ClampingScrollPhysics(),
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 80.0, bottom: 30.0, left: 16.0, right: 16.0),
+                    padding: const EdgeInsets.only(top: 80.0, bottom: 100.0, left: 16.0, right: 16.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -275,6 +326,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: TextField(
+                            focusNode: _reviewFocusNode,
                             decoration: InputDecoration(
                               hintText: 'Write your review here...',
                               hintStyle: TextStyle(color: Colors.grey.shade600),
@@ -290,12 +342,69 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               ),
                             ),
                             style: TextStyle(color: Colors.black, fontSize: 16),
-                            maxLines: 3,
+                            maxLines: 4,
+                            minLines: 3,
                             // Improved keyboard handling
                             textInputAction: TextInputAction.newline,
                             onSubmitted: _handleReturnKey,
                             onChanged: (value) {
                               _review = value;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 20.0),
+                        // Curator Rating Section
+                        Text(
+                          'Rate Your Curator',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 10.0),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(5, (index) {
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _curatorRating = index + 1.0;
+                                });
+                              },
+                              child: Icon(
+                                index < _curatorRating ? Icons.star : Icons.star_border,
+                                color: Colors.orange,
+                                size: 30,
+                              ),
+                            );
+                          }),
+                        ),
+                        SizedBox(height: 10.0),
+                        // Curator Review Field
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Leave feedback for your curator...',
+                              hintStyle: TextStyle(color: Colors.grey.shade600),
+                              filled: true,
+                              fillColor: Colors.white,
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.white, width: 2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.orange, width: 2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            style: TextStyle(color: Colors.black, fontSize: 16),
+                            maxLines: 3,
+                            minLines: 2,
+                            textInputAction: TextInputAction.newline,
+                            onChanged: (value) {
+                              _curatorReview = value;
                             },
                           ),
                         ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
-import '/services/firestore_service.dart';
 import 'payment_screen.dart';
 import 'return_album_screen.dart';
 import '../widgets/grainy_background_widget.dart';
@@ -15,7 +14,6 @@ class MyMusicScreen extends StatefulWidget {
 }
 
 class _MyMusicScreenState extends State<MyMusicScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
   bool _isLoading = true;
   bool _hasOrdered = false;
   bool _orderSent = false;
@@ -26,6 +24,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
   DocumentSnapshot? _order;
   String _currentImage = 'assets/blank_cd.png'; // Placeholder image
   String _albumInfo = ''; // Album information
+  String _curatorMessage = ''; // Curator's message
   bool _isAlbumRevealed = false;
   bool _isDragging = false; // Track if the user is dragging
   double _rotationAngle = 0.0; // Track rotation based on drag distance
@@ -90,11 +89,19 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     }
   }
 
-  void _updateImageAndInfo(String imageUrl, String albumInfo) {
+  void _updateImageAndInfo(String imageUrl, String albumInfo) async {
     if (mounted) {
+      // Fetch curator message from the order
+      String curatorMessage = '';
+      if (_order != null) {
+        final orderData = _order!.data() as Map<String, dynamic>?;
+        curatorMessage = orderData?['curatorMessage'] ?? '';
+      }
+      
       setState(() {
         _currentImage = imageUrl;
         _albumInfo = albumInfo;
+        _curatorMessage = curatorMessage;
         _isAlbumRevealed = true;
         _isDragging = false; // Stop dragging when album is revealed
         _rotationAngle = 0.0; // Reset rotation
@@ -107,6 +114,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     setState(() {
       _currentImage = 'assets/blank_cd.png';
       _albumInfo = '';
+      _curatorMessage = '';
       _isAlbumRevealed = false;
       _isDragging = false; // Ensure dragging is reset
       _rotationAngle = 0.0; // Reset rotation
@@ -142,8 +150,6 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-
-    final orderData = _order?.data() as Map<String, dynamic>?;
 
     // Display message based on order status
     if (_orderReturned) {
@@ -239,6 +245,53 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                         ),
                                       ),
                                       SizedBox(height: 10.0),
+                                      // Display album information
+                                      if (_albumInfo.isNotEmpty)
+                                        Text(
+                                          _albumInfo,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      SizedBox(height: 10.0),
+                                      // Display curator message if available
+                                      if (_curatorMessage.isNotEmpty) ...[
+                                        Container(
+                                          margin: EdgeInsets.symmetric(horizontal: 16.0),
+                                          padding: EdgeInsets.all(16.0),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.7),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.orange, width: 1),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Message from your curator:',
+                                                style: TextStyle(
+                                                  color: Colors.orange,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              SizedBox(height: 8.0),
+                                              Text(
+                                                _curatorMessage,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(height: 10.0),
+                                      ],
                                     ],
                                   ),
                                 ),

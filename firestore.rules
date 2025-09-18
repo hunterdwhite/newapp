@@ -131,9 +131,9 @@ service cloud.firestore {
       allow list: if isAuthenticated() && (
         isAdmin() ||
         // Allow users to query their own orders
-        request.auth.uid in resource.data.userId ||
+        request.auth.uid == resource.data.userId ||
         // Allow curators to query orders assigned to them (for order count statistics)
-        request.auth.uid in resource.data.curatorId
+        request.auth.uid == resource.data.curatorId
       );
     }
 
@@ -169,6 +169,16 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
       }
+    }
+
+    // Inventory Collection Rules
+    match /inventory/{inventoryId} {
+      // Allow all authenticated users to read inventory (for curators to browse available albums)
+      allow read: if isAuthenticated();
+      // Allow list/query operations for curators to filter and search inventory
+      allow list: if isAuthenticated();
+      // Only admins can write/update inventory
+      allow write: if isAuthenticated() && isAdmin();
     }
 
     // Default Deny Rule

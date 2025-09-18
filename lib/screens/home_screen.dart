@@ -1102,6 +1102,23 @@ Widget _buildLatestAlbumsStrip() {
     }
   }
 
+  Future<void> _refreshHomeData() async {
+    // Refresh all home screen data
+    setState(() {
+      _newsLoading = true;
+      _latestLoading = true;
+      _creditsLoading = true;
+      _pageReady = false;
+    });
+    
+    // Reload all data
+    await Future.wait([
+      _loadAnnouncements(),
+      _fetchLatestAlbums(),
+      _fetchFreeOrderCredits(),
+    ]);
+  }
+
   /* ─────────────────────────  MAIN BUILD  ───────────────────────── */
 
   @override
@@ -1118,22 +1135,28 @@ Widget _buildLatestAlbumsStrip() {
                         constraints.maxWidth : 
                         constraints.maxWidth.clamp(0, maxWidth);
                     
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                      child: Center(
-                        child: SizedBox(
-                          width: effectiveMaxWidth,
-                          child: Padding(
-                            padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                                _buildNewsCarousel(),
-                                _buildLatestAlbumsStrip(),
-                                _buildFreeOrderBar(),
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                              ],
+                    return RefreshIndicator(
+                      onRefresh: _refreshHomeData,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: Center(
+                            child: SizedBox(
+                              width: effectiveMaxWidth,
+                              child: Padding(
+                                padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                    _buildNewsCarousel(),
+                                    _buildLatestAlbumsStrip(),
+                                    _buildFreeOrderBar(),
+                                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),

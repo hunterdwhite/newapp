@@ -20,6 +20,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'screens/order_selection_screen.dart';
+import 'services/firestore_service.dart';
 
 // Global navigator key for push notifications
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -268,6 +269,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late final PageController _pageController;
+  final FirestoreService _firestoreService = FirestoreService();
+  bool _hasNewCuratorOrders = false;
 
   // ─── Navigators for tabs that need sub-navigation ────────────────
   final GlobalKey<NavigatorState> _homeNavigatorKey =
@@ -288,6 +291,22 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
       MyMusicScreen(),
       ProfileScreen(),
     ];
+    
+    // Listen for new curator orders
+    _listenForNewCuratorOrders();
+  }
+  
+  void _listenForNewCuratorOrders() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _firestoreService.hasNewCuratorOrders(user.uid).listen((hasNewOrders) {
+        if (mounted) {
+          setState(() {
+            _hasNewCuratorOrders = hasNewOrders;
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -335,6 +354,7 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
       appBar: const CustomAppBarWidget(title: 'DISSONANT'),
       body: PageView(
         controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(), // Disable swipe navigation
         onPageChanged: (index) {
           setState(() => _selectedIndex = index);
         },
@@ -358,6 +378,7 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
       bottomNavigationBar: BottomNavigationWidget(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        hasNewCuratorOrders: _hasNewCuratorOrders,
       ),
     );
   }

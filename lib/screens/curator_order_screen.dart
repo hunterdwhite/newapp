@@ -344,6 +344,8 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
     final favoriteGenres = List<String>.from(curator['favoriteGenres'] ?? []);
     final rating = (curator['rating'] as num?)?.toDouble() ?? 0.0;
     final reviewCount = curator['reviewCount'] as int? ?? 0;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isCurrentUser = currentUser != null && curator['userId'] == currentUser.uid;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -508,20 +510,21 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _selectCurator(curator),
+                onPressed: isCurrentUser ? null : () => _selectCurator(curator),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE46A14),
-                  foregroundColor: Colors.white,
+                  backgroundColor: isCurrentUser ? Colors.grey[600] : const Color(0xFFE46A14),
+                  foregroundColor: isCurrentUser ? Colors.grey[400] : Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-                child: const Text(
-                  'Select This Curator',
+                child: Text(
+                  isCurrentUser ? 'Cannot Order From Yourself' : 'Select This Curator',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    color: isCurrentUser ? Colors.grey[400] : Colors.white,
                   ),
                 ),
               ),
