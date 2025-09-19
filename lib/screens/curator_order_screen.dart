@@ -111,11 +111,14 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
 
   Future<int> _getCuratorOrderCount(String curatorId) async {
     try {
+      // Force fresh data from server, not cache
+      // Only count truly completed orders: kept and returnedConfirmed
       final snapshot = await FirebaseFirestore.instance
           .collection('orders')
           .where('curatorId', isEqualTo: curatorId)
-          .where('status', whereIn: ['kept', 'returned', 'returnedConfirmed'])
-          .get();
+          .where('status', whereIn: ['kept', 'returnedConfirmed'])
+          .get(const GetOptions(source: Source.server));
+      
       return snapshot.docs.length;
     } catch (e) {
       print('Error getting curator order count: $e');
@@ -185,13 +188,23 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _buildCuratorList(),
+                    : RefreshIndicator(
+                        onRefresh: _refreshCurators,
+                        child: _buildCuratorList(),
+                      ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _refreshCurators() async {
+    setState(() {
+      _isLoading = true;
+    });
+    await _loadCurators();
   }
 
   Widget _buildHeader() {
@@ -256,6 +269,7 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
     }
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,6 +303,7 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
     }
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

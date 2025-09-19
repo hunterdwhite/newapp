@@ -95,7 +95,10 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
       String curatorMessage = '';
       if (_order != null) {
         final orderData = _order!.data() as Map<String, dynamic>?;
-        curatorMessage = orderData?['curatorMessage'] ?? '';
+        // Try both field names for backward compatibility
+        curatorMessage = orderData?['curatorNote'] ?? orderData?['curatorMessage'] ?? '';
+        print('DEBUG: MyMusic - Curator message: "$curatorMessage"');
+        print('DEBUG: MyMusic - Order data keys: ${orderData?.keys.toList()}');
       }
       
       setState(() {
@@ -193,12 +196,36 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           if (_isAlbumRevealed)
-                            Text(
-                              "Give it a listen and make your decision!",
-                              style:
-                                  TextStyle(fontSize: 24, color: Colors.white),
-                              textAlign: TextAlign.center,
-                            ),
+                            // Show curator note for curator orders, default text for regular orders
+                            _curatorMessage.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () => _showCuratorNoteDialog(),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.description,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "Note from your curator",
+                                          style: TextStyle(
+                                            fontSize: 24,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Text(
+                                    "Give it a listen and make your decision!",
+                                    style: TextStyle(fontSize: 24, color: Colors.white),
+                                    textAlign: TextAlign.center,
+                                  ),
                           SizedBox(height: 45.0),
                           Stack(
                             alignment: Alignment.center,
@@ -256,42 +283,6 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                           ),
                                           textAlign: TextAlign.center,
                                         ),
-                                      SizedBox(height: 10.0),
-                                      // Display curator message if available
-                                      if (_curatorMessage.isNotEmpty) ...[
-                                        Container(
-                                          margin: EdgeInsets.symmetric(horizontal: 16.0),
-                                          padding: EdgeInsets.all(16.0),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.7),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: Colors.orange, width: 1),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Message from your curator:',
-                                                style: TextStyle(
-                                                  color: Colors.orange,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              SizedBox(height: 8.0),
-                                              Text(
-                                                _curatorMessage,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        SizedBox(height: 10.0),
-                                      ],
                                     ],
                                   ),
                                 ),
@@ -407,4 +398,130 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
       ),
     );
   }
+
+  void _showCuratorNoteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFF4F4F4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: Colors.black, width: 2),
+        ),
+        titlePadding: EdgeInsets.zero,
+        contentPadding: EdgeInsets.zero,
+        title: Container(
+          width: double.infinity,
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFA12C),
+            border: Border(
+              bottom: BorderSide(color: Colors.black, width: 2),
+            ),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(4),
+              topRight: Radius.circular(4),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.description,
+                color: Colors.black,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Note from Your Curator',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'MS Sans Serif',
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 20,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F4F4),
+                    border: Border.all(color: Colors.black, width: 1),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '×',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: 300,
+          constraints: const BoxConstraints(maxHeight: 300),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black54, width: 1),
+                ),
+                child: Text(
+                  _curatorMessage.isNotEmpty ? _curatorMessage : 'No curator message available.',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontFamily: 'MS Sans Serif',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F4F4),
+                        border: Border.all(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'OK',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'MS Sans Serif',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 }

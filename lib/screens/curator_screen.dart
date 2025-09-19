@@ -1020,7 +1020,7 @@ class _CuratorScreenState extends State<CuratorScreen> {
               if (rating != null)
                 Row(
                   children: [
-                    ...List.generate(5, (index) {
+                    ...List.generate(3, (index) {
                       return Icon(
                         index < rating ? Icons.star : Icons.star_border,
                         color: Colors.amber,
@@ -1029,7 +1029,7 @@ class _CuratorScreenState extends State<CuratorScreen> {
                     }),
                     const SizedBox(width: 8),
                     Text(
-                      '${rating.toStringAsFixed(1)}/5.0',
+                      '${rating.toStringAsFixed(1)}/3.0',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,

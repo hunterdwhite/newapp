@@ -369,7 +369,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (!mounted) break; // Check if widget is still mounted
         
         final data = doc.data();
-        final albumId = data['details']?['albumId'] as String?;
+        // Try both locations: direct albumId for curator orders, or details.albumId for regular orders
+        final albumId = data['albumId'] ?? data['details']?['albumId'];
         
         if (albumId == null || albumId.isEmpty || processedAlbums.contains(albumId)) {
           continue;
