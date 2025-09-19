@@ -538,12 +538,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           return Text('No orders available');
                         }
 
-                        // Separate new orders
+                        // Separate new orders and ready_to_ship orders (both need action buttons)
                         final newOrders = orders
                             .where((o) =>
                                 (o.data() as Map<String, dynamic>)['status'] ==
                                 'new')
                             .toList();
+                        final readyToShipOrders = orders
+                            .where((o) =>
+                                (o.data() as Map<String, dynamic>)['status'] ==
+                                'ready_to_ship')
+                            .toList();
+                        
                         newOrders.sort((a, b) {
                           final aTs =
                               (a.data() as Map<String, dynamic>)['timestamp']
@@ -554,14 +560,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           if (aTs == null || bTs == null) return 0;
                           return bTs.compareTo(aTs);
                         });
+                        readyToShipOrders.sort((a, b) {
+                          final aTs =
+                              (a.data() as Map<String, dynamic>)['timestamp']
+                                  as Timestamp?;
+                          final bTs =
+                              (b.data() as Map<String, dynamic>)['timestamp']
+                                  as Timestamp?;
+                          if (aTs == null || bTs == null) return 0;
+                          return bTs.compareTo(aTs);
+                        });
+                        
                         final newestNewOrder =
                             newOrders.isNotEmpty ? newOrders.first : null;
+                        final newestReadyToShipOrder =
+                            readyToShipOrders.isNotEmpty ? readyToShipOrders.first : null;
 
-                        // The rest are older orders
+                        // The rest are older orders (excluding newest new and newest ready_to_ship)
                         final olderOrders = <DocumentSnapshot>[];
                         for (final order in orders) {
                           if (newestNewOrder != null &&
                               order.id == newestNewOrder.id) {
+                            continue;
+                          }
+                          if (newestReadyToShipOrder != null &&
+                              order.id == newestReadyToShipOrder.id) {
                             continue;
                           }
                           olderOrders.add(order);
@@ -621,6 +644,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         Icon(Icons.warning, color: Colors.red),
                                     ],
                                   ),
+                                  SizedBox(height: 4),
+                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
+                                ],
+                              ),
+                              trailing: _buildOrderActions(
+                                orderData,
+                                orderId,
+                                userId,
+                              ),
+                            ),
+                          );
+                        }
+
+                        // If there's a newest "ready_to_ship" order, show it in detail
+                        if (newestReadyToShipOrder != null) {
+                          final orderData =
+                              newestReadyToShipOrder.data() as Map<String, dynamic>;
+                          final orderId = newestReadyToShipOrder.id;
+                          final currentAddress = orderData['address'] ?? 'N/A';
+
+                          orderWidgets.add(
+                            ListTile(
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 8,
+                              ),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Address: $currentAddress'),
                                   SizedBox(height: 4),
                                   Text('Status: ${orderData['status'] ?? 'N/A'}'),
                                 ],

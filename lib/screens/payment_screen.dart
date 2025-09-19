@@ -36,7 +36,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String? _curatorId;
   String _review = '';
   String _curatorReview = '';
-  double _curatorRating = 5.0;
+  double _curatorRating = 0.0;
   // New: track the order's flowVersion (default to 1)
   int _flowVersion = 1;
 
@@ -77,8 +77,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         final orderData = orderDoc!.data() as Map<String, dynamic>;
         // Read flowVersion; if not present, default to 1 (old flow)
         _flowVersion = orderData['flowVersion'] ?? 1;
-        // Get albumId and curatorId from order details
-        final albumId = orderData['details']['albumId'];
+        // Get albumId and curatorId - try both new and old data structures
+        final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
         _albumId = albumId;
         _curatorId = orderData['curatorId'];
         final albumDoc = await _firestoreService.getAlbumById(albumId);
@@ -166,7 +166,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (_review.trim().isNotEmpty && _albumId != null) {
         await _submitReview(_review.trim());
       }
-      if (_curatorReview.trim().isNotEmpty && _curatorId != null) {
+      if (_curatorRating > 0 && _curatorId != null) {
         await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
       }
       if (!mounted) return;
@@ -222,7 +222,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         if (_review.trim().isNotEmpty && _albumId != null) {
           await _submitReview(_review.trim());
         }
-        if (_curatorReview.trim().isNotEmpty && _curatorId != null) {
+        if (_curatorRating > 0 && _curatorId != null) {
           await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
         }
         if (!mounted) return;
@@ -268,7 +268,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: CustomAppBarWidget(title: 'Keep Your Album'),
-      body: GrainyBackgroundWidget(
+      body: SafeArea(
+        child: GrainyBackgroundWidget(
         child: _isProcessing || _isLoading
             ? Center(child: CircularProgressIndicator())
             : GestureDetector(
@@ -278,7 +279,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   controller: _scrollController,
                   physics: ClampingScrollPhysics(),
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 80.0, bottom: 100.0, left: 16.0, right: 16.0),
+                    padding: EdgeInsets.only(
+                      top: 20.0,
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 300.0,
+                      left: 16.0,
+                      right: 16.0,
+                    ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -315,97 +321,166 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                           ),
                         SizedBox(height: 20.0),
-                        Text(
-                          'We\'re glad you enjoyed the album!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.white,
+                        // Dissonant styled review section
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F4),
+                            border: Border.all(color: Colors.black, width: 2),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                        ),
-                        SizedBox(height: 10.0),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: TextField(
-                            focusNode: _reviewFocusNode,
-                            decoration: InputDecoration(
-                              hintText: 'Write your review here...',
-                              hintStyle: TextStyle(color: Colors.grey.shade600),
-                              filled: true,
-                              fillColor: Colors.white,
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.white, width: 2),
-                                borderRadius: BorderRadius.circular(4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Title bar
+                              Container(
+                                width: double.infinity,
+                                height: 30,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFFA12C),
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.black, width: 2),
+                                  ),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(4),
+                                    topRight: Radius.circular(4),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Album Review',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.orange, width: 2),
-                                borderRadius: BorderRadius.circular(4),
+                              // Content area
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border.all(color: Colors.black54, width: 1),
+                                  ),
+                                  child: TextField(
+                                    focusNode: _reviewFocusNode,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Write your review here...',
+                                      hintStyle: TextStyle(color: Colors.grey),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.all(8),
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.black, 
+                                      fontSize: 14,
+                                      fontFamily: 'MS Sans Serif',
+                                    ),
+                                    maxLines: 4,
+                                    minLines: 3,
+                                    textInputAction: TextInputAction.newline,
+                                    onSubmitted: _handleReturnKey,
+                                    onChanged: (value) {
+                                      _review = value;
+                                    },
+                                  ),
+                                ),
                               ),
-                            ),
-                            style: TextStyle(color: Colors.black, fontSize: 16),
-                            maxLines: 4,
-                            minLines: 3,
-                            // Improved keyboard handling
-                            textInputAction: TextInputAction.newline,
-                            onSubmitted: _handleReturnKey,
-                            onChanged: (value) {
-                              _review = value;
-                            },
+                            ],
                           ),
                         ),
                         SizedBox(height: 20.0),
-                        // Curator Rating Section
-                        Text(
-                          'Rate Your Curator',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        // Dissonant styled curator rating section
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F4),
+                            border: Border.all(color: Colors.black, width: 2),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                        ),
-                        SizedBox(height: 10.0),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(5, (index) {
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _curatorRating = index + 1.0;
-                                });
-                              },
-                              child: Icon(
-                                index < _curatorRating ? Icons.star : Icons.star_border,
-                                color: Colors.orange,
-                                size: 30,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Title bar
+                              Container(
+                                width: double.infinity,
+                                height: 30,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFFA12C),
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.black, width: 2),
+                                  ),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(4),
+                                    topRight: Radius.circular(4),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Rate Your Curator',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            );
-                          }),
-                        ),
-                        SizedBox(height: 10.0),
-                        // Curator Review Field
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Leave feedback for your curator...',
-                              hintStyle: TextStyle(color: Colors.grey.shade600),
-                              filled: true,
-                              fillColor: Colors.white,
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.white, width: 2),
-                                borderRadius: BorderRadius.circular(4),
+                              // Content area
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: List.generate(3, (index) {
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _curatorRating = index + 1.0;
+                                            });
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            child: Icon(
+                                              index < _curatorRating ? Icons.star : Icons.star_border,
+                                              color: const Color(0xFFFFA12C),
+                                              size: 28,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(color: Colors.black54, width: 1),
+                                      ),
+                                      child: TextField(
+                                        decoration: const InputDecoration(
+                                          hintText: 'Leave feedback for your curator...',
+                                          hintStyle: TextStyle(color: Colors.grey),
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.all(8),
+                                        ),
+                                        style: const TextStyle(
+                                          color: Colors.black, 
+                                          fontSize: 14,
+                                          fontFamily: 'MS Sans Serif',
+                                        ),
+                                        maxLines: 3,
+                                        minLines: 2,
+                                        textInputAction: TextInputAction.newline,
+                                        onChanged: (value) {
+                                          _curatorReview = value;
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.orange, width: 2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.black, fontSize: 16),
-                            maxLines: 3,
-                            minLines: 2,
-                            textInputAction: TextInputAction.newline,
-                            onChanged: (value) {
-                              _curatorReview = value;
-                            },
+                            ],
                           ),
                         ),
                         SizedBox(height: 20.0),
@@ -442,6 +517,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
                 ),
               ),
+        ),
       ),
     );
   }

@@ -428,6 +428,8 @@ class _OrderScreenState extends State<OrderScreen> {
                                   return;
                                 }
                               }
+
+
                               await _handlePlaceOrder(user.uid);
                             }
                           },
@@ -915,6 +917,7 @@ class _OrderScreenState extends State<OrderScreen> {
            _addressValidationError = 'This address could not be validated. Please check your address and try again.';
         }
       });
+
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -935,6 +938,7 @@ class _OrderScreenState extends State<OrderScreen> {
       });
     }
   }
+
 
   Widget _buildStateDropdown() {
     Color? borderColor;

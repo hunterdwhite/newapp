@@ -182,8 +182,9 @@ class CuratorService {
   Future<Map<String, dynamic>> getCuratorRating(String curatorId) async {
     try {
       final snapshot = await _firestore
+          .collection('users')
+          .doc(curatorId)
           .collection('curatorReviews')
-          .where('curatorId', isEqualTo: curatorId)
           .get();
       
       if (snapshot.docs.isEmpty) {
@@ -214,9 +215,10 @@ class CuratorService {
   Future<List<Map<String, dynamic>>> getCuratorReviews(String curatorId) async {
     try {
       final snapshot = await _firestore
+          .collection('users')
+          .doc(curatorId)
           .collection('curatorReviews')
-          .where('curatorId', isEqualTo: curatorId)
-          .orderBy('createdAt', descending: true)
+          .orderBy('timestamp', descending: true)
           .get();
       
       final reviews = <Map<String, dynamic>>[];
@@ -263,9 +265,9 @@ class CuratorService {
           'reviewId': doc.id,
           'rating': reviewData['rating'],
           'comment': reviewData['comment'] ?? '',
-          'createdAt': reviewData['createdAt'],
+          'createdAt': reviewData['timestamp'],
           'reviewerUsername': reviewerUsername,
-          'albumTitle': albumData?['title'] ?? 'Unknown Album',
+          'albumTitle': albumData?['albumName'] ?? 'Unknown Album',
           'albumArtist': albumData?['artist'] ?? 'Unknown Artist',
           'albumCoverUrl': albumData?['coverUrl'],
         });
@@ -291,6 +293,8 @@ class CuratorService {
 
       // Check if review already exists for this order
       final existingReview = await _firestore
+          .collection('users')
+          .doc(curatorId)
           .collection('curatorReviews')
           .where('orderId', isEqualTo: orderId)
           .where('userId', isEqualTo: user.uid)
@@ -299,23 +303,27 @@ class CuratorService {
       if (existingReview.docs.isNotEmpty) {
         // Update existing review
         await _firestore
+            .collection('users')
+            .doc(curatorId)
             .collection('curatorReviews')
             .doc(existingReview.docs.first.id)
             .update({
           'rating': rating,
           'comment': comment ?? '',
-          'updatedAt': FieldValue.serverTimestamp(),
+          'timestamp': FieldValue.serverTimestamp(),
         });
       } else {
         // Create new review
-        await _firestore.collection('curatorReviews').add({
-          'curatorId': curatorId,
+        await _firestore
+            .collection('users')
+            .doc(curatorId)
+            .collection('curatorReviews')
+            .add({
           'orderId': orderId,
           'userId': user.uid,
           'rating': rating,
           'comment': comment ?? '',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
+          'timestamp': FieldValue.serverTimestamp(),
         });
       }
       
