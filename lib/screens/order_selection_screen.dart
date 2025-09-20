@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/grainy_background_widget.dart';
 import 'order_screen.dart';
+import 'curator_order_screen.dart';
 import '../main.dart';
 
 class OrderSelectionScreen extends StatefulWidget {
@@ -75,7 +76,9 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
     } else if (status == 'pending' || status == 'sent' || status == 'new') {
       message = "Thanks for placing an order! You will be able to place another once this one is completed.";
     } else {
-      message = "You can now place a new order.";
+      // Fallback for any unexpected status - should match the logic in _fetchMostRecentOrderStatus
+      print('WARNING: Unexpected order status "$status" in order selection message display');
+      message = "Thanks for placing an order! You will be able to place another once this one is completed.";
     }
     return Center(
       child: Padding(
@@ -136,9 +139,16 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                       height: 64,
                     ),
                     title: 'Community\nCurators',
-                    subtitle: 'Coming soon',
-                    onTap: null,
-                    isEnabled: false,
+                    subtitle: 'Choose your curator',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CuratorOrderScreen(),
+                        ),
+                      );
+                    },
+                    isEnabled: true,
                   ),
                 ),
               ],

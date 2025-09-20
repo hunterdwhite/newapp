@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import '../widgets/retro_button_widget.dart';
 import '../widgets/grainy_background_widget.dart';
-import '../widgets/retro_form_container_widget.dart';
 import 'link_discogs_screen.dart';
 import 'taste_profile_screen.dart';
 import 'change_password_screen.dart';
-import 'profile_customization_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Add this import
+ // Add this import
 
 import 'admin_dashboard_screen.dart'; // <-- For Admin Dashboard
 import 'welcome_screen.dart';         // <-- For Logout
@@ -204,19 +202,6 @@ class _OptionsScreenState extends State<OptionsScreen> {
                           fixedHeight: true,
                         ),
                         SizedBox(height: 20),
-                        // Profile Customization
-                        RetroButtonWidget(
-                          text: 'Customize Profile',
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => ProfileCustomizationScreen()),
-                            );
-                          },
-                          style: RetroButtonStyle.light,
-                          fixedHeight: true,
-                        ),
-                        SizedBox(height: 20),
                         // Change Password
                         RetroButtonWidget(
                           text: 'Change Password',
@@ -261,6 +246,14 @@ class _OptionsScreenState extends State<OptionsScreen> {
                               );
                             },
                             style: RetroButtonStyle.light,
+                            fixedHeight: true,
+                          ),
+                          SizedBox(height: 20),
+                          // Admin-only logout button
+                          RetroButtonWidget(
+                            text: 'Logout',
+                            onPressed: _logout,
+                            style: RetroButtonStyle.dark,
                             fixedHeight: true,
                           ),
                           SizedBox(height: 20),

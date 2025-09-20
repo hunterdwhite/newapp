@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
@@ -12,10 +11,9 @@ import '../services/firestore_service.dart';
 import '../models/album_model.dart';
 import '../models/feed_item_model.dart';
 import 'feed_screen.dart';
-import 'album_detail_screen.dart';
 import 'earn_credits_screen.dart';
 import '../main.dart'; // for MyHomePage.of(context)
-import '../widgets/windows95_window.dart'; // Corrected import for Windows95WindowWidget
+ // Corrected import for Windows95WindowWidget
 import '../constants/responsive_utils.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -371,7 +369,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (!mounted) break; // Check if widget is still mounted
         
         final data = doc.data();
-        final albumId = data['details']?['albumId'] as String?;
+        // Try both locations: direct albumId for curator orders, or details.albumId for regular orders
+        final albumId = data['albumId'] ?? data['details']?['albumId'];
         
         if (albumId == null || albumId.isEmpty || processedAlbums.contains(albumId)) {
           continue;
@@ -1104,6 +1103,23 @@ Widget _buildLatestAlbumsStrip() {
     }
   }
 
+  Future<void> _refreshHomeData() async {
+    // Refresh all home screen data
+    setState(() {
+      _newsLoading = true;
+      _latestLoading = true;
+      _creditsLoading = true;
+      _pageReady = false;
+    });
+    
+    // Reload all data
+    await Future.wait([
+      _loadAnnouncements(),
+      _fetchLatestAlbums(),
+      _fetchFreeOrderCredits(),
+    ]);
+  }
+
   /* ─────────────────────────  MAIN BUILD  ───────────────────────── */
 
   @override
@@ -1120,22 +1136,28 @@ Widget _buildLatestAlbumsStrip() {
                         constraints.maxWidth : 
                         constraints.maxWidth.clamp(0, maxWidth);
                     
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                      child: Center(
-                        child: SizedBox(
-                          width: effectiveMaxWidth,
-                          child: Padding(
-                            padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                                _buildNewsCarousel(),
-                                _buildLatestAlbumsStrip(),
-                                _buildFreeOrderBar(),
-                                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                              ],
+                    return RefreshIndicator(
+                      onRefresh: _refreshHomeData,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: Center(
+                            child: SizedBox(
+                              width: effectiveMaxWidth,
+                              child: Padding(
+                                padding: ResponsiveUtils.getResponsiveHorizontalPadding(context),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                    _buildNewsCarousel(),
+                                    _buildLatestAlbumsStrip(),
+                                    _buildFreeOrderBar(),
+                                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),

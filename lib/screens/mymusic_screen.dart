@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
-import '/services/firestore_service.dart';
 import 'payment_screen.dart';
 import 'return_album_screen.dart';
 import '../widgets/grainy_background_widget.dart';
@@ -15,7 +14,6 @@ class MyMusicScreen extends StatefulWidget {
 }
 
 class _MyMusicScreenState extends State<MyMusicScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
   bool _isLoading = true;
   bool _hasOrdered = false;
   bool _orderSent = false;
@@ -26,6 +24,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
   DocumentSnapshot? _order;
   String _currentImage = 'assets/blank_cd.png'; // Placeholder image
   String _albumInfo = ''; // Album information
+  String _curatorMessage = ''; // Curator's message
   bool _isAlbumRevealed = false;
   bool _isDragging = false; // Track if the user is dragging
   double _rotationAngle = 0.0; // Track rotation based on drag distance
@@ -57,6 +56,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
           if (mounted) {
             String status =
                 orderData['status'] ?? ''; // Handle missing 'status' field
+            print('DEBUG: MyMusic - Order status: "$status"'); // Debug logging
             setState(() {
               _hasOrdered = true;
               _order = order;
@@ -89,11 +89,22 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     }
   }
 
-  void _updateImageAndInfo(String imageUrl, String albumInfo) {
+  void _updateImageAndInfo(String imageUrl, String albumInfo) async {
     if (mounted) {
+      // Fetch curator message from the order
+      String curatorMessage = '';
+      if (_order != null) {
+        final orderData = _order!.data() as Map<String, dynamic>?;
+        // Try both field names for backward compatibility
+        curatorMessage = orderData?['curatorNote'] ?? orderData?['curatorMessage'] ?? '';
+        print('DEBUG: MyMusic - Curator message: "$curatorMessage"');
+        print('DEBUG: MyMusic - Order data keys: ${orderData?.keys.toList()}');
+      }
+      
       setState(() {
         _currentImage = imageUrl;
         _albumInfo = albumInfo;
+        _curatorMessage = curatorMessage;
         _isAlbumRevealed = true;
         _isDragging = false; // Stop dragging when album is revealed
         _rotationAngle = 0.0; // Reset rotation
@@ -106,6 +117,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     setState(() {
       _currentImage = 'assets/blank_cd.png';
       _albumInfo = '';
+      _curatorMessage = '';
       _isAlbumRevealed = false;
       _isDragging = false; // Ensure dragging is reset
       _rotationAngle = 0.0; // Reset rotation
@@ -141,8 +153,6 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-
-    final orderData = _order?.data() as Map<String, dynamic>?;
 
     // Display message based on order status
     if (_orderReturned) {
@@ -186,12 +196,36 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           if (_isAlbumRevealed)
-                            Text(
-                              "Give it a listen and make your decision!",
-                              style:
-                                  TextStyle(fontSize: 24, color: Colors.white),
-                              textAlign: TextAlign.center,
-                            ),
+                            // Show curator note for curator orders, default text for regular orders
+                            _curatorMessage.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () => _showCuratorNoteDialog(),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.description,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "Note from your curator",
+                                          style: TextStyle(
+                                            fontSize: 24,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Text(
+                                    "Give it a listen and make your decision!",
+                                    style: TextStyle(fontSize: 24, color: Colors.white),
+                                    textAlign: TextAlign.center,
+                                  ),
                           SizedBox(height: 45.0),
                           Stack(
                             alignment: Alignment.center,
@@ -238,6 +272,17 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                         ),
                                       ),
                                       SizedBox(height: 10.0),
+                                      // Display album information
+                                      if (_albumInfo.isNotEmpty)
+                                        Text(
+                                          _albumInfo,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -353,4 +398,130 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
       ),
     );
   }
+
+  void _showCuratorNoteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFF4F4F4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: Colors.black, width: 2),
+        ),
+        titlePadding: EdgeInsets.zero,
+        contentPadding: EdgeInsets.zero,
+        title: Container(
+          width: double.infinity,
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFA12C),
+            border: Border(
+              bottom: BorderSide(color: Colors.black, width: 2),
+            ),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(4),
+              topRight: Radius.circular(4),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.description,
+                color: Colors.black,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Note from Your Curator',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'MS Sans Serif',
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 20,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F4F4),
+                    border: Border.all(color: Colors.black, width: 1),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '×',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: 300,
+          constraints: const BoxConstraints(maxHeight: 300),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black54, width: 1),
+                ),
+                child: Text(
+                  _curatorMessage.isNotEmpty ? _curatorMessage : 'No curator message available.',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontFamily: 'MS Sans Serif',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F4F4),
+                        border: Border.all(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'OK',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'MS Sans Serif',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 }

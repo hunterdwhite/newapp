@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/grainy_background_widget.dart';
-import '../widgets/retro_button_widget.dart';
 import '../services/referral_service.dart';
 import 'home_screen.dart';
 
@@ -1099,6 +1098,13 @@ class _ReferredUsersDialogState extends State<_ReferredUsersDialog> {
       debugPrint('DEBUG: Dialog - Loading referred users for userId: ${widget.userId}');
       final referredUsers = await ReferralService.getReferredUsers(widget.userId);
       debugPrint('DEBUG: Dialog - Received ${referredUsers.length} referred users');
+      
+      // Log each referred user for debugging
+      for (int i = 0; i < referredUsers.length; i++) {
+        final user = referredUsers[i];
+        debugPrint('DEBUG: Dialog - Referred user $i: ${user}');
+      }
+      
       if (mounted) {
         setState(() {
           _referredUsers = referredUsers;

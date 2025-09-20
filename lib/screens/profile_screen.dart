@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'my_music_library_screen.dart';
 import 'wishlist_screen.dart';
 import 'options_screen.dart';
+import 'profile_customization_screen.dart';
 
 // Import your custom grainy background widget:
 import '../widgets/grainy_background_widget.dart';
@@ -42,6 +43,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _favoriteAlbumId;
   String _favoriteAlbumTitle = '';
   String _favoriteAlbumCover = '';
+
+  // Curator info
+  bool _isCurator = false;
 
   bool _isLoading = true;
   bool _isOwnProfile = false;
@@ -77,6 +81,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userData = userDoc.data()!;
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
+
+      // Load curator info
+      _isCurator = userData['isCurator'] ?? false;
 
       // Load profile customization
       final customization = userData['profileCustomization'] as Map<String, dynamic>?;
@@ -205,6 +212,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _refreshProfileData() async {
+    // Refresh all profile data
+    await _fetchProfileData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,20 +224,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
-                    mobile: 16, tablet: 24, desktop: 32),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
-                    ),
-                    child: Column(
+              : RefreshIndicator(
+                  onRefresh: _refreshProfileData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+                      mobile: 16, tablet: 24, desktop: 32),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
+                      ),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeaderRow(),
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
                         Center(child: _buildProfileAvatar()),
                         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 20, tablet: 24, desktop: 28)),
+                        // Curator badge section (if curator)
+                        if (_isCurator) ...[
+                          _buildCuratorBadgeSection(),
+                          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+                        ],
                         // Profile customization sections
                         if (_bio.isNotEmpty) ...[
                           _buildBioSection(),
@@ -249,6 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
+              ),
         ),
       ),
     );
@@ -258,25 +279,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Show the user's Firestore "username"
-        Text(
-          _username,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 22, tablet: 24, desktop: 26),
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  _username,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 22, tablet: 24, desktop: 26),
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_isCurator) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE46A14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'CURATOR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        // If it's their own profile, show a white settings icon
+        // If it's their own profile, show edit and settings icons
         if (_isOwnProfile)
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => OptionsScreen()),
-              );
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ProfileCustomizationScreen()),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => OptionsScreen()),
+                  );
+                },
+              ),
+            ],
           ),
       ],
     );
@@ -662,6 +723,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCuratorBadgeSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE46A14), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.music_note,
+            color: Color(0xFFE46A14),
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'You\'re a Community Curator!',
+                  style: TextStyle(
+                    color: Color(0xFFE46A14),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'You curate music for the community',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -168,9 +168,24 @@ class _FeedScreenState extends State<FeedScreen> {
         }
       }
 
+      /* ── CURATOR (if this is a curated order) ─────────────────────────────────────────────── */
+      final curatorId = data['curatorId'];
+      String curatorUsername = '';
+      String curatorProfilePictureUrl = '';
+      
+      if (curatorId != null && (curatorId as String).isNotEmpty) {
+        final curatorDoc =
+            await FirebaseFirestore.instance.collection('users').doc(curatorId).get();
+        if (curatorDoc.exists) {
+          final c = curatorDoc.data() ?? {};
+          curatorUsername = c['username'] ?? '';
+          curatorProfilePictureUrl = c['profilePictureUrl'] ?? '';
+        }
+      }
 
       /* ── album ── */
-      final albumId = data['details']?['albumId'];
+      // Try both locations: direct albumId for curator orders, or details.albumId for regular orders
+      final albumId = data['albumId'] ?? data['details']?['albumId'];
       if (albumId == null || (albumId as String).isEmpty) continue;
 
       final albumDoc =
@@ -186,7 +201,10 @@ class _FeedScreenState extends State<FeedScreen> {
           userId: userId,
           status: data['status'],
           album: album,
-          profilePictureUrl: profilePictureUrl ,
+          profilePictureUrl: profilePictureUrl,
+          curatorUsername: curatorUsername.isNotEmpty ? curatorUsername : null,
+          curatorId: curatorId as String?,
+          curatorProfilePictureUrl: curatorProfilePictureUrl.isNotEmpty ? curatorProfilePictureUrl : null,
         ),
       );
     }
@@ -228,59 +246,162 @@ class _FeedScreenState extends State<FeedScreen> {
             /* ――― top bar ――― */
             Padding(
               padding: const EdgeInsets.only(left: 20, right: 12),
-              child: Row(
-                children: [
-                  // ONE avatar, wrapped to make it tappable
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PublicProfileScreen(userId: item.userId),
+              child: item.isCurated 
+                  ? Column(
+                      children: [
+                        // Top row: Curator info (left aligned)
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PublicProfileScreen(userId: item.curatorId!),
+                                  ),
+                                );
+                              },
+                              child: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.grey.shade700,
+                                backgroundImage: item.curatorProfilePictureUrl != null && item.curatorProfilePictureUrl!.isNotEmpty
+                                    ? NetworkImage(item.curatorProfilePictureUrl!)
+                                    : null,
+                                child: item.curatorProfilePictureUrl == null || item.curatorProfilePictureUrl!.isEmpty
+                                    ? const Icon(Icons.person, size: 18, color: Colors.white)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PublicProfileScreen(userId: item.curatorId!),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                item.curatorUsername ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'curated',
+                              style: TextStyle(fontSize: 14, color: Colors.white70),
+                            ),
+                            const Spacer(),
+                          ],
                         ),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.grey.shade700,
-                      backgroundImage: item.profilePictureUrl.isNotEmpty
-                          ? NetworkImage(item.profilePictureUrl)
-                          : null,
-                      child: item.profilePictureUrl.isEmpty
-                          ? const Icon(Icons.person, size: 20, color: Colors.white)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // username (still tappable as before)
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PublicProfileScreen(userId: item.userId),
+                        const SizedBox(height: 4),
+                        // Bottom row: User info (left aligned)
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PublicProfileScreen(userId: item.userId),
+                                  ),
+                                );
+                              },
+                              child: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.grey.shade700,
+                                backgroundImage: item.profilePictureUrl.isNotEmpty
+                                    ? NetworkImage(item.profilePictureUrl)
+                                    : null,
+                                child: item.profilePictureUrl.isEmpty
+                                    ? const Icon(Icons.person, size: 18, color: Colors.white)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PublicProfileScreen(userId: item.userId),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                item.username,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              actionText,
+                              style: const TextStyle(fontSize: 16, color: Colors.white70),
+                            ),
+                            const Spacer(),
+                          ],
                         ),
-                      );
-                    },
-                    child: Text(
-                      item.username,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        // Regular order display (unchanged)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PublicProfileScreen(userId: item.userId),
+                              ),
+                            );
+                          },
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.grey.shade700,
+                            backgroundImage: item.profilePictureUrl.isNotEmpty
+                                ? NetworkImage(item.profilePictureUrl)
+                                : null,
+                            child: item.profilePictureUrl.isEmpty
+                                ? const Icon(Icons.person, size: 20, color: Colors.white)
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PublicProfileScreen(userId: item.userId),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            item.username,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          actionText,
+                          style: const TextStyle(fontSize: 16, color: Colors.white70),
+                        ),
+                        const Spacer(),
+                      ],
                     ),
-                  ),
-
-                  const SizedBox(width: 6),
-                  Text(
-                    actionText,
-                    style: const TextStyle(fontSize: 16, color: Colors.white70),
-                  ),
-                  const Spacer(),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),

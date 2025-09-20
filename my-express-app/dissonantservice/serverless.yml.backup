@@ -3,6 +3,16 @@ service: my-express-app
 provider:
   name: aws
   runtime: nodejs20.x
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+            - ses:GetSendQuota
+            - ses:GetSendStatistics
+          Resource: "*"
   environment:
     STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY, 'test'}
     SHIPPO_TOKEN: ${env:SHIPPO_TOKEN, 'test'}
@@ -12,10 +22,10 @@ provider:
     WAREHOUSE_STATE: ${env:WAREHOUSE_STATE, 'NY'}
     WAREHOUSE_ZIP: ${env:WAREHOUSE_ZIP, '10019'}
     WAREHOUSE_COUNTRY: ${env:WAREHOUSE_COUNTRY, 'US'}
-    EMAIL_USER: ${env:EMAIL_USER, 'no-reply@dissonanthq.com'}
+    EMAIL_USER: ${env:EMAIL_USER, 'dissonant.helpdesk@gmail.com'}
     WAREHOUSE_EMAIL: ${env:WAREHOUSE_EMAIL, 'dissonant.helpdesk@gmail.com'}
     FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID, 'dissonantapp2'}
-    SENDGRID_API_KEY: ${env:SENDGRID_API_KEY, ''}
+    AWS_SES_REGION: ${env:AWS_SES_REGION, 'us-east-1'}
 
 functions:
   app:
@@ -52,9 +62,5 @@ functions:
           cors: true
       - http:
           path: test-shipping-emails
-          method: post
-          cors: true
-      - http:
-          path: test-webhook
           method: post
           cors: true

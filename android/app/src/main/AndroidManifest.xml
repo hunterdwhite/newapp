@@ -10,6 +10,11 @@
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/NormalTheme"
         android:enableOnBackInvokedCallback="true">
+        
+        <!-- Enable 16KB page size support (required for Android 15+) -->
+        <meta-data
+            android:name="android.app.supports_16kb_pages"
+            android:value="true" />
 
         <!-- Main Activity (Make sure MainActivity.kt extends FlutterFragmentActivity) -->
         <activity

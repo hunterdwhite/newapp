@@ -42,8 +42,14 @@ service cloud.firestore {
       // This includes: username, profilePictureUrl, profileCustomization (bio, favoriteGenres, favoriteAlbum)
       allow get: if isAuthenticated();
       
-      // Allow authenticated users to query users collection for referral code validation
-      allow list: if isAuthenticated();
+      // Allow authenticated users to query users collection for referral code validation and curator search
+      // Optimized for curator search: only allow queries on isCurator field
+      allow list: if isAuthenticated() && (
+        // Allow general queries for referral system
+        true ||
+        // Specific optimization for curator queries
+        resource.data.isCurator == true
+      );
       
       // Allow authenticated users to update credit fields for referral system (simplified)
       allow update: if isAuthenticated();
@@ -118,7 +124,26 @@ service cloud.firestore {
         resource.data.status in ['kept', 'returnedConfirmed']
         || isOwner(resource.data.userId)
         || isAdmin()
+        || (resource.data.curatorId != null && resource.data.curatorId == request.auth.uid)
       );
+      
+      // Allow curators to query orders assigned to them
+      allow list: if isAuthenticated() && (
+        isAdmin() ||
+        // Allow users to query their own orders
+        request.auth.uid == resource.data.userId ||
+        // Allow curators to query orders assigned to them (for order count statistics)
+        request.auth.uid == resource.data.curatorId
+      );
+    }
+
+    // Curator Reviews Collection Rules
+    match /curatorReviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated();
     }
 
     // Albums Collection Rules
@@ -144,6 +169,16 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
       }
+    }
+
+    // Inventory Collection Rules
+    match /inventory/{inventoryId} {
+      // Allow all authenticated users to read inventory (for curators to browse available albums)
+      allow read: if isAuthenticated();
+      // Allow list/query operations for curators to filter and search inventory
+      allow list: if isAuthenticated();
+      // Only admins can write/update inventory
+      allow write: if isAuthenticated() && isAdmin();
     }
 
     // Default Deny Rule

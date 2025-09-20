@@ -8,12 +8,10 @@ import 'package:path/path.dart' as path;
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/album_model.dart';
-import '../widgets/app_bar_widget.dart';
 import '../widgets/dialog/genre_selection_dialog.dart';
 import '../widgets/dialog/review_dialog.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/windows95_window.dart';
-import '../widgets/retro_button_widget.dart';
 import '../widgets/album_image_widget.dart';
 import '../services/firestore_service.dart';
 import 'public_profile_screen.dart';
