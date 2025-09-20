@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import '../screens/home_screen.dart';
 
@@ -224,12 +223,22 @@ class ReferralService {
   static Future<List<Map<String, dynamic>>> getReferredUsers(String userId) async {
     try {
       print('DEBUG: getReferredUsers for userId: $userId');
+      print('DEBUG: Querying referrals collection with referrerId: $userId');
+      
       final referralsQuery = await _firestore
           .collection('referrals')
           .where('referrerId', isEqualTo: userId)
-          .get();
+          .get(const GetOptions(source: Source.server));
       
       print('DEBUG: Found ${referralsQuery.docs.length} referral documents for referred users');
+      
+      // Log all referral documents found
+      for (int i = 0; i < referralsQuery.docs.length; i++) {
+        final doc = referralsQuery.docs[i];
+        final data = doc.data();
+        print('DEBUG: Referral doc $i: ${doc.id}');
+        print('DEBUG: Referral data $i: $data');
+      }
       
       List<Map<String, dynamic>> referredUsers = [];
       
@@ -241,14 +250,11 @@ class ReferralService {
         final userDoc = await _firestore.collection('users').doc(referredUserId).get();
         final userData = userDoc.exists ? userDoc.data()! : {};
         
-        // Check if user has placed any orders
-        final ordersQuery = await _firestore
-            .collection('orders')
-            .where('userId', isEqualTo: referredUserId)
-            .limit(1)
-            .get();
+        // Use the hasPlacedFirstOrder field from the referral record instead of recalculating
+        // This is more reliable and matches the actual referral system logic
+        final hasPlacedFirstOrder = referralData['hasPlacedFirstOrder'] ?? false;
         
-        final hasPlacedOrder = ordersQuery.docs.isNotEmpty;
+        print('DEBUG: getReferredUsers - referredUserId: $referredUserId, hasPlacedFirstOrder: $hasPlacedFirstOrder, firstOrderCreditAwarded: ${referralData['firstOrderCreditAwarded'] ?? false}');
         
         referredUsers.add({
           'referralId': referralDoc.id,
@@ -256,7 +262,7 @@ class ReferralService {
           'referredUserEmail': userData['email'] ?? 'Unknown',
           'referredUserDisplayName': userData['username'] ?? userData['displayName'] ?? 'Unknown User',
           'joinedAt': referralData['createdAt'],
-          'hasPlacedFirstOrder': hasPlacedOrder,
+          'hasPlacedFirstOrder': hasPlacedFirstOrder,
           'firstOrderCreditAwarded': referralData['firstOrderCreditAwarded'] ?? false,
         });
       }
@@ -323,8 +329,15 @@ Download now and join the movement!''';
       final firstOrderReferrals = await _firestore
           .collection('referrals')
           .where('referrerId', isEqualTo: userId)
-          .where('firstOrderCreditAwarded', isEqualTo: true)
+          .where('hasPlacedFirstOrder', isEqualTo: true)
           .get(const GetOptions(source: Source.server));
+      
+      print('DEBUG: getReferralStats - firstOrderReferrals count: ${firstOrderReferrals.docs.length}');
+      for (int i = 0; i < firstOrderReferrals.docs.length; i++) {
+        final doc = firstOrderReferrals.docs[i];
+        final data = doc.data();
+        print('DEBUG: firstOrderReferral $i: hasPlacedFirstOrder=${data['hasPlacedFirstOrder']}, firstOrderCreditAwarded=${data['firstOrderCreditAwarded']}');
+      }
       
       return {
         'referralCode': referralCode,

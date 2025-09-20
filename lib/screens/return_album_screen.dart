@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
 import '../widgets/app_bar_widget.dart';
@@ -25,9 +24,12 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
   String _ownAlbum = 'Yes';
   String _likedAlbum = 'Yes!';
   String _review = '';
+  String _curatorReview = '';
+  double _curatorRating = 0.0;
   String _albumCoverUrl = '';
   String _albumInfo = '';
   String? _albumId;
+  String? _curatorId;
   int _flowVersion = 1;
 
   @override
@@ -42,8 +44,10 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
       if (orderDoc != null && orderDoc.exists) {
         final orderData = orderDoc.data() as Map<String, dynamic>;
         _flowVersion = orderData['flowVersion'] ?? 1;
-        final albumId = orderData['details']['albumId'] as String;
+        // Get albumId - try both new and old data structures
+        final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
         _albumId = albumId;
+        _curatorId = orderData['curatorId'];
 
         final albumDoc = await _firestoreService.getAlbumById(albumId);
         if (albumDoc.exists) {
@@ -87,6 +91,19 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     );
   }
 
+  Future<void> _submitCuratorReview(String comment, double rating) async {
+    if (_curatorId == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await _firestoreService.addCuratorReview(
+      curatorId: _curatorId!,
+      userId: user.uid,
+      orderId: widget.orderId,
+      comment: comment,
+      rating: rating,
+    );
+  }
+
   // Helper method to dismiss keyboard
   void _dismissKeyboard() {
     FocusScope.of(context).unfocus();
@@ -114,6 +131,9 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
       if (_review.trim().isNotEmpty && _albumId != null) {
         await _submitReview(_review.trim());
       }
+      if (_curatorRating > 0 && _curatorId != null) {
+        await _submitCuratorReview(_curatorReview.trim(), _curatorRating);
+      }
 
       await _firestoreService.updateOrderStatus(widget.orderId, 'returned');
 
@@ -133,16 +153,21 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: CustomAppBarWidget(title: 'Return Album'),
-      body: GrainyBackgroundWidget(
+      body: SafeArea(
+        child: GrainyBackgroundWidget(
         child: _isSubmitting || _isLoading
             ? Center(child: CircularProgressIndicator())
             : GestureDetector(
                 // Add tap-to-dismiss keyboard functionality
                 onTap: _dismissKeyboard,
-                child: Center(
-                  child: SingleChildScrollView(
-                    physics: ClampingScrollPhysics(),
-                    padding: const EdgeInsets.all(16.0),
+                child: SingleChildScrollView(
+                  physics: ClampingScrollPhysics(),
+                  padding: EdgeInsets.only(
+                    top: 16.0,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 300.0,
+                    left: 16.0,
+                    right: 16.0,
+                  ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -166,79 +191,192 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
                           ),
                         ),
                       const SizedBox(height: 24),
-                      Text(
-                        'Return Feedback',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      // Dissonant styled feedback form
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F4F4),
+                          border: Border.all(color: Colors.black, width: 2),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Form(
-                        key: _formKey,
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildDropdown(
-                              label: 'Had you heard this album before?',
-                              value: _heardBefore,
-                              onChanged: (val) => setState(() => _heardBefore = val!),
-                              options: ['Yes', 'No'],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildDropdown(
-                              label: 'Do you already own this album?',
-                              value: _ownAlbum,
-                              onChanged: (val) => setState(() => _ownAlbum = val!),
-                              options: ['Yes', 'No'],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildDropdown(
-                              label: 'Did you like this album?',
-                              value: _likedAlbum,
-                              onChanged: (val) => setState(() => _likedAlbum = val!),
-                              options: ['Yes!', 'Meh', 'Nah'],
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              decoration: InputDecoration(
-                                labelText: 'Leave a review!',
-                                labelStyle: TextStyle(color: Colors.white),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
+                            // Title bar
+                            Container(
+                              width: double.infinity,
+                              height: 30,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFFA12C),
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.black, width: 2),
                                 ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white, width: 2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.orange, width: 2),
-                                  borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(4),
+                                  topRight: Radius.circular(4),
                                 ),
                               ),
-                              style: TextStyle(color: Colors.black, fontSize: 16),
-                              maxLines: 3,
-                              // Improved keyboard handling
-                              textInputAction: TextInputAction.newline,
-                              onFieldSubmitted: _handleReturnKey,
-                              onChanged: (value) => _review = value,
+                              child: const Text(
+                                'Return Feedback',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 24),
-                            RetroButtonWidget(
-                              text: 'Submit Feedback',
-                              onPressed: _submitForm,
-                              style: RetroButtonStyle.light,
+                            // Content area
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    _buildDropdown(
+                                      label: 'Had you heard this album before?',
+                                      value: _heardBefore,
+                                      onChanged: (val) => setState(() => _heardBefore = val!),
+                                      options: ['Yes', 'No'],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildDropdown(
+                                      label: 'Do you already own this album?',
+                                      value: _ownAlbum,
+                                      onChanged: (val) => setState(() => _ownAlbum = val!),
+                                      options: ['Yes', 'No'],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildDropdown(
+                                      label: 'Did you like this album?',
+                                      value: _likedAlbum,
+                                      onChanged: (val) => setState(() => _likedAlbum = val!),
+                                      options: ['Yes!', 'Meh', 'Nah'],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Review field
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Leave a review!',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 14,
+                                            fontFamily: 'MS Sans Serif',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border.all(color: Colors.black54, width: 1),
+                                          ),
+                                          child: TextFormField(
+                                            decoration: const InputDecoration(
+                                              border: InputBorder.none,
+                                              contentPadding: EdgeInsets.all(8),
+                                            ),
+                                            style: const TextStyle(
+                                              color: Colors.black, 
+                                              fontSize: 14,
+                                              fontFamily: 'MS Sans Serif',
+                                            ),
+                                            maxLines: 3,
+                                            textInputAction: TextInputAction.newline,
+                                            onFieldSubmitted: _handleReturnKey,
+                                            onChanged: (value) => _review = value,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    // Curator Rating Section
+                                    const Text(
+                                      'Rate Your Curator',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                        fontFamily: 'MS Sans Serif',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: List.generate(3, (index) {
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _curatorRating = index + 1.0;
+                                            });
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            child: Icon(
+                                              index < _curatorRating ? Icons.star : Icons.star_border,
+                                              color: const Color(0xFFFFA12C),
+                                              size: 28,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Curator Review Field
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Leave feedback for your curator!',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 14,
+                                            fontFamily: 'MS Sans Serif',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border.all(color: Colors.black54, width: 1),
+                                          ),
+                                          child: TextFormField(
+                                            decoration: const InputDecoration(
+                                              border: InputBorder.none,
+                                              contentPadding: EdgeInsets.all(8),
+                                            ),
+                                            style: const TextStyle(
+                                              color: Colors.black, 
+                                              fontSize: 14,
+                                              fontFamily: 'MS Sans Serif',
+                                            ),
+                                            maxLines: 3,
+                                            textInputAction: TextInputAction.newline,
+                                            onFieldSubmitted: _handleReturnKey,
+                                            onChanged: (value) => _curatorReview = value,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    RetroButtonWidget(
+                                      text: 'Submit Feedback',
+                                      onPressed: _submitForm,
+                                      style: RetroButtonStyle.light,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
                       ],
                     ),
-                  ),
                 ),
               ),
+        ),
       ),
     );
   }
@@ -249,24 +387,53 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     required void Function(String?) onChanged,
     required List<String> options,
   }) {
-    return DropdownButtonFormField<String>(
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: Colors.white),
-        filled: true,
-        fillColor: Colors.white10,
-        border: OutlineInputBorder(),
-      ),
-      dropdownColor: Colors.black87,
-      style: TextStyle(color: Colors.white),
-      value: value,
-      items: options.map((opt) {
-        return DropdownMenuItem(
-          value: opt,
-          child: Text(opt, style: TextStyle(color: Colors.white)),
-        );
-      }).toList(),
-      onChanged: onChanged,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 14,
+            fontFamily: 'MS Sans Serif',
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.black54, width: 1),
+          ),
+          child: DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+            dropdownColor: const Color(0xFFF4F4F4),
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 14,
+              fontFamily: 'MS Sans Serif',
+            ),
+            value: value,
+            items: options.map((opt) {
+              return DropdownMenuItem(
+                value: opt,
+                child: Text(
+                  opt, 
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontFamily: 'MS Sans Serif',
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }

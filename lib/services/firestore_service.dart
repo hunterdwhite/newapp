@@ -253,6 +253,27 @@ class FirestoreService {
     });
   }
 
+  Future<void> addCuratorReview({
+    required String curatorId,
+    required String userId,
+    required String orderId,
+    required String comment,
+    required double rating,
+  }) {
+    final reviewRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(curatorId)
+        .collection('curatorReviews')
+        .doc();
+    return reviewRef.set({
+      'userId': userId,
+      'orderId': orderId,
+      'comment': comment,
+      'rating': rating,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateReview({
     required String albumId,
     required String reviewId,
@@ -474,6 +495,16 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
 }
 
 
+  /// Get stream of new curator orders for the current user
+  Stream<bool> hasNewCuratorOrders(String curatorId) {
+    return _firestore
+        .collection('orders')
+        .where('curatorId', isEqualTo: curatorId)
+        .where('status', isEqualTo: 'curator_assigned')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.isNotEmpty);
+  }
+
   Future<void> updateOrderReturnStatus(
       String orderId, bool returnConfirmed) async {
     await _firestore.collection('orders').doc(orderId).update({
@@ -482,7 +513,7 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     });
   }
 
-  Future<void> addOrder(String userId, String address, {int flowVersion = 1,}) async {
+  Future<void> addOrder(String userId, String address, {int flowVersion = 1, String? curatorId}) async {
     // Check if this is the user's first order
     QuerySnapshot existingOrders = await _firestore
         .collection('orders')
@@ -491,15 +522,22 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     
     bool isFirstOrder = existingOrders.docs.isEmpty;
 
-    await _firestore.collection('orders').add({
+    final orderData = {
       'userId': userId,
       'address': address,
-      'status': 'new',
+      'status': curatorId != null ? 'curator_assigned' : 'new',
       'flowVersion': flowVersion,
       'timestamp': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(), 
       'details': {},
-    });
+    };
+    
+    // Add curator ID if provided
+    if (curatorId != null) {
+      orderData['curatorId'] = curatorId;
+    }
+    
+    await _firestore.collection('orders').add(orderData);
 
     await _firestore.collection('users').doc(userId).update({
       'hasOrdered': true,
@@ -628,6 +666,15 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
 
   Future<List<DocumentSnapshot>> getAllAlbums() async {
     QuerySnapshot snapshot = await _firestore.collection('albums').get();
+    return snapshot.docs;
+  }
+
+  /// Get all available inventory items (albums that are actually in stock)
+  Future<List<DocumentSnapshot>> getAvailableInventory() async {
+    QuerySnapshot snapshot = await _firestore
+        .collection('inventory')
+        .where('quantity', isGreaterThan: 0)
+        .get();
     return snapshot.docs;
   }
 

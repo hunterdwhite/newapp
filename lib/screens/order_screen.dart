@@ -17,6 +17,10 @@ import 'home_screen.dart';
 import '../constants/responsive_utils.dart';
 
 class OrderScreen extends StatefulWidget {
+  final String? selectedCuratorId;
+  
+  const OrderScreen({Key? key, this.selectedCuratorId}) : super(key: key);
+  
   @override
   _OrderScreenState createState() => _OrderScreenState();
 }
@@ -195,17 +199,50 @@ class _OrderScreenState extends State<OrderScreen> {
       message =
           "Thanks for placing an order! You will be able to place another once this one is completed.";
     } else {
-      message = "You can now place a new order.";
+      // Fallback for any unexpected status - should match the logic in _fetchMostRecentOrderStatus
+      print('WARNING: Unexpected order status "$status" in message display');
+      message = "Thanks for placing an order! You will be able to place another once this one is completed.";
     }
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          message,
-          style: TextStyle(fontSize: 24, color: Colors.white),
-          textAlign: TextAlign.center,
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            message,
+            style: TextStyle(fontSize: 24, color: Colors.white),
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: const Text(
+            '<',
+            style: TextStyle(
+              fontSize: 24,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            widget.selectedCuratorId != null ? 'Order from Curator' : 'Order Your CD',
+            style: TextStyle(
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 24, tablet: 28, desktop: 32),
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -226,16 +263,8 @@ class _OrderScreenState extends State<OrderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 24, tablet: 32, desktop: 40)),
-            Text(
-              'Order Your CD',
-              style: TextStyle(
-                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 24, tablet: 28, desktop: 32),
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
+            _buildHeader(),
             SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 8, tablet: 10, desktop: 12)),
             Container(
               margin: EdgeInsets.symmetric(
@@ -399,6 +428,8 @@ class _OrderScreenState extends State<OrderScreen> {
                                   return;
                                 }
                               }
+
+
                               await _handlePlaceOrder(user.uid);
                             }
                           },
@@ -682,11 +713,15 @@ class _OrderScreenState extends State<OrderScreen> {
       final fullAddress = _buildAddressString();
 
       if (_hasFreeOrder) {
-        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+        // Create shipping labels for free orders (same as paid orders)
+        print('🔄 About to create shipping labels for free order...');
+        await _createShippingLabels(uid, fullAddress);
+        print('✅ Shipping labels creation completed for free order');
+        
+        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
         await HomeScreen.useFreeOrder(uid); // Properly decrement free order count
         
-        // Award 1 credit for placing an order
-        await HomeScreen.addFreeOrderCredits(uid, 1);
+        // No credit awarded for free orders - credits are only earned when paying with money
 
         // Refresh local state to reflect the used free order
         await _loadUserData();
@@ -736,7 +771,7 @@ class _OrderScreenState extends State<OrderScreen> {
         await _createShippingLabels(uid, fullAddress);
         print('✅ Shipping labels creation completed');
         
-        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
         
         // Award 1 credit for placing an order
         await HomeScreen.addFreeOrderCredits(uid, 1);
@@ -882,6 +917,7 @@ class _OrderScreenState extends State<OrderScreen> {
            _addressValidationError = 'This address could not be validated. Please check your address and try again.';
         }
       });
+
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -902,6 +938,7 @@ class _OrderScreenState extends State<OrderScreen> {
       });
     }
   }
+
 
   Widget _buildStateDropdown() {
     Color? borderColor;
@@ -1078,7 +1115,7 @@ class _OrderScreenState extends State<OrderScreen> {
   //         await _createShippingLabels(uid, fullAddress);
   //         print('✅ Shipping labels creation completed (PayPal)');
           
-  //         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2);
+  //         await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
   //         await HomeScreen.addFreeOrderCredits(uid, 1);
 
   //         if (!mounted) return;

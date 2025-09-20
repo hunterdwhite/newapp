@@ -1,4 +1,3 @@
-import 'package:dissonantapp2/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/waitlist_service.dart';
 import '../widgets/retro_button_widget.dart';

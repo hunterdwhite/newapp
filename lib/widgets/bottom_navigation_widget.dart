@@ -1,14 +1,74 @@
 import 'package:flutter/material.dart';
 
-class BottomNavigationWidget extends StatelessWidget {
+class BottomNavigationWidget extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final bool hasNewCuratorOrders;
 
   const BottomNavigationWidget({
     Key? key,
     required this.currentIndex,
     required this.onTap,
+    this.hasNewCuratorOrders = false,
   }) : super(key: key);
+
+  @override
+  State<BottomNavigationWidget> createState() => _BottomNavigationWidgetState();
+}
+
+class _BottomNavigationWidgetState extends State<BottomNavigationWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _bounceAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _bounceAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.3,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.elasticOut,
+    ));
+
+    // Start animation if there are new orders
+    if (widget.hasNewCuratorOrders) {
+      _startBounceAnimation();
+    }
+  }
+
+  @override
+  void didUpdateWidget(BottomNavigationWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Start or stop animation based on new curator orders status
+    if (widget.hasNewCuratorOrders && !oldWidget.hasNewCuratorOrders) {
+      _startBounceAnimation();
+    } else if (!widget.hasNewCuratorOrders && oldWidget.hasNewCuratorOrders) {
+      _stopBounceAnimation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _startBounceAnimation() {
+    _animationController.repeat(reverse: true);
+  }
+
+  void _stopBounceAnimation() {
+    _animationController.stop();
+    _animationController.reset();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +92,8 @@ class BottomNavigationWidget extends StatelessWidget {
           ),
           child: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
-            currentIndex: currentIndex,
-            onTap: onTap,
+            currentIndex: widget.currentIndex,
+            onTap: widget.onTap,
             backgroundColor: Colors.black,
             // no selectedItemColor / unselectedItemColor → icons keep original colors
             items: [
@@ -46,7 +106,15 @@ class BottomNavigationWidget extends StatelessWidget {
                 label: 'Order',
               ),
               BottomNavigationBarItem(
-                icon: Image.asset('assets/curateicon.png', width: 32, height: 32),
+                icon: AnimatedBuilder(
+                  animation: _bounceAnimation,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: widget.hasNewCuratorOrders ? _bounceAnimation.value : 1.0,
+                      child: Image.asset('assets/curateicon.png', width: 32, height: 32),
+                    );
+                  },
+                ),
                 label: 'Curate',
               ),
               BottomNavigationBarItem(
