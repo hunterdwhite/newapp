@@ -111,3 +111,13 @@
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
+
+# BouncyCastle and JWT support
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+-keep class com.nimbusds.** { *; }
+-dontwarn com.nimbusds.**
+
+# JWT and crypto libraries
+-keep class com.auth0.** { *; }
+-dontwarn com.auth0.**

@@ -78,27 +78,41 @@ class _AlbumConfirmationScreenState extends State<AlbumConfirmationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Enable automatic keyboard adjustment
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Confirm Album Selection'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
       body: GrainyBackgroundWidget(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: _buildTasteProfile()),
-                const SizedBox(height: 24),
-                _buildAlbumDetails(),
-                const SizedBox(height: 24),
-                _buildNoteSection(),
-                const SizedBox(height: 32),
-                _buildConfirmationButtons(),
-              ],
+        // Wrap entire body with GestureDetector for tap-to-dismiss
+        child: GestureDetector(
+          // Dismiss keyboard when tapping outside text fields
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            // Add keyboard-aware padding
+            padding: EdgeInsets.only(
+              top: 20,
+              left: 20,
+              right: 20,
+              // Dynamic bottom padding that adjusts for keyboard
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: _buildTasteProfile()),
+                  const SizedBox(height: 24),
+                  _buildAlbumDetails(),
+                  const SizedBox(height: 24),
+                  _buildNoteSection(),
+                  const SizedBox(height: 32),
+                  _buildConfirmationButtons(),
+                ],
+              ),
             ),
           ),
         ),
@@ -406,6 +420,10 @@ class _AlbumConfirmationScreenState extends State<AlbumConfirmationScreen> {
             maxLines: 5,
             maxLength: 500,
             style: const TextStyle(color: Colors.white),
+            // iOS-specific improvements
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline, // Allow new lines on iOS
+            textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               hintText: '"this is the first album that made me sob uncontrollably..."',
               hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
@@ -424,6 +442,9 @@ class _AlbumConfirmationScreenState extends State<AlbumConfirmationScreen> {
               filled: true,
               fillColor: Colors.black,
               counterStyle: const TextStyle(color: Colors.white60),
+              // Add helper text for iOS users
+              helperText: 'Tap outside to dismiss keyboard',
+              helperStyle: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -443,6 +464,19 @@ class _AlbumConfirmationScreenState extends State<AlbumConfirmationScreen> {
   Widget _buildConfirmationButtons() {
     return Column(
       children: [
+        // Add a "Dismiss Keyboard" button if keyboard is visible (iOS helper)
+        if (MediaQuery.of(context).viewInsets.bottom > 0) ...[
+          Container(
+            width: double.infinity,
+            child: RetroButtonWidget(
+              text: 'Done Writing ✓',
+              onPressed: () => FocusScope.of(context).unfocus(),
+              style: RetroButtonStyle.light,
+              fixedHeight: true,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
