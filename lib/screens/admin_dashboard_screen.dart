@@ -344,7 +344,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final status = orderData['status'] ?? '';
     final orderTs = orderData['timestamp'] as Timestamp?;
     final curatorId = orderData['curatorId'] as String?;
-    final albumId = orderData['details']?['albumId'];
+    // Fix: Check both new (root level) and old (details) data structures for albumId
+    final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
 
     String finalStatus = 'none';
     String? curatorInfo;
