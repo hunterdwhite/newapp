@@ -14,14 +14,23 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /new_inventory/{inventoryId} {
+      // Allow EVERYONE to read new inventory (public access for browsing new albums)
+      allow read: if true;
+      // Allow EVERYONE to list/query new inventory (public access for browsing new albums)
+      allow list: if true;
+      // Only admins can write/update new inventory
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
     match /waitlist/{emailId} {
       allow read: if true;
       allow create: if !exists(/databases/$(database)/documents/waitlist/$(emailId));
       allow update, delete: if false;
-    }
-
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     // Admins Collection Rules
@@ -66,6 +75,16 @@ service cloud.firestore {
         // Let owners read/write; let admins read
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
         allow write: if isAuthenticated() && isOwner(userId);
+      }
+
+      // Curator Reviews subcollection
+      match /curatorReviews/{reviewId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || isAdmin()
+        );
+        allow list: if isAuthenticated();
       }
     }
 
@@ -118,26 +137,38 @@ service cloud.firestore {
 
     // Orders Collection Rules
     match /orders/{orderId} {
-      allow create: if isAuthenticated() && (isOwner(request.resource.data.userId) || isAdmin());
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-      allow read: if isAuthenticated() && (
-        resource.data.status in ['kept', 'returnedConfirmed']
-        || isOwner(resource.data.userId)
-        || isAdmin()
-        || (resource.data.curatorId != null && resource.data.curatorId == request.auth.uid)
+      // Create: User can create their own orders, admins can create any
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || isAdmin()
       );
       
-      // Allow curators to query orders assigned to them
+      // Update: User can update their own orders, curators can update assigned orders, admins can update any
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.curatorId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Delete: Only admins can delete orders
+      allow delete: if isAuthenticated() && isAdmin();
+      
+      // Read: Users can read their own orders, curators can read assigned orders, admins can read all, public can read completed orders
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.curatorId == request.auth.uid ||
+        isAdmin() ||
+        resource.data.status in ['kept', 'returnedConfirmed']
+      );
+      
+      // List: Users can query their own orders, curators can query assigned orders, admins can query all
       allow list: if isAuthenticated() && (
         isAdmin() ||
-        // Allow users to query their own orders
         request.auth.uid == resource.data.userId ||
-        // Allow curators to query orders assigned to them (for order count statistics)
         request.auth.uid == resource.data.curatorId
       );
     }
 
-    // Curator Reviews Collection Rules
+    // Curator Reviews Collection Rules (moved to top level)
     match /curatorReviews/{reviewId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
@@ -177,24 +208,19 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       // Allow list/query operations for curators to filter and search inventory
       allow list: if isAuthenticated();
-      // Only admins can write/update inventory
-      allow write: if isAuthenticated() && isAdmin();
+      // Only admins can write/create inventory
+      allow create, delete: if isAuthenticated() && isAdmin();
+      // Allow admins full update access, and allow curators to update quantity for album confirmations
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Allow curators to update only quantity and lastUpdated fields (for album confirmations)
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['quantity', 'lastUpdated'])
+      );
     }
 
     // Default Deny Rule
     match /{document=**} {
       allow read, write: if false;
-    }
-    
-    // RESTORED: Original additional rules
-    match /orders/{orderId} {
-      allow read: if request.auth != null
-                  && resource.data.status in ['kept', 'returnedConfirmed'];
-    }
-  
-    // --- allow every signed-in user to read album metadata (for those feed items) ---
-    match /albums/{albumId} {
-      allow read: if request.auth != null;
     }
   }
 } 
