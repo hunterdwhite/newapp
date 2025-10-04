@@ -401,7 +401,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   alignment: Alignment.centerLeft,
                   child: const Text(
-                    'Free Order Credits',
+                    'Free Community Order Credits',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.black,
@@ -469,8 +469,8 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                       ),
                       child: Text(
                         _freeOrdersAvailable == 1
-                            ? 'You have 1 free order available!'
-                            : 'You have $_freeOrdersAvailable free orders available!',
+                            ? 'You have 1 free community order available!'
+                            : 'You have $_freeOrdersAvailable free community orders available!',
                         style: const TextStyle(
                           color: Colors.black,
                           fontSize: 14,
@@ -482,7 +482,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                     const SizedBox(height: 16),
                   ],
                   Text(
-                    '$creditsNeeded credits until next free order',
+                    '$creditsNeeded credits until next free community order',
                     style: const TextStyle(
                       color: Colors.black,
                       fontSize: 14,
@@ -884,7 +884,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Complete activities below to earn credits toward your next free order:',
+                  'Complete activities below to earn credits toward your next free community order:',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -964,7 +964,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                     if (!_hasEverOrdered)
                       _buildCreditEarningOption(
                         title: 'Complete Your First Order',
-                        description: 'Place and complete your first music order to earn credits.',
+                        description: 'Place and complete your first music order to earn credits. Free orders can only be used for community curators.',
                         actionText: 'Place your first order!',
                         creditValue: 2,
                         isCompleted: false,
@@ -1017,14 +1017,14 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                     // Order credit earning
                     _buildCreditEarningOption(
                       title: 'Place an Order',
-                      description: 'Earn 1 credit every time you place an order.',
+                      description: 'Earn 1 credit every time you place an order. Free orders can only be used for community curators.',
                       actionText: 'Ongoing earning method',
                       creditValue: 1,
                       isCompleted: false, // This is always available as an ongoing earning method
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('You earn 1 credit automatically with each order you place!'),
+                            content: Text('You earn 1 credit automatically with each order you place! Free orders can only be used for community curators.'),
                             backgroundColor: Color(0xFFFFA500),
                           ),
                         );
@@ -1038,7 +1038,7 @@ class _EarnCreditsScreenState extends State<EarnCreditsScreen> {
                     if (_hasEverOrdered)
                       _buildCompletedCreditOption(
                         title: 'Complete Your First Order',
-                        description: 'Place and complete your first music order to earn credits.',
+                        description: 'Place and complete your first music order to earn credits. Free orders can only be used for community curators.',
                         creditValue: 2,
                       ),
                     

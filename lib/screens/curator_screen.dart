@@ -32,12 +32,35 @@ class _CuratorScreenState extends State<CuratorScreen> {
     super.initState();
     _checkCuratorStatus();
     _checkUserOrders();
-    _initializeNotifications();
+    // Only initialize notifications for existing curators, not for everyone
+    _initializeNotificationsIfCurator();
   }
 
   @override
   void dispose() {
     super.dispose();
+  }
+
+  Future<void> _initializeNotificationsIfCurator() async {
+    // Only initialize notifications if user is already a curator
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await _firestoreService.getUserDoc(user.uid);
+      if (userDoc != null && userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final isCurator = userData['isCurator'] ?? false;
+        
+        if (isCurator) {
+          await _notificationService.initialize();
+          // Don't request permissions here - they should already be granted
+          // Just check if we have them and warn if not
+          final hasPermissions = await _notificationService.hasPermissions();
+          if (!hasPermissions) {
+            print('Warning: Curator does not have notification permissions');
+          }
+        }
+      }
+    }
   }
 
   Future<void> _initializeNotifications() async {
@@ -412,16 +435,16 @@ class _CuratorScreenState extends State<CuratorScreen> {
                   'assets/curateicon.png',
             width: 100,
             height: 100,
-          ),
+                ),
           const SizedBox(height: 24),
-          const Text(
+                const Text(
             'Become a Community Curator',
-            style: TextStyle(
+                  style: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
           Container(
@@ -663,9 +686,9 @@ class _CuratorScreenState extends State<CuratorScreen> {
                       width: 80,
                       height: 80,
                       opacity: const AlwaysStoppedAnimation(0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
+                ),
+                const SizedBox(height: 16),
+                const Text(
                       'No Orders Yet',
                       style: TextStyle(
                         fontSize: 20,
@@ -676,12 +699,12 @@ class _CuratorScreenState extends State<CuratorScreen> {
                     const SizedBox(height: 8),
                     const Text(
                       'You\'ll receive notifications when users request your curation services.',
-                      style: TextStyle(
-                        fontSize: 14,
+                  style: TextStyle(
+                    fontSize: 14,
                         color: Colors.white60,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
                   ],
                 ),
               ),
@@ -721,8 +744,8 @@ class _CuratorScreenState extends State<CuratorScreen> {
     
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151515),
         border: Border.all(
           color: isActive ? Colors.orangeAccent : (isCompleted ? Colors.green.withOpacity(0.7) : Colors.white),
           width: 1,
@@ -960,8 +983,8 @@ class _CuratorScreenState extends State<CuratorScreen> {
               border: Border(
                 top: BorderSide(color: Colors.grey.withOpacity(0.3)),
               ),
-            ),
-            child: const Text(
+                  ),
+                  child: const Text(
               'No review received yet',
               style: TextStyle(
                 color: Colors.white70,
@@ -1067,8 +1090,8 @@ class _CuratorScreenState extends State<CuratorScreen> {
         ),
         title: const Text(
           'Order Details',
-          style: TextStyle(
-            color: Colors.white,
+                    style: TextStyle(
+                      color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -1101,10 +1124,10 @@ class _CuratorScreenState extends State<CuratorScreen> {
             child: const Text(
               'Close',
               style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 

@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'referral_service.dart';
+import 'push_notification_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final PushNotificationService _notificationService = PushNotificationService();
   
   // Cache for frequently accessed data
   static final Map<String, dynamic> _cache = {};
@@ -537,12 +539,18 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
       orderData['curatorId'] = curatorId;
     }
     
-    await _firestore.collection('orders').add(orderData);
+    final orderDocRef = await _firestore.collection('orders').add(orderData);
 
     await _firestore.collection('users').doc(userId).update({
       'hasOrdered': true,
       'updatedAt': FieldValue.serverTimestamp(), // Added updatedAt timestamp
     });
+
+    // Curator notifications are handled automatically by Firebase Cloud Function
+    // when order is created with status 'curator_assigned'
+    if (curatorId != null) {
+      print('📧 Order created with curator ${curatorId} - Cloud Function will send notification');
+    }
 
     // If this is the user's first order and they were referred, award referral credits
     print('DEBUG: addOrder - isFirstOrder: $isFirstOrder for userId: $userId');

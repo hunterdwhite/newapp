@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 import 'home_screen.dart';
 import 'public_profile_screen.dart';
+import 'admin_album_selection_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   @override
@@ -24,7 +25,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _albumName = '';
   String _releaseYear = '';
   String _quality = '';
-  String _albumId = '';
   String _coverUrl = '';
 
   @override
@@ -90,7 +90,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           ElevatedButton(
             onPressed: _showAddAlbumDialog,
-            child: Text('Add New Album'),
+            child: Text('Add Album to Inventory'),
           ),
           // Add refresh button
           Padding(
@@ -344,7 +344,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final status = orderData['status'] ?? '';
     final orderTs = orderData['timestamp'] as Timestamp?;
     final curatorId = orderData['curatorId'] as String?;
-    final albumId = orderData['details']?['albumId'];
+    // Fix: Check both new (root level) and old (details) data structures for albumId
+    final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
 
     String finalStatus = 'none';
     String? curatorInfo;
@@ -920,49 +921,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showSendAlbumDialog(String orderId, String address, String userId) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Send Album'),
-          content: Form(
-            key: _albumFormKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildTextField('Artist', (value) => _artist = value),
-                  _buildTextField('Album Name', (value) => _albumName = value),
-                  _buildTextField('Release Year', (value) => _releaseYear = value),
-                  _buildTextField('Quality', (value) => _quality = value),
-                  _buildTextField('Cover URL', (value) => _coverUrl = value),
-                  _buildTextField(
-                    'Album ID (if reusing existing album)',
-                    (value) => _albumId = value,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _albumFormKey.currentState?.reset();
-              },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                _sendAlbum(orderId, address, userId);
-                Navigator.of(context).pop();
-                _albumFormKey.currentState?.reset();
-              },
-              child: Text('Send'),
-            ),
-          ],
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminAlbumSelectionScreen(
+          orderId: orderId,
+          orderData: {'address': address, 'userId': userId},
+          onAlbumSelected: (albumId, albumData) {
+            _sendAlbumFromInventory(orderId, albumId, albumData);
+          },
+        ),
+      ),
     );
   }
 
@@ -977,24 +946,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Future<void> _sendAlbum(String orderId, String address, String userId) async {
-    String albumId;
-
-    if (_albumId.isNotEmpty) {
-      albumId = _albumId;
-    } else {
-      DocumentReference albumRef = await _firestoreService.addAlbum(
-        _artist,
-        _albumName,
-        _releaseYear,
-        _quality,
-        _coverUrl,
+  Future<void> _sendAlbumFromInventory(String orderId, String albumId, Map<String, dynamic> albumData) async {
+    try {
+      await _firestoreService.updateOrderWithAlbum(orderId, albumId);
+      
+      // Refresh the admin dashboard data
+      await _refreshData();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Album "${albumData['albumName']}" by ${albumData['artist']} sent successfully!'),
+          backgroundColor: Colors.green,
+        ),
       );
-      albumId = albumRef.id;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sending album: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    await _firestoreService.updateOrderWithAlbum(orderId, albumId);
-    setState(() {});
   }
 
   Future<void> _addAlbum() async {
