@@ -246,162 +246,56 @@ class _FeedScreenState extends State<FeedScreen> {
             /* ――― top bar ――― */
             Padding(
               padding: const EdgeInsets.only(left: 20, right: 12),
-              child: item.isCurated 
-                  ? Column(
-                      children: [
-                        // Top row: Curator info (left aligned)
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PublicProfileScreen(userId: item.curatorId!),
-                                  ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.grey.shade700,
-                                backgroundImage: item.curatorProfilePictureUrl != null && item.curatorProfilePictureUrl!.isNotEmpty
-                                    ? NetworkImage(item.curatorProfilePictureUrl!)
-                                    : null,
-                                child: item.curatorProfilePictureUrl == null || item.curatorProfilePictureUrl!.isEmpty
-                                    ? const Icon(Icons.person, size: 18, color: Colors.white)
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PublicProfileScreen(userId: item.curatorId!),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                item.curatorUsername ?? 'Unknown',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'curated',
-                              style: TextStyle(fontSize: 14, color: Colors.white70),
-                            ),
-                            const Spacer(),
-                          ],
+              child: Row(
+                children: [
+                  // User info (same for both curated and regular orders)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PublicProfileScreen(userId: item.userId),
                         ),
-                        const SizedBox(height: 4),
-                        // Bottom row: User info (left aligned)
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PublicProfileScreen(userId: item.userId),
-                                  ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.grey.shade700,
-                                backgroundImage: item.profilePictureUrl.isNotEmpty
-                                    ? NetworkImage(item.profilePictureUrl)
-                                    : null,
-                                child: item.profilePictureUrl.isEmpty
-                                    ? const Icon(Icons.person, size: 18, color: Colors.white)
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PublicProfileScreen(userId: item.userId),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                item.username,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              actionText,
-                              style: const TextStyle(fontSize: 16, color: Colors.white70),
-                            ),
-                            const Spacer(),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        // Regular order display (unchanged)
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => PublicProfileScreen(userId: item.userId),
-                              ),
-                            );
-                          },
-                          child: CircleAvatar(
-                            radius: 18,
-                            backgroundColor: Colors.grey.shade700,
-                            backgroundImage: item.profilePictureUrl.isNotEmpty
-                                ? NetworkImage(item.profilePictureUrl)
-                                : null,
-                            child: item.profilePictureUrl.isEmpty
-                                ? const Icon(Icons.person, size: 20, color: Colors.white)
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => PublicProfileScreen(userId: item.userId),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            item.username,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          actionText,
-                          style: const TextStyle(fontSize: 16, color: Colors.white70),
-                        ),
-                        const Spacer(),
-                      ],
+                      );
+                    },
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.grey.shade700,
+                      backgroundImage: item.profilePictureUrl.isNotEmpty
+                          ? NetworkImage(item.profilePictureUrl)
+                          : null,
+                      child: item.profilePictureUrl.isEmpty
+                          ? const Icon(Icons.person, size: 20, color: Colors.white)
+                          : null,
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PublicProfileScreen(userId: item.userId),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      item.username,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    actionText,
+                    style: const TextStyle(fontSize: 16, color: Colors.white70),
+                  ),
+                  const Spacer(),
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -447,13 +341,41 @@ class _FeedScreenState extends State<FeedScreen> {
            Padding(
             padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
                 mobile: 16, tablet: 20, desktop: 20),
-            child: Text(
-              '${item.album.artist} – ${item.album.albumName}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: Colors.white70,
-                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 18),
-              ),
+            child: Column(
+              children: [
+                Text(
+                  '${item.album.artist} – ${item.album.albumName}',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: Colors.white70,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 18),
+                  ),
+                ),
+                // Show curator info for curated albums
+                if (item.isCurated && item.curatorUsername != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PublicProfileScreen(userId: item.curatorId!),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'curated by ${item.curatorUsername}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
 
@@ -476,7 +398,6 @@ class _FeedScreenState extends State<FeedScreen> {
   /* spines */
 Widget _buildSpines(BuildContext context) {
   // Use responsive screen calculations
-  final screenHeight = MediaQuery.of(context).size.height;
   final screenWidth = MediaQuery.of(context).size.width;
 
   // Shrink spines on smaller screens with responsive calculations
@@ -540,100 +461,17 @@ Widget _buildSpines(BuildContext context) {
   );
 }
 
-Widget _buildSpine(FeedItem item) {
-  return AspectRatio(
-    aspectRatio: 7, // or adjust this based on your image’s natural dimensions
-    child: Image.asset(
-      'assets/spineasset.png',
-      fit: BoxFit.contain, // ensures the image isn't cropped or stretched
-    ),
-  );
-}
-
-Widget _buildSpineImageOnly(FeedItem item) {
-  return Image.asset(
-    'assets/spineasset.png',
-    fit: BoxFit.contain,
-  );
-}
-
-Widget _buildHeaderBar(FeedItem item) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: Row(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: item.userId)),
-          ),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.grey.shade700,
-            backgroundImage: item.profilePictureUrl.isNotEmpty
-                ? NetworkImage(item.profilePictureUrl)
-                : null,
-            child: item.profilePictureUrl.isEmpty
-                ? const Icon(Icons.person, size: 20, color: Colors.white)
-                : null,
-          ),
-        ),
-        const SizedBox(width: 10),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: item.userId)),
-          ),
-          child: Text(
-            item.username,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          item.status == 'kept' ? 'kept' : 'returned',
-          style: const TextStyle(fontSize: 16, color: Colors.white70),
-        ),
-        const Spacer(),
-      ],
-    ),
-  );
-}
-
-Widget _buildAnimatedFeedItem(FeedItem item, int index) {
-  return AnimatedBuilder(
-    animation: _pageController,
-    builder: (context, child) {
-      var opacity = 1.0;
-
-      if (_pageController.hasClients && _pageController.page != null) {
-        final diff = (index - _pageController.page!).abs();
-        opacity = (1 - diff).clamp(0.0, 1.0);
-      }
-
-      return Opacity(
-        opacity: opacity,
-        child: _buildFeedItem(item),
-      );
-    },
-  );
-}
 
   /* ─────────────────────────── build ─────────────────────────── */
 
 @override
 Widget build(BuildContext context) {
   final mediaQuery = MediaQuery.of(context);
-  final screenHeight = mediaQuery.size.height;
   final topPadding = mediaQuery.padding.top;
   final bottomPadding = mediaQuery.padding.bottom;
   final totalSpinesHeight = maxSpines * 48.0;
 
-  final feedHeight = screenHeight - topPadding - bottomPadding - totalSpinesHeight;
+  final feedHeight = mediaQuery.size.height - topPadding - bottomPadding - totalSpinesHeight;
 
   return Scaffold(
     body: GrainyBackgroundWidget(

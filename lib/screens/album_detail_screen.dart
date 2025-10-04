@@ -178,12 +178,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // Decide whether to show the "Delete" button (if the user already has a review).
     bool showDelete = _hasUserReview && _userReviewDocId != null;
 
-    final dialogResult = await showDialog<String>(
-      context: context,
-      builder: (context) => ReviewDialog(
-        initialComment: initialComment,
-        showDeleteButton: showDelete,
-      ),
+    final dialogResult = await ReviewDialog.show(
+      context,
+      initialComment: initialComment,
+      showDeleteButton: showDelete,
     );
 
     // If the user canceled or closed the dialog, dialogResult will be null.

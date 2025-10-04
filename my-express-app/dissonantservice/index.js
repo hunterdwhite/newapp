@@ -168,31 +168,275 @@ app.post('/validate-address', async (req, res) => {
   }
 });
 
-// PayPal payment endpoint
+// NEW: Calculate shipping rates using GoShippo API
+app.post('/calculate-shipping', async (req, res) => {
+  try {
+    const { address_from, address_to, parcel } = req.body || {};
+    
+    if (!address_to || !parcel) {
+      return res.status(400).json({ error: 'Missing required address_to or parcel info' });
+    }
+
+    console.log('Calculating shipping rates...');
+    console.log('From:', address_from);
+    console.log('To:', address_to);
+    console.log('Parcel:', parcel);
+
+    // Use provided from address or default to your warehouse
+    const fromAddress = address_from || {
+      name: 'Dissonant Music',
+      street1: '789 9th Ave',
+      city: 'New York',
+      state: 'NY',
+      zip: '10019',
+      country: 'US',
+    };
+
+    // Create shipment to get rates
+    const shipmentPayload = {
+      address_to: address_to,
+      address_from: fromAddress,
+      parcels: [parcel],
+      async: false,
+    };
+    
+    console.log('Creating shipment for rate calculation...');
+    const shipmentResponse = await fetch('https://api.goshippo.com/shipments/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
+      },
+      body: JSON.stringify(shipmentPayload),
+    });
+
+    if (!shipmentResponse.ok) {
+      const errorData = await shipmentResponse.json();
+      console.error('Shipment creation failed:', errorData);
+      return res.status(shipmentResponse.status).json({ 
+        error: 'Failed to create shipment for rate calculation',
+        details: errorData 
+      });
+    }
+
+    const shipmentData = await shipmentResponse.json();
+    console.log('Shipment created:', shipmentData.object_id);
+
+    // Get rates for the shipment
+    const ratesResponse = await fetch(`https://api.goshippo.com/shipments/${shipmentData.object_id}/rates/`, {
+      headers: {
+        'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
+      },
+    });
+
+    if (!ratesResponse.ok) {
+      const errorData = await ratesResponse.json();
+      console.error('Failed to get rates:', errorData);
+      return res.status(ratesResponse.status).json({ 
+        error: 'Failed to get shipping rates',
+        details: errorData 
+      });
+    }
+
+    const ratesData = await ratesResponse.json();
+    console.log('Available rates:', ratesData.results.map(r => `${r.servicelevel.name} (${r.provider}) - $${r.amount}`));
+    
+    // Filter for USPS Ground Advantage only
+    const groundAdvantageRate = ratesData.results.find(rate => 
+      rate.provider === 'USPS' && 
+      rate.servicelevel.name === 'Ground Advantage' &&
+      rate.amount && 
+      parseFloat(rate.amount) > 0
+    );
+
+    if (!groundAdvantageRate) {
+      console.log('❌ No USPS Ground Advantage rate found, checking for alternatives...');
+      
+      // Fallback to other USPS services if Ground Advantage not available
+      const fallbackRate = ratesData.results.find(rate => 
+        rate.provider === 'USPS' && 
+        (rate.servicelevel.name === 'First Class' || 
+         rate.servicelevel.name === 'Priority Mail') &&
+        rate.amount && 
+        parseFloat(rate.amount) > 0
+      );
+      
+      if (fallbackRate) {
+        console.log(`⚠️ Using fallback USPS service: ${fallbackRate.servicelevel.name} - $${fallbackRate.amount}`);
+        const formattedRate = {
+          serviceName: fallbackRate.servicelevel.name,
+          amount: parseFloat(fallbackRate.amount),
+          estimatedDays: fallbackRate.estimated_days || 5,
+          carrier: fallbackRate.provider,
+          serviceLevel: fallbackRate.servicelevel.token,
+          rateId: fallbackRate.object_id
+        };
+        
+        return res.json({
+          success: true,
+          rates: [formattedRate],
+          shipment_id: shipmentData.object_id,
+          note: 'Using fallback USPS service'
+        });
+      }
+      
+      return res.status(400).json({ 
+        error: 'No USPS Ground Advantage rate available',
+        available_rates: ratesData.results.map(r => `${r.servicelevel.name} (${r.provider}) - $${r.amount}`)
+      });
+    }
+
+    const formattedRate = {
+      serviceName: groundAdvantageRate.servicelevel.name,
+      amount: parseFloat(groundAdvantageRate.amount),
+      estimatedDays: groundAdvantageRate.estimated_days || 5,
+      carrier: groundAdvantageRate.provider,
+      serviceLevel: groundAdvantageRate.servicelevel.token,
+      rateId: groundAdvantageRate.object_id
+    };
+
+    console.log(`✅ Using USPS Ground Advantage: $${formattedRate.amount}`);
+
+    return res.json({
+      success: true,
+      rates: [formattedRate],
+      shipment_id: shipmentData.object_id
+    });
+
+  } catch (err) {
+    console.error('Shipping calculation error:', err);
+    return res.status(500).json({ 
+      error: 'Internal error calculating shipping rates',
+      details: err.message 
+    });
+  }
+});
+
+// PayPal SDK setup
+const { Client, Environment, OrdersController } = require('@paypal/paypal-server-sdk');
+
+// PayPal client setup
+function getPayPalClient() {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const mode = process.env.PAYPAL_MODE || 'sandbox';
+  
+  const environment = mode === 'live' ? Environment.Production : Environment.Sandbox;
+  
+  return new Client({
+    clientCredentialsAuthCredentials: {
+      oAuthClientId: clientId,
+      oAuthClientSecret: clientSecret,
+    },
+    environment: environment,
+  });
+}
+
+// Create PayPal order endpoint
 app.post('/create-paypal-payment', async (req, res) => {
   try {
     const { amount, currency = 'USD', return_url, cancel_url } = req.body || {};
+    
     if (!amount) {
       return res.status(400).json({ error: 'Missing amount' });
     }
 
-    // For now, return a mock PayPal approval URL
-    // In a real implementation, you'd integrate with PayPal SDK
-    const mockPaymentId = `PAY-${Date.now()}`;
-    const approvalUrl = `https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=${mockPaymentId}`;
+    if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+      return res.status(500).json({ error: 'PayPal credentials not configured' });
+    }
+
+    const client = getPayPalClient();
+    const ordersController = new OrdersController(client);
     
-    console.log(`Mock PayPal payment created for $${amount} ${currency}`);
+    // Create PayPal order request body
+    const orderRequest = {
+      intent: 'CAPTURE',
+      purchaseUnits: [{
+        amount: {
+          currencyCode: currency,
+          value: amount.toFixed(2)
+        },
+        description: 'Dissonant Music Curation Order'
+      }],
+      applicationContext: {
+        returnUrl: return_url || 'https://dissonanthq.com/payment/success',
+        cancelUrl: cancel_url || 'https://dissonanthq.com/payment/cancel',
+        brandName: 'Dissonant',
+        landingPage: 'BILLING',
+        userAction: 'PAY_NOW'
+      }
+    };
+
+    // Create the order
+    const { result, statusCode } = await ordersController.createOrder({
+      body: orderRequest,
+      prefer: 'return=representation'
+    });
+
+    if (statusCode !== 201) {
+      throw new Error(`PayPal order creation failed with status: ${statusCode}`);
+    }
+    
+    // Find approval URL
+    const approvalUrl = result.links?.find(link => link.rel === 'approve')?.href;
+    
+    console.log(`PayPal order created: ${result.id} for $${amount} ${currency}`);
     
     return res.json({
-      payment_id: mockPaymentId,
+      order_id: result.id,
       approval_url: approvalUrl,
-      amount,
+      amount: parseFloat(amount),
       currency,
-      status: 'created'
+      status: result.status
     });
+
   } catch (err) {
-    console.error('PayPal payment creation error', err);
-    return res.status(500).json({ error: 'Internal error' });
+    console.error('PayPal payment error:', err);
+    return res.status(500).json({ 
+      error: 'Internal error creating PayPal payment',
+      details: err.message 
+    });
+  }
+});
+
+// Capture PayPal payment endpoint
+app.post('/capture-paypal-payment', async (req, res) => {
+  try {
+    const { order_id } = req.body || {};
+    
+    if (!order_id) {
+      return res.status(400).json({ error: 'Missing order_id' });
+    }
+
+    const client = getPayPalClient();
+    const ordersController = new OrdersController(client);
+
+    // Capture the order
+    const { result, statusCode } = await ordersController.captureOrder({
+      id: order_id,
+      body: {},
+      prefer: 'return=representation'
+    });
+
+    if (statusCode !== 201) {
+      throw new Error(`PayPal capture failed with status: ${statusCode}`);
+    }
+    
+    console.log(`PayPal payment captured: ${order_id}`);
+    
+    return res.json({
+      order_id: result.id,
+      status: result.status,
+      payer: result.payer,
+      purchase_units: result.purchaseUnits
+    });
+
+  } catch (err) {
+    console.error('PayPal capture error:', err);
+    return res.status(500).json({ 
+      error: 'Internal error capturing PayPal payment',
+      details: err.message 
+    });
   }
 });
 
@@ -845,9 +1089,10 @@ app.post('/shippo-webhook', async (req, res) => {
       objectId: data?.object_id
     });
     
-    // Handle different webhook events
-    if (event === 'track_updated' && data?.tracking_number) {
+    // Handle different webhook events - EXPANDED to catch more delivery events
+    if ((event === 'track_updated' || event === 'tracking_updated' || event === 'shipment_updated') && data?.tracking_number) {
       console.log('📦 Processing tracking update for:', data.tracking_number);
+      console.log('🔍 Full tracking data received:', JSON.stringify(data, null, 2));
       
       // Update order status and send appropriate email
       const updateResult = await updateOrderStatusFromTracking(
@@ -870,6 +1115,7 @@ app.post('/shippo-webhook', async (req, res) => {
       res.json({ success: true, message: 'Transaction update received' });
     } else {
       console.log('ℹ️ Unhandled webhook event:', event);
+      console.log('🔍 Full webhook data:', JSON.stringify(req.body, null, 2));
       res.json({ success: true, message: 'Event received but not processed' });
     }
     
@@ -931,28 +1177,109 @@ app.post('/check-order-status', async (req, res) => {
   }
 });
 
-// Test endpoint to simulate webhook events for debugging
+// ENHANCED Test endpoint to simulate webhook events and debug delivery issues
 app.post('/test-webhook', async (req, res) => {
   try {
-    const { tracking_number, status } = req.body;
+    const { tracking_number, status, force_delivery_test } = req.body;
     
-    if (!tracking_number || !status) {
+    if (!tracking_number) {
       return res.status(400).json({ 
-        error: 'Both tracking_number and status are required',
+        error: 'tracking_number is required',
         example: {
           tracking_number: "1Z999AA1234567890",
-          status: "delivered" // or "transit", "delivered", "returned", etc.
+          status: "delivered", // or "transit", "in_transit", "returned", etc.
+          force_delivery_test: true // optional - test with various delivery formats
         }
       });
     }
     
-    console.log(`🧪 Testing webhook simulation for tracking: ${tracking_number} with status: ${status}`);
+    console.log(`🧪 ENHANCED webhook testing for tracking: ${tracking_number}`);
     
-    // Create a mock tracking status object
+    // If force_delivery_test is true, test multiple delivery scenarios
+    if (force_delivery_test) {
+      console.log('🎯 Testing multiple delivery detection scenarios...');
+      
+      const deliveryScenarios = [
+        {
+          name: 'Standard Delivered',
+          trackingStatus: {
+            status: 'delivered',
+            status_detail: 'Delivered to recipient',
+            substatus: 'delivered'
+          }
+        },
+        {
+          name: 'Delivered with different format',
+          trackingStatus: {
+            status: 'DELIVERED',
+            status_detail: 'Package delivered to front door',
+            substatus: 'delivered_to_recipient'
+          }
+        },
+        {
+          name: 'Available for pickup',
+          trackingStatus: {
+            status: 'delivered',
+            status_detail: 'Available for pickup at location',
+            substatus: 'available_for_pickup'
+          }
+        },
+        {
+          name: 'Shippo webhook format',
+          trackingStatus: {
+            tracking_status: {
+              status: 'delivered',
+              status_detail: 'Delivered - Left with individual at address',
+              substatus: 'delivered'
+            }
+          }
+        }
+      ];
+      
+      const testResults = [];
+      
+      for (const scenario of deliveryScenarios) {
+        console.log(`\n🧪 Testing scenario: ${scenario.name}`);
+        try {
+          const result = await updateOrderStatusFromTracking(tracking_number, scenario.trackingStatus);
+          testResults.push({
+            scenario: scenario.name,
+            success: true,
+            result: result
+          });
+        } catch (error) {
+          testResults.push({
+            scenario: scenario.name,
+            success: false,
+            error: error.message
+          });
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Delivery test scenarios completed',
+        tracking_number,
+        test_results: testResults,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Single status test (original behavior)
+    const testStatus = status || 'delivered';
+    console.log(`🧪 Testing single webhook simulation for tracking: ${tracking_number} with status: ${testStatus}`);
+    
+    // Create a mock tracking status object with various formats to test robustness
     const mockTrackingStatus = {
-      status: status,
-      status_detail: `Simulated ${status} status for testing`,
-      substatus: status === 'delivered' ? 'delivered' : 'in_transit'
+      status: testStatus,
+      status_detail: `Simulated ${testStatus} status for testing - ${new Date().toISOString()}`,
+      substatus: testStatus === 'delivered' ? 'delivered' : 'in_transit',
+      // Also include nested format that Shippo sometimes sends
+      tracking_status: {
+        status: testStatus,
+        status_detail: `Nested format - Simulated ${testStatus}`,
+        substatus: testStatus === 'delivered' ? 'delivered_to_recipient' : 'in_transit'
+      }
     };
     
     // Update order status using the same function as the real webhook
@@ -962,7 +1289,8 @@ app.post('/test-webhook', async (req, res) => {
       success: true,
       message: 'Webhook simulation completed',
       tracking_number,
-      simulated_status: status,
+      simulated_status: testStatus,
+      mock_tracking_status: mockTrackingStatus,
       updated: updatedStatus,
       timestamp: new Date().toISOString()
     });
@@ -973,67 +1301,183 @@ app.post('/test-webhook', async (req, res) => {
   }
 });
 
+// NEW: Debug endpoint to check current status of orders by tracking number
+app.post('/debug-order-status', async (req, res) => {
+  try {
+    const { tracking_number } = req.body;
+    
+    if (!tracking_number) {
+      return res.status(400).json({ error: 'tracking_number is required' });
+    }
+    
+    console.log(`🔍 DEBUG: Checking current status for tracking: ${tracking_number}`);
+    
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+    
+    // Search for orders with this tracking number using the same logic as the webhook
+    const searchQueries = [
+      db.collection('orders').where('trackingNumber', '==', tracking_number),
+      db.collection('orders').where('outboundTrackingNumber', '==', tracking_number),
+      db.collection('orders').where('tracking_number', '==', tracking_number),
+      db.collection('orders').where('shipment_tracking', '==', tracking_number),
+    ];
+    
+    const queryResults = await Promise.all(
+      searchQueries.map(query => query.get().catch(err => {
+        return { docs: [] };
+      }))
+    );
+    
+    const allOrders = new Map();
+    queryResults.forEach(result => {
+      result.docs.forEach(doc => allOrders.set(doc.id, doc));
+    });
+    
+    const orderDetails = [];
+    allOrders.forEach((doc, docId) => {
+      const data = doc.data();
+      orderDetails.push({
+        orderId: docId,
+        status: data.status,
+        statusDescription: data.statusDescription,
+        trackingNumber: data.trackingNumber,
+        outboundTrackingNumber: data.outboundTrackingNumber,
+        updatedAt: data.updatedAt,
+        lastTrackingUpdate: data.lastTrackingUpdate,
+        customerEmail: data.customerEmail
+      });
+    });
+    
+    res.json({
+      success: true,
+      tracking_number,
+      orders_found: orderDetails.length,
+      orders: orderDetails,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('Debug order status error:', err);
+    res.status(500).json({ error: `Debug failed: ${err.message}` });
+  }
+});
+
 // Function to update order status in Firestore based on tracking
 async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, orderId = null) {
   try {
     console.log(`Updating order status for tracking ${trackingNumber}: ${trackingStatus}`);
     
-    // Enhanced mapping of Shippo tracking status to our order status
+    // ENHANCED mapping of Shippo tracking status to our order status - FIXED for delivery detection
     let orderStatus = 'unknown';
     let statusDescription = '';
     let shouldSendEmail = false;
     
-    const state = trackingStatus?.status?.toLowerCase() || trackingStatus?.state?.toLowerCase();
-    const substatus = trackingStatus?.substatus?.toLowerCase();
+    // Get status from multiple possible fields (Shippo can send different formats)
+    const state = (trackingStatus?.status?.toLowerCase() || 
+                   trackingStatus?.state?.toLowerCase() || 
+                   trackingStatus?.tracking_status?.status?.toLowerCase() ||
+                   '').trim();
     
-    console.log('📊 Processing tracking status:', { state, substatus, trackingStatus });
+    const substatus = (trackingStatus?.substatus?.toLowerCase() || 
+                      trackingStatus?.tracking_status?.substatus?.toLowerCase() ||
+                      '').trim();
     
-    switch (state) {
-      case 'unknown':
-      case 'pre_transit':
-        orderStatus = 'labelCreated';
-        statusDescription = 'Shipping label created';
-        shouldSendEmail = false; // Don't send email for label creation
-        break;
-        
-      case 'transit':
-      case 'in_transit':
-        orderStatus = 'sent';
-        statusDescription = 'Package in transit';
-        shouldSendEmail = true; // Send "shipped" email
-        break;
-        
-      case 'delivered':
-        orderStatus = 'delivered';
-        statusDescription = 'Package delivered';
-        shouldSendEmail = true; // Send "delivered" email
-        break;
-        
-      case 'returned':
-      case 'return_to_sender':
-        orderStatus = 'returned';
-        statusDescription = 'Package returned';
-        shouldSendEmail = true; // Send "return confirmed" email
-        break;
-        
-      case 'failure':
-      case 'exception':
-      case 'error':
-        orderStatus = 'deliveryFailed';
-        statusDescription = 'Delivery failed';
-        shouldSendEmail = true; // Send generic update email
-        break;
-        
-      case 'out_for_delivery':
-        orderStatus = 'sent';
-        statusDescription = 'Out for delivery';
-        shouldSendEmail = false; // Don't send separate email for out-for-delivery
-        break;
-        
-      default:
-        orderStatus = 'unknown';
-        statusDescription = trackingStatus?.status_detail || 'Status update';
-        shouldSendEmail = false;
+    const statusDetail = trackingStatus?.status_detail || 
+                        trackingStatus?.tracking_status?.status_detail || 
+                        trackingStatus?.status_details || '';
+    
+    console.log('📊 Processing tracking status (ENHANCED):', { 
+      state, 
+      substatus, 
+      statusDetail,
+      originalTrackingStatus: trackingStatus 
+    });
+    
+    // CRITICAL: Check for delivery first with multiple possible indicators
+    const deliveredIndicators = [
+      'delivered',
+      'delivery',
+      'delivered_to_recipient',
+      'available_for_pickup',
+      'delivered_pickup'
+    ];
+    
+    const transitIndicators = [
+      'transit',
+      'in_transit',
+      'accepted',
+      'in_transit_to_destination',
+      'out_for_delivery'
+    ];
+    
+    const returnedIndicators = [
+      'returned',
+      'return_to_sender',
+      'returned_to_sender',
+      'return'
+    ];
+    
+    // Check if any field contains delivery indicators
+    const isDelivered = deliveredIndicators.some(indicator => 
+      state.includes(indicator) || 
+      substatus.includes(indicator) || 
+      statusDetail.toLowerCase().includes(indicator)
+    );
+    
+    const isInTransit = transitIndicators.some(indicator => 
+      state.includes(indicator) || 
+      substatus.includes(indicator) || 
+      statusDetail.toLowerCase().includes(indicator)
+    );
+    
+    const isReturned = returnedIndicators.some(indicator => 
+      state.includes(indicator) || 
+      substatus.includes(indicator) || 
+      statusDetail.toLowerCase().includes(indicator)
+    );
+    
+    if (isDelivered) {
+      orderStatus = 'delivered';
+      statusDescription = 'Package delivered';
+      shouldSendEmail = true;
+      console.log('🎯 DELIVERY DETECTED: Package marked as delivered');
+    } else if (isReturned) {
+      orderStatus = 'returned';
+      statusDescription = 'Package returned';
+      shouldSendEmail = true;
+      console.log('🔄 RETURN DETECTED: Package returned to sender');
+    } else if (isInTransit) {
+      orderStatus = 'sent';
+      statusDescription = 'Package in transit';
+      shouldSendEmail = true;
+      console.log('🚚 TRANSIT DETECTED: Package is in transit');
+    } else {
+      // Fallback to original switch logic for edge cases
+      switch (state) {
+        case 'unknown':
+        case 'pre_transit':
+        case 'information_received':
+          orderStatus = 'labelCreated';
+          statusDescription = 'Shipping label created';
+          shouldSendEmail = false;
+          break;
+          
+        case 'failure':
+        case 'exception':
+        case 'error':
+          orderStatus = 'deliveryFailed';
+          statusDescription = 'Delivery failed';
+          shouldSendEmail = true;
+          break;
+          
+        default:
+          orderStatus = 'unknown';
+          statusDescription = statusDetail || trackingStatus?.status || 'Status update';
+          shouldSendEmail = false;
+          console.log('⚠️ UNKNOWN STATUS: Could not map status to known category');
+      }
     }
     
     console.log('📋 Mapped status:', { orderStatus, statusDescription, shouldSendEmail });
@@ -1057,48 +1501,100 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
       }
     }
     
-    // Also search for orders with this tracking number and update them
-    // Check both 'trackingNumber' and 'outboundTrackingNumber' fields for compatibility
+    // ENHANCED search for orders with this tracking number - search multiple fields and patterns
     try {
       if (db) {
-        // First, search by 'trackingNumber' field
-        const ordersQuery1 = await db.collection('orders')
-        .where('trackingNumber', '==', trackingNumber)
-        .get();
+        console.log(`🔍 ENHANCED SEARCH: Looking for orders with tracking: ${trackingNumber}`);
         
-        // Also search by 'outboundTrackingNumber' field for older orders
-        const ordersQuery2 = await db.collection('orders')
-        .where('outboundTrackingNumber', '==', trackingNumber)
-        .get();
+        // Search multiple tracking number fields for maximum compatibility
+        const searchQueries = [
+          // Standard fields
+          db.collection('orders').where('trackingNumber', '==', trackingNumber),
+          db.collection('orders').where('outboundTrackingNumber', '==', trackingNumber),
+          
+          // Alternative field names that might exist
+          db.collection('orders').where('tracking_number', '==', trackingNumber),
+          db.collection('orders').where('shipment_tracking', '==', trackingNumber),
+        ];
         
-        // Combine results and deduplicate
+        // Execute all search queries in parallel
+        const queryResults = await Promise.all(
+          searchQueries.map(query => query.get().catch(err => {
+            console.log('Query failed (field might not exist):', err.message);
+            return { docs: [] }; // Return empty result for failed queries
+          }))
+        );
+        
+        // Combine all results and deduplicate by document ID
         const allOrders = new Map();
-        ordersQuery1.forEach(doc => allOrders.set(doc.id, doc));
-        ordersQuery2.forEach(doc => allOrders.set(doc.id, doc));
-      
+        queryResults.forEach(result => {
+          result.docs.forEach(doc => allOrders.set(doc.id, doc));
+        });
+        
+        console.log(`📊 Found ${allOrders.size} orders matching tracking ${trackingNumber}`);
+        
         if (allOrders.size > 0) {
+          // Only update if the new status is different and more advanced
           const batch = db.batch();
+          let actualUpdates = 0;
+          
           allOrders.forEach((doc, docId) => {
-            batch.update(doc.ref, {
-              status: orderStatus,
-              statusDescription: statusDescription,
-              updatedAt: new Date().toISOString(),
-              trackingStatus: trackingStatus,
-              // Ensure trackingNumber field is set for future compatibility
-              trackingNumber: trackingNumber,
-            });
-            updatedOrders.push(docId);
+            const currentData = doc.data();
+            const currentStatus = currentData.status;
+            
+            console.log(`📝 Order ${docId}: current status '${currentStatus}' -> proposed '${orderStatus}'`);
+            
+            // Only update if status is changing to avoid unnecessary updates
+            if (currentStatus !== orderStatus) {
+              batch.update(doc.ref, {
+                status: orderStatus,
+                statusDescription: statusDescription,
+                updatedAt: new Date().toISOString(),
+                trackingStatus: trackingStatus,
+                // Ensure trackingNumber field is set for future compatibility
+                trackingNumber: trackingNumber,
+                // Store the delivery update source
+                lastTrackingUpdate: {
+                  timestamp: new Date().toISOString(),
+                  source: 'shippo_webhook',
+                  originalStatus: currentStatus,
+                  newStatus: orderStatus
+                }
+              });
+              updatedOrders.push(docId);
+              actualUpdates++;
+              console.log(`✅ Will update order ${docId}: '${currentStatus}' -> '${orderStatus}'`);
+            } else {
+              console.log(`⏭️ Skipping order ${docId}: already has status '${currentStatus}'`);
+            }
           });
-          await batch.commit();
-          console.log(`Updated ${allOrders.size} orders with tracking ${trackingNumber} (searched both trackingNumber and outboundTrackingNumber fields)`);
+          
+          if (actualUpdates > 0) {
+            await batch.commit();
+            console.log(`✅ Updated ${actualUpdates} orders with tracking ${trackingNumber}`);
+          } else {
+            console.log(`ℹ️ No orders needed status updates for tracking ${trackingNumber}`);
+          }
         } else {
-          console.log(`No orders found with tracking number ${trackingNumber}`);
+          console.log(`❌ No orders found with tracking number ${trackingNumber}`);
+          
+          // Additional debugging - let's see what orders exist
+          try {
+            const allOrdersSnapshot = await db.collection('orders').limit(5).get();
+            console.log('📋 Sample of recent orders in database:');
+            allOrdersSnapshot.docs.forEach((doc, index) => {
+              const data = doc.data();
+              console.log(`  ${index + 1}. Order ${doc.id}: tracking=${data.trackingNumber || data.outboundTrackingNumber || 'NONE'}, status=${data.status}`);
+            });
+          } catch (debugError) {
+            console.log('Could not fetch sample orders for debugging:', debugError.message);
+          }
         }
       } else {
         console.log('⚠️ Database not available - cannot search orders by tracking number');
       }
     } catch (error) {
-      console.error(`Failed to search orders by tracking number:`, error);
+      console.error(`❌ Failed to search orders by tracking number:`, error);
     }
     
     // Send notification email to customer about status change (only for important updates)

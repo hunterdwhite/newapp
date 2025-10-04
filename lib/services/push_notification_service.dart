@@ -194,6 +194,57 @@ class PushNotificationService {
     }
   }
 
+  /// Send push notification to a specific curator about a new order
+  Future<void> notifyCuratorOfNewOrder({
+    required String curatorId,
+    required String orderId,
+    required String customerName,
+  }) async {
+    try {
+      // Get curator's FCM token from Firestore
+      final curatorDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(curatorId)
+          .get();
+      
+      if (!curatorDoc.exists) {
+        print('Curator document not found: $curatorId');
+        return;
+      }
+      
+      final curatorData = curatorDoc.data() as Map<String, dynamic>;
+      final fcmToken = curatorData['fcmToken'] as String?;
+      final curatorName = curatorData['username'] ?? 'Curator';
+      
+      if (fcmToken == null || fcmToken.isEmpty) {
+        print('No FCM token found for curator: $curatorId');
+        return;
+      }
+      
+      // Send notification via Firebase Cloud Functions or your backend
+      // For now, we'll store it in Firestore for the backend to pick up
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'type': 'curator_order_assigned',
+        'recipientId': curatorId,
+        'recipientToken': fcmToken,
+        'title': '🎵 New Order Assigned!',
+        'body': 'You have a new order from $customerName to curate.',
+        'data': {
+          'type': 'curator_order',
+          'orderId': orderId,
+          'curatorId': curatorId,
+        },
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      
+      print('✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
+      
+    } catch (e) {
+      print('❌ Error sending curator notification: $e');
+    }
+  }
+
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     print('Notification tapped with payload: ${response.payload}');

@@ -280,8 +280,8 @@ class _HomeScreenState extends State<HomeScreen>
     // Free Order card
     if (data['freeOrder'] == true) {
       _newsItems.add({
-        'title': 'You have a Free Order',
-        'subtitle': 'Your next order is free! \n Redeem it now and discover new music!',
+        'title': 'You have a Free Community Order',
+        'subtitle': 'Your next community order is free! \n Redeem it now and discover new music!',
         'iconPath': 'assets/icon/nextorderfreeicon.png',
         'imageUrl': '',
         'deeplink': '/order/free',
@@ -318,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen>
       },
       {
         'title': 'Make a donation',
-        'subtitle': 'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free order!',
+        'subtitle': 'Have some CDs collecting dust? \n Email us at dissonant.helpdesk@gmail.com to make a donation! \n You may qualify for a free community order!',
         'imageUrl': '',
         'iconPath': 'assets/icon/donate.png',
       },
@@ -541,7 +541,7 @@ Widget _buildFreeOrderBar() {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 alignment: Alignment.centerLeft,
                 child: const Text(
-                  'Free Order Credits',
+                  'Free Community Order Credits',
                   style: TextStyle(
                     fontSize: 14, // smaller font
                     color: Colors.black,
@@ -612,8 +612,8 @@ Widget _buildFreeOrderBar() {
                     ),
                     child: Text(
                       _freeOrdersAvailable == 1
-                          ? 'You have 1 free order available!'
-                          : 'You have $_freeOrdersAvailable free orders available!',
+                          ? 'You have 1 free community order available!'
+                          : 'You have $_freeOrdersAvailable free community orders available!',
                       style: TextStyle(
                         color: Colors.black,
                         fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 11, tablet: 12, desktop: 12),
@@ -625,7 +625,7 @@ Widget _buildFreeOrderBar() {
                   SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 6, tablet: 8, desktop: 8)),
                 ],
                 Text(
-                  '$creditsNeeded credits until next free order',
+                  '$creditsNeeded credits until next free community order',
                   style: TextStyle(
                     color: Colors.black,
                     fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 11, tablet: 12, desktop: 12),
