@@ -6,6 +6,9 @@ provider:
   environment:
     STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY, 'test'}
     SHIPPO_TOKEN: ${env:SHIPPO_TOKEN, 'test'}
+    PAYPAL_CLIENT_ID: ${env:PAYPAL_CLIENT_ID, 'AamPFKH_pjO9mHoL59HApGo74gTPGYfyO0mSK_tM1s9gcIvPS_87ZPeSI3xLHW3IO4zj5UbmZw_ykbaZ'}
+    PAYPAL_CLIENT_SECRET: ${env:PAYPAL_CLIENT_SECRET, 'ELrGuKNHSy9P8KGrN-p4sAuw3iIbURmZovxuypvMYDPsYPEguv2CG4rKJ03EMPeYykMRuI3im6MOrsww'}
+    PAYPAL_MODE: ${env:PAYPAL_MODE, 'live'}
     WAREHOUSE_NAME: ${env:WAREHOUSE_NAME, 'Dissonant'}
     WAREHOUSE_STREET: ${env:WAREHOUSE_STREET, '789 9th St APT 4C'}
     WAREHOUSE_CITY: ${env:WAREHOUSE_CITY, 'New York'}
@@ -31,7 +34,15 @@ functions:
           method: post
           cors: true
       - http:
+          path: calculate-shipping
+          method: post
+          cors: true
+      - http:
           path: create-paypal-payment
+          method: post
+          cors: true
+      - http:
+          path: capture-paypal-payment
           method: post
           cors: true
       - http:

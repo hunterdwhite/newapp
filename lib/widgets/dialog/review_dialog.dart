@@ -12,21 +12,53 @@ class ReviewDialog extends StatefulWidget {
 
   @override
   _ReviewDialogState createState() => _ReviewDialogState();
+
+  // Static method to show the dialog properly
+  static Future<String?> show(
+    BuildContext context, {
+    String initialComment = '',
+    bool showDeleteButton = false,
+  }) {
+    return Navigator.of(context).push<String>(
+      PageRouteBuilder<String>(
+        opaque: false,
+        barrierColor: Colors.black54,
+        barrierDismissible: true,
+        pageBuilder: (context, animation, secondaryAnimation) => ReviewDialog(
+          initialComment: initialComment,
+          showDeleteButton: showDeleteButton,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
 }
 
 class _ReviewDialogState extends State<ReviewDialog> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
   String? _errorMessage; // For displaying any validation errors
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialComment);
+    _focusNode = FocusNode();
+    
+    // Auto-focus the text field when dialog opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -41,9 +73,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
     Navigator.pop(context, text);
   }
 
-  void _onCancelPressed() {
-    Navigator.pop(context, null);
-  }
 
   void _onDeletePressed() {
     // Return a special string so the parent knows this was a delete action
@@ -80,150 +109,165 @@ class _ReviewDialogState extends State<ReviewDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    return Scaffold(
       backgroundColor: Colors.transparent,
-      // Make dialog resize when keyboard appears
-      insetPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-          maxWidth: MediaQuery.of(context).size.width * 0.9,
-        ),
-        decoration: BoxDecoration(
-          color: Color(0xFFC0C0C0),
-          border: Border.all(color: Colors.black),
-          boxShadow: [
-            BoxShadow(color: Colors.white, offset: Offset(-2, -2), blurRadius: 0),
-            BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Title bar
-            Container(
-              color: Colors.deepOrange,
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Write/Edit Review',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(Icons.close, color: Colors.white, size: 12),
-                  ),
-                ],
-              ),
-            ),
-            // Content - wrapped in SingleChildScrollView for keyboard handling
-            Flexible(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(8.0),
+      resizeToAvoidBottomInset: true,
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          color: Colors.black54,
+          child: Center(
+            child: GestureDetector(
+              onTap: () {}, // Prevent dialog from closing when tapping inside
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.85,
+                height: 300, // Fixed reasonable height
+                margin: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Color(0xFFC0C0C0),
+                  border: Border.all(color: Colors.black),
+                  boxShadow: [
+                    BoxShadow(color: Colors.white, offset: Offset(-2, -2), blurRadius: 0),
+                    BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                  ],
+                ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Your Review:',
-                      style: TextStyle(color: Colors.black, fontSize: 14),
-                    ),
-                    SizedBox(height: 8),
+                    // Title bar with save button
                     Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black),
-                        color: Color(0xFFF4F4F4),
-                      ),
-                      child: TextField(
-                        controller: _controller,
-                        maxLines: 5,
-                        style: TextStyle(color: Colors.black),
-                        // Handle return key properly
-                        textInputAction: TextInputAction.newline,
-                        // Handle return key to add new lines
-                        onEditingComplete: _handleReturnKey,
-                        // Don't close dialog on return key
-                        onSubmitted: (value) {
-                          // Do nothing - keep dialog open
-                        },
-                        // Clear error message when user types
-                        onChanged: _onTextChanged,
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(8.0),
-                          // Add hint text
-                          hintText: 'Write your review here...',
-                          hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                        ),
+                      color: Colors.deepOrange,
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Write/Edit Review',
+                              style: TextStyle(
+                                color: Colors.white, 
+                                fontSize: 12, 
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          // Delete button (if needed)
+                          if (widget.showDeleteButton) ...[
+                            GestureDetector(
+                              onTap: _onDeletePressed,
+                              child: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                margin: EdgeInsets.only(right: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade600,
+                                  border: Border.all(color: Colors.white, width: 1),
+                                ),
+                                child: Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          // Save button
+                          GestureDetector(
+                            onTap: _onOkPressed,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              margin: EdgeInsets.only(right: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade600,
+                                border: Border.all(color: Colors.white, width: 1),
+                              ),
+                              child: Text(
+                                'Save',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Close button
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.close, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    // Display error message if any
-                    if (_errorMessage != null) ...[
-                      SizedBox(height: 8),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red, fontSize: 12),
+                    // Content
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Your Review:',
+                              style: TextStyle(
+                                color: Colors.black, 
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black),
+                                  color: Colors.white,
+                                ),
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _focusNode,
+                                  maxLines: null,
+                                  expands: true,
+                                  style: TextStyle(color: Colors.black, fontSize: 14),
+                                  textInputAction: TextInputAction.newline,
+                                  onEditingComplete: _handleReturnKey,
+                                  onChanged: _onTextChanged,
+                                  decoration: InputDecoration(
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.all(12.0),
+                                    hintText: 'Write your review here...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey.shade600, 
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_errorMessage != null) ...[
+                              SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  color: Colors.red.shade700, 
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ],
-                    SizedBox(height: 16),
-                    // Buttons row - moved to bottom for better keyboard handling
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        // Conditionally show "Delete" if user already has a review
-                        if (widget.showDeleteButton) ...[
-                          ElevatedButton(
-                            style: ButtonStyle(
-                              backgroundColor:
-                                  MaterialStateProperty.all(Color(0xFFD24407)),
-                              elevation: MaterialStateProperty.all(0),
-                              side: MaterialStateProperty.all(
-                                  BorderSide(color: Colors.black, width: 2)),
-                            ),
-                            onPressed: _onDeletePressed,
-                            child: Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                        ],
-                        ElevatedButton(
-                          style: ButtonStyle(
-                            backgroundColor:
-                                MaterialStateProperty.all(Color(0xFFD24407)),
-                            elevation: MaterialStateProperty.all(0),
-                            side: MaterialStateProperty.all(
-                                BorderSide(color: Colors.black, width: 2)),
-                          ),
-                          onPressed: _onOkPressed,
-                          child: Text('OK', style: TextStyle(color: Colors.white)),
-                        ),
-                        SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ButtonStyle(
-                            backgroundColor:
-                                MaterialStateProperty.all(Color(0xFFD24407)),
-                            elevation: MaterialStateProperty.all(0),
-                            side: MaterialStateProperty.all(
-                                BorderSide(color: Colors.black, width: 2)),
-                          ),
-                          onPressed: _onCancelPressed,
-                          child:
-                              Text('Cancel', style: TextStyle(color: Colors.white)),
-                        ),
-                      ],
                     ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+
 }
