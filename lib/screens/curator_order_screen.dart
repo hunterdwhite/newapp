@@ -5,7 +5,7 @@ import '../widgets/grainy_background_widget.dart';
 import '../widgets/star_rating_widget.dart';
 import '../services/curator_service.dart';
 import 'public_profile_screen.dart';
-import 'order_screen.dart';
+import 'product_details_screen.dart';
 
 class CuratorOrderScreen extends StatefulWidget {
   @override
@@ -158,11 +158,14 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
   }
 
   void _selectCurator(Map<String, dynamic> curator) {
-    // Navigate to order screen with selected curator
+    // Navigate to product details screen with selected curator
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => OrderScreen(selectedCuratorId: curator['userId']),
+        builder: (context) => ProductDetailsScreen(
+          productType: 'community',
+          curatorId: curator['userId'],
+        ),
       ),
     );
   }

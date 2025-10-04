@@ -152,6 +152,7 @@ flutter:
     - assets/icon/tellusicon.png
     - assets/icon/recievehandpickedicon.png
     - assets/icon/immerseyourself.png
+    - assets/paypal_logo.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

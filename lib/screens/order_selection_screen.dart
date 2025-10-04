@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/grainy_background_widget.dart';
-import 'order_screen.dart';
 import 'curator_order_screen.dart';
-import '../main.dart';
+import 'product_details_screen.dart';
 
 class OrderSelectionScreen extends StatefulWidget {
   @override
@@ -120,13 +119,10 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                     ),
                     title: 'Dissonant',
                     subtitle: 'Curated by us',
-                    onTap: () {
-                      MyHomePage.of(context)?.pushInOrderTab(
-                        MaterialPageRoute(
-                          builder: (context) => OrderScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => _navigateToProductDetails(
+                      productType: 'dissonant',
+                      curatorId: null,
+                    ),
                     isEnabled: true,
                   ),
                 ),
@@ -140,14 +136,12 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
                     ),
                     title: 'Community\nCurators',
                     subtitle: 'Choose your curator',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CuratorOrderScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CuratorOrderScreen(),
+                      ),
+                    ),
                     isEnabled: true,
                   ),
                 ),
@@ -202,6 +196,21 @@ class _OrderSelectionScreenState extends State<OrderSelectionScreen> {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToProductDetails({
+    required String productType,
+    String? curatorId,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProductDetailsScreen(
+          productType: productType,
+          curatorId: curatorId,
         ),
       ),
     );
