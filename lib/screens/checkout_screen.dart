@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../services/firestore_service.dart';
@@ -282,17 +281,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             isSelected: _selectedPaymentMethod == 'paypal',
           ),
           
-          // Apple Pay (iOS only)
-          if (Platform.isIOS) ...[
-            SizedBox(height: 12),
-            _buildPaymentOption(
-              id: 'apple_pay',
-              title: 'Apple Pay',
-              subtitle: 'Touch ID or Face ID',
-              icon: Icons.phone_iphone,
-              isSelected: _selectedPaymentMethod == 'apple_pay',
-            ),
-          ],
         ],
       ),
     );
@@ -595,9 +583,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         case 'paypal':
           await _processPayPalPayment(total, user.uid);
           break;
-        case 'apple_pay':
-          await _processApplePayPayment(amountInCents, user.uid);
-          break;
         default:
           throw Exception('Invalid payment method');
       }
@@ -750,17 +735,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Future<void> _processApplePayPayment(int amountInCents, String userId) async {
-    // For now, show a placeholder message
-    // In production, you would integrate with Apple Pay
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Apple Pay integration coming soon!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-    
-    // Simulate payment processing
     await Future.delayed(Duration(seconds: 2));
     await _createOrder(userId);
   }
