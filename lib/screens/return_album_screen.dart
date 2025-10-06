@@ -138,7 +138,7 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
       await _firestoreService.updateOrderStatus(widget.orderId, 'returned');
 
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && _flowVersion == 2) {
+      if (user != null && _flowVersion >= 2) {
         await _firestoreService.updateUserDoc(user.uid, {'freeOrder': true});
       }
 

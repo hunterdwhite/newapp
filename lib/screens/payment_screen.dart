@@ -154,7 +154,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     // The return key will naturally add a new line
   }
 
-  /// For orders with flowVersion == 2, simply mark as kept without charging.
+  /// For orders with flowVersion >= 2, simply mark as kept without charging.
   Future<void> _keepAlbum() async {
     // Dismiss keyboard before processing
     _dismissKeyboard();
@@ -263,8 +263,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // For old flow (flowVersion != 2), the UI shows price and payment step.
-    // For new flow (flowVersion == 2), we remove price and payment, and only show the "Keep Album" option.
+    // For old flow (flowVersion == 1), the UI shows price and payment step.
+    // For new flow (flowVersion >= 2), we remove price and payment, and only show the "Keep Album" option.
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: CustomAppBarWidget(title: 'Keep Your Album'),
@@ -485,7 +485,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         ),
                         SizedBox(height: 20.0),
                         // Conditional UI:
-                        _flowVersion == 2
+                        _flowVersion >= 2
                             ? RetroButtonWidget(
                                 text: 'Keep Album',
                                 onPressed: _keepAlbum,
