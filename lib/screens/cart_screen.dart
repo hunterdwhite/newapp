@@ -704,6 +704,9 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _calculateShipping() async {
     if (!_formKey.currentState!.validate()) return;
     
+    // Close the keyboard
+    FocusScope.of(context).unfocus();
+    
     setState(() {
       _isCalculatingShipping = true;
       _shippingError = null;
