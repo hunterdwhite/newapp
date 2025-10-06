@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../services/firestore_service.dart';
 import '../services/payment_service.dart';
@@ -270,116 +269,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             isSelected: _selectedPaymentMethod == 'stripe',
           ),
           
-          SizedBox(height: 12),
-          
-          // PayPal
-          _buildPaymentOptionWithImage(
-            id: 'paypal',
-            title: 'PayPal',
-            subtitle: 'Pay with your PayPal account',
-            imagePath: 'assets/paypal_logo.png', // Add PayPal logo to assets
-            isSelected: _selectedPaymentMethod == 'paypal',
-          ),
           
         ],
       ),
     );
   }
 
-  Widget _buildPaymentOptionWithImage({
-    required String id,
-    required String title,
-    required String subtitle,
-    required String imagePath,
-    required bool isSelected,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedPaymentMethod = id;
-        });
-      },
-      child: Container(
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected 
-            ? Colors.orangeAccent.withOpacity(0.1)
-            : Colors.white.withOpacity(0.02),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected 
-              ? Colors.orangeAccent
-              : Colors.white.withOpacity(0.1),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? Colors.orangeAccent : Colors.white.withOpacity(0.3),
-                  width: 2,
-                ),
-              ),
-              child: isSelected
-                ? Center(
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.orangeAccent,
-                      ),
-                    ),
-                  )
-                : null,
-            ),
-            SizedBox(width: 16),
-            Image.asset(
-              imagePath,
-              width: 24,
-              height: 24,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.account_balance_wallet,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 24,
-                );
-              },
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildPaymentOption({
     required String id,
@@ -580,9 +475,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         case 'stripe':
           await _processStripePayment(amountInCents, user.uid);
           break;
-        case 'paypal':
-          await _processPayPalPayment(total, user.uid);
-          break;
         default:
           throw Exception('Invalid payment method');
       }
@@ -628,116 +520,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Future<void> _processPayPalPayment(double amount, String userId) async {
-    try {
-      // Create PayPal order
-      final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-paypal-payment'),
-        body: jsonEncode({
-          'amount': amount,
-          'currency': 'USD',
-          'return_url': 'https://dissonanthq.com/payment/success',
-          'cancel_url': 'https://dissonanthq.com/payment/cancel',
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to create PayPal order: ${response.body}');
-      }
 
-      final responseData = jsonDecode(response.body);
-      final approvalUrl = responseData['approval_url'];
-      final orderId = responseData['order_id'];
-
-      if (approvalUrl == null) {
-        throw Exception('No approval URL received from PayPal');
-      }
-
-      // Launch PayPal approval URL
-      final uri = Uri.parse(approvalUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        
-        // Show dialog to handle payment completion
-        await _showPayPalCompletionDialog(orderId, userId);
-      } else {
-        throw Exception('Could not launch PayPal URL');
-      }
-
-    } catch (e) {
-      throw Exception('PayPal payment failed: ${e.toString()}');
-    }
-  }
-
-  Future<void> _showPayPalCompletionDialog(String orderId, String userId) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF2A2A2A),
-          title: Text(
-            'PayPal Payment',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Text(
-            'Please complete your payment in the PayPal window, then return here.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Payment Completed', style: TextStyle(color: Colors.green)),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _capturePayPalPayment(orderId, userId);
-              },
-            ),
-            TextButton(
-              child: Text('Cancel', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.of(context).pop();
-                setState(() {
-                  _isProcessing = false;
-                });
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _capturePayPalPayment(String orderId, String userId) async {
-    try {
-      // Capture the PayPal payment
-      final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/capture-paypal-payment'),
-        body: jsonEncode({'order_id': orderId}),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to capture PayPal payment: ${response.body}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      
-      if (responseData['status'] == 'COMPLETED') {
-        // Payment successful, create order
-        await _createOrder(userId);
-      } else {
-        throw Exception('PayPal payment not completed: ${responseData['status']}');
-      }
-
-    } catch (e) {
-      throw Exception('Failed to capture PayPal payment: ${e.toString()}');
-    }
-  }
-
-    await Future.delayed(Duration(seconds: 2));
-    await _createOrder(userId);
-  }
 
   Future<void> _createOrder(String userId) async {
     // Build full address string
