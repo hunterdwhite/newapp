@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'referral_service.dart';
 import 'push_notification_service.dart';
+import 'pricing_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -452,6 +453,11 @@ class FirestoreService {
     // Generate referral code for the new user
     final referralCode = await ReferralService.getOrCreateReferralCode(userId);
     
+    // Check app config to see if new users should get free orders
+    final pricingService = PricingService();
+    final shouldGiveFreeOrder = await pricingService.shouldGiveNewUsersFreeOrder();
+    final freeOrderCount = await pricingService.getNewUserFreeOrderCount();
+    
     // Create the main user document with private data
     await _firestore.collection('users').doc(userId).set({
       'username': username, // <-- Add this field
@@ -469,6 +475,10 @@ class FirestoreService {
       'referralCount': 0,
       'totalReferralCredits': 0,
       'firstOrderReferralCredits': 0,
+      // Free order controlled by app_config in Firestore (remote toggle)
+      'freeOrder': shouldGiveFreeOrder,
+      'freeOrdersAvailable': shouldGiveFreeOrder ? freeOrderCount : 0,
+      'freeOrderCredits': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -515,7 +525,7 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     });
   }
 
-  Future<void> addOrder(String userId, String address, {int flowVersion = 1, String? curatorId}) async {
+  Future<String> addOrder(String userId, String address, {int flowVersion = 1, String? curatorId}) async {
     // Check if this is the user's first order
     QuerySnapshot existingOrders = await _firestore
         .collection('orders')
@@ -540,6 +550,9 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
     }
     
     final orderDocRef = await _firestore.collection('orders').add(orderData);
+    
+    // Store order ID before other async operations
+    final orderId = orderDocRef.id;
 
     await _firestore.collection('users').doc(userId).update({
       'hasOrdered': true,
@@ -564,6 +577,9 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
         // Don't fail the order creation if referral processing fails
       }
     }
+    
+    // Return the order document ID so client can use it for label creation
+    return orderId;
   }
 
 // For retrieving the user document
