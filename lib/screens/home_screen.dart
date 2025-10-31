@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
 import '../services/firestore_service.dart';
+import '../services/pricing_service.dart';
 import '../models/album_model.dart';
 import '../models/feed_item_model.dart';
 import 'feed_screen.dart';
@@ -222,6 +223,22 @@ class _HomeScreenState extends State<HomeScreen>
     
     try {
       _newsItems = [];
+
+      // Check if anniversary event card should be shown (controlled remotely via Firestore)
+      final pricingService = PricingService();
+      final showAnniversaryCard = await pricingService.shouldShowAnniversaryCard();
+      
+      if (showAnniversaryCard) {
+        // Add anniversary event card first (only if enabled in app_config)
+        _newsItems.add(const {
+          'title': 'Dissonant 1 Year Anniversary Event!',
+          'subtitle': 'Celebrating the one year anniversary of Dissonant!\n\nFor the month of November:\n• 1 FREE order for all new users\n• 1 FREE order for existing users who haven\'t ordered yet\n• Price cuts across the board for everyone!',
+          'imageUrl': '',
+          'iconPath': 'assets/dissonantordericon.png',
+          'deeplink': '/order',
+          'type': 'anniversary',
+        });
+      }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -865,14 +882,18 @@ Widget _buildFreeOrderBar() {
                                                 ),
                                               ],
                                             )
-                                          : Text(
-                                              item['subtitle'] ?? '',
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 15, desktop: 15),
-                                                color: Colors.black87,
-                                              ),
-                                            ),
+                                          : item['type'] == 'anniversary'
+                                              ? _buildAnniversaryContent(
+                                                  ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 15, desktop: 15)
+                                                )
+                                              : Text(
+                                                  item['subtitle'] ?? '',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 15, desktop: 15),
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
                                     ),
                                   ),
                                 ],
@@ -988,6 +1009,65 @@ Widget _singleWindow({required Color color, required Widget child}) {
   );
 }
 
+
+  Widget _buildAnniversaryContent(double fontSize) {
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: fontSize,
+          color: Colors.black87,
+          height: 1.4,
+        ),
+        children: const [
+          TextSpan(
+            text: 'Celebrating the one year anniversary of Dissonant!\n\n',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+          TextSpan(
+            text: 'For the month of November:\n',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: '• ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: '1 FREE order ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: 'for all new users\n',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+          TextSpan(
+            text: '• ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: '1 FREE order ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: 'for existing users who haven\'t ordered yet\n',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+          TextSpan(
+            text: '• ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: 'Price cuts ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: 'across the board for everyone!',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSocialIcon(String assetPath, String url) {
     return GestureDetector(

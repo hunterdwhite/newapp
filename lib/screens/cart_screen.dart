@@ -6,6 +6,7 @@ import '../services/shippo_address_service.dart';
 import '../services/shipping_service.dart';
 import '../services/firestore_service.dart';
 import 'checkout_screen.dart';
+import 'home_screen.dart';
 
 class CartScreen extends StatefulWidget {
   final String productType;
@@ -363,7 +364,9 @@ class _CartScreenState extends State<CartScreen> {
               child: ElevatedButton(
                 onPressed: _isCalculatingShipping ? null : _calculateShipping,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orangeAccent.withOpacity(0.8),
+                  backgroundColor: _hasFreeOrder 
+                    ? Color(0xFF10B981).withOpacity(0.8)
+                    : Colors.orangeAccent.withOpacity(0.8),
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -383,10 +386,10 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                         ),
                         SizedBox(width: 8),
-                        Text('Calculating Shipping...'),
+                        Text(_hasFreeOrder ? 'Confirming Address...' : 'Calculating Shipping...'),
                       ],
                     )
-                  : Text('Calculate Shipping'),
+                  : Text(_hasFreeOrder ? 'Confirm Shipping Address' : 'Calculate Shipping'),
               ),
             ),
             if (_shippingError != null) ...[
@@ -886,8 +889,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _useFreeOrder(String userId) async {
-    await FirebaseFirestore.instance.collection('users').doc(userId).update({
-      'freeOrder': false,
-    });
+    // Use the proper method that decrements freeOrdersAvailable
+    await HomeScreen.useFreeOrder(userId);
   }
 }

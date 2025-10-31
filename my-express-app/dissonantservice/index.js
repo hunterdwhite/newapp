@@ -459,6 +459,7 @@ app.post('/create-shipping-labels', async (req, res) => {
       state: process.env.WAREHOUSE_STATE || 'NY',
       zip: process.env.WAREHOUSE_ZIP || '10019',
       country: process.env.WAREHOUSE_COUNTRY || 'US',
+      company: 'Dissonant', // Add company name
     };
 
     // Create outbound shipment

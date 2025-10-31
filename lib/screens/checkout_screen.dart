@@ -3,10 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import '../widgets/grainy_background_widget.dart';
 import '../services/firestore_service.dart';
 import '../services/payment_service.dart';
 import 'home_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String productType;
@@ -527,16 +529,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // Build full address string
     final fullAddress = _buildAddressString();
     
-    // Create shipping labels
-    await _createShippingLabels(userId, fullAddress);
-    
-    // Create order in Firestore
-    await _firestoreService.addOrder(
+    // Create order first - Cloud Function will handle shipping labels automatically
+    final orderId = await _firestoreService.addOrder(
       userId, 
       fullAddress, 
       flowVersion: 3, // New checkout flow version
       curatorId: widget.curatorId,
     );
+    
+    // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _createShippingLabels(userId, fullAddress, orderId: orderId).catchError((error) {
+        print('⚠️ Client-side label creation failed (Cloud Function will handle): $error');
+      });
+    });
     
     // Award credits for paid orders
     await HomeScreen.addFreeOrderCredits(userId, 1);
@@ -563,7 +569,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         '${widget.shippingAddress['city']}, ${widget.shippingAddress['state']} ${widget.shippingAddress['zipCode']}';
   }
 
-  Future<void> _createShippingLabels(String userId, String fullAddress) async {
+  Future<void> _createShippingLabels(String userId, String fullAddress, {String? orderId}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user?.email == null) return;
@@ -596,29 +602,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       };
 
       final parcel = {
-        'length': '5.5',
-        'width': '5.0',
+        'length': '8',
+        'width': '6',
         'height': '0.5',
         'distance_unit': 'in',
-        'weight': '0.2',
-        'mass_unit': 'lb',
+        'weight': '4.9',
+        'mass_unit': 'oz',
       };
 
-      final orderId = 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
+      // Use provided orderId (Firestore order ID) or generate timestamp-based one
+      final labelOrderId = orderId != null ? 'ORDER-$orderId' : 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
 
       final response = await http.post(
         Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels'),
         body: jsonEncode({
           'to_address': customerAddress,
           'parcel': parcel,
-          'order_id': orderId,
+          'order_id': labelOrderId,
           'customer_name': customerName,
           'customer_email': user!.email,
         }),
         headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Shipping label creation timed out after 10 seconds');
+        },
       );
 
-      if (response.statusCode != 200) {
+      if (response.statusCode == 200) {
+        final labelData = jsonDecode(response.body);
+        print('✅ Shipping labels created successfully');
+        
+        // Update order document to mark labels as created (prevents Cloud Function from trying)
+        if (orderId != null) {
+          try {
+            await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+              'shippingLabels': {
+                'created': true,
+                'status': 'success',
+                'orderId': labelOrderId,
+                'outboundLabel': labelData['outbound_label'],
+                'returnLabel': labelData['return_label'],
+                'createdAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+                'createdBy': 'client',
+              },
+            });
+            print('✅ Order document updated with shipping label data');
+          } catch (updateError) {
+            print('⚠️ Failed to update order document (Cloud Function will handle): $updateError');
+          }
+        }
+      } else {
         print('Failed to create shipping labels: ${response.body}');
       }
     } catch (e) {

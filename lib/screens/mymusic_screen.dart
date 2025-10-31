@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import 'payment_screen.dart';
 import 'return_album_screen.dart';
+import 'public_profile_screen.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/spoiler_widget.dart';
 import '../widgets/retro_button_widget.dart'; // Import the RetroButtonWidget
@@ -400,6 +401,13 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
   }
 
   void _showCuratorNoteDialog() {
+    // Get curatorId from order
+    String? curatorId;
+    if (_order != null) {
+      final orderData = _order!.data() as Map<String, dynamic>?;
+      curatorId = orderData?['curatorId'];
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -469,7 +477,7 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
         ),
         content: Container(
           width: 300,
-          constraints: const BoxConstraints(maxHeight: 300),
+          constraints: const BoxConstraints(maxHeight: 350),
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -493,8 +501,50 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
               ),
               const SizedBox(height: 16),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // View Curator Profile button (only show if curatorId exists)
+                  if (curatorId != null)
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop(); // Close dialog first
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PublicProfileScreen(userId: curatorId!),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFA12C),
+                          border: Border.all(color: Colors.black, width: 2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(
+                              Icons.person,
+                              color: Colors.black,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'View Curator',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'MS Sans Serif',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
