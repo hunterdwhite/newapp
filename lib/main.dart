@@ -21,9 +21,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'screens/order_selection_screen.dart';
 import 'services/firestore_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'services/push_notification_service.dart';
 
 // Global navigator key for push notifications
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// Background message handler - MUST be a top-level function
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('🔔 Background message received: ${message.messageId}');
+  debugPrint('Data: ${message.data}');
+  debugPrint('Notification: ${message.notification?.title} - ${message.notification?.body}');
+}
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +74,13 @@ void main() async {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
     };
+
+    // Register background message handler for FCM
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
+    // Initialize push notification service
+    await PushNotificationService().initialize();
+    debugPrint('✅ Push notification service initialized');
 
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
@@ -292,8 +310,54 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
       ProfileScreen(),
     ];
     
+    // Initialize push notifications for logged-in user
+    _initializePushNotifications();
+    
     // Listen for new curator orders
     _listenForNewCuratorOrders();
+  }
+  
+  /// Initialize push notifications and request permissions
+  Future<void> _initializePushNotifications() async {
+    try {
+      final pushService = PushNotificationService();
+      
+      // Request notification permissions
+      final granted = await pushService.requestPermissions();
+      
+      if (granted) {
+        debugPrint('✅ Push notification permissions granted');
+        
+        // Get and store FCM token
+        final token = await pushService.getToken();
+        if (token != null) {
+          debugPrint('✅ FCM token obtained: ${token.substring(0, 20)}...');
+          
+          // Check if user is a curator and subscribe to topic
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final userDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get();
+            
+            if (userDoc.exists) {
+              final userData = userDoc.data();
+              final isCurator = userData?['isCurator'] ?? false;
+              
+              if (isCurator) {
+                await pushService.subscribeToTopic('curator_${user.uid}');
+                debugPrint('✅ Subscribed to curator topic');
+              }
+            }
+          }
+        }
+      } else {
+        debugPrint('⚠️ Push notification permissions denied');
+      }
+    } catch (e) {
+      debugPrint('❌ Error initializing push notifications: $e');
+    }
   }
   
   void _listenForNewCuratorOrders() {

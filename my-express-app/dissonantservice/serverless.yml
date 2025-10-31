@@ -20,6 +20,19 @@ provider:
     FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID, 'dissonantapp2'}
     SENDGRID_API_KEY: ${env:SENDGRID_API_KEY, ''}
 
+package:
+  patterns:
+    - '!*.md'
+    - '!*.zip'
+    - '!*.sh'
+    - '!test-*.js'
+    - '!*.backup'
+    - '!ses-lambda-policy.json'
+    - '!lambda-env-variables.md'
+    - 'node_modules/**'
+    - 'index.js'
+    - 'package.json'
+
 functions:
   app:
     handler: index.handler

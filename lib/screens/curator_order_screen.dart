@@ -58,6 +58,19 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
       // Load favorite curators
       final favoriteCurators = await _curatorService.getFavoriteCurators(user.uid);
       
+      // Enrich favorite curators with stats (order count, rating, review count)
+      for (var curator in favoriteCurators) {
+        final orderCount = await _getCuratorOrderCount(curator['userId']);
+        curator['orderCount'] = orderCount;
+        
+        // Get rating information
+        final ratingInfo = await _curatorService.getCuratorRating(curator['userId']);
+        curator['rating'] = ratingInfo['rating'];
+        curator['reviewCount'] = ratingInfo['reviewCount'];
+        
+        curator['isFeatured'] = curator['isFeatured'] ?? false;
+      }
+      
       // Load all curators with order counts and featured status
       final allCurators = await _loadCuratorsWithStats();
       
@@ -65,9 +78,13 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
       final featuredCurators = allCurators.where((curator) => curator['isFeatured'] == true).toList();
       
       // Sort curators by order count (descending)
+      favoriteCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
       allCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
       featuredCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
 
+      // Check if widget is still mounted before calling setState
+      if (!mounted) return;
+      
       setState(() {
         _favoriteCurators = favoriteCurators;
         _featuredCurators = featuredCurators;
@@ -76,6 +93,10 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
       });
     } catch (e) {
       print('Error loading curators: $e');
+      
+      // Check if widget is still mounted before calling setState
+      if (!mounted) return;
+      
       setState(() {
         _isLoading = false;
       });
@@ -146,11 +167,18 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
       // Sort search results by order count
       results.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
       
+      // Check if widget is still mounted before calling setState
+      if (!mounted) return;
+      
       setState(() {
         _searchResults = results;
       });
     } catch (e) {
       print('Error performing search: $e');
+      
+      // Check if widget is still mounted before calling setState
+      if (!mounted) return;
+      
       setState(() {
         _searchResults = [];
       });
@@ -204,6 +232,9 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
   }
 
   Future<void> _refreshCurators() async {
+    // Check if widget is still mounted before calling setState
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
