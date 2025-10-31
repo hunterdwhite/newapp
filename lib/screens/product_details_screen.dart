@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/retro_button_widget.dart';
 import '../services/firestore_service.dart';
+import '../services/pricing_service.dart';
 import 'cart_screen.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -21,11 +22,15 @@ class ProductDetailsScreen extends StatefulWidget {
 }
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  final PricingService _pricingService = PricingService();
+  
   double? _selectedPrice;
   String _selectedPriceLabel = '';
   Map<String, dynamic>? _curatorInfo;
   bool _isLoadingCurator = false;
   bool _hasFreeOrder = false;
+  List<double> _priceOptions = [];
+  bool _isLoadingPrices = true;
 
   final Map<String, Map<String, dynamic>> _productInfo = {
     'dissonant': {
@@ -56,21 +61,37 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     },
   };
 
-  List<double> get _priceOptions {
-    // Different pricing for community curators vs Dissonant
-    if (widget.productType == 'community') {
-      return [5.99, 7.99, 9.99]; // Lower prices for community curators
-    } else {
-      return [7.99, 9.99, 12.99]; // Standard Dissonant prices
-    }
-  }
 
   @override
   void initState() {
     super.initState();
+    _loadPricing();
     _loadUserData();
     if (widget.curatorId != null) {
       _loadCuratorInfo();
+    }
+  }
+
+  Future<void> _loadPricing() async {
+    try {
+      final priceOptions = await _pricingService.getPriceOptions(widget.productType);
+      if (mounted) {
+        setState(() {
+          _priceOptions = priceOptions;
+          _isLoadingPrices = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading pricing: $e');
+      // Fallback to default prices
+      if (mounted) {
+        setState(() {
+          _priceOptions = widget.productType == 'community' 
+            ? [5.99, 7.99, 9.99] 
+            : [7.99, 9.99, 12.99];
+          _isLoadingPrices = false;
+        });
+      }
     }
   }
 
@@ -532,6 +553,22 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       );
     }
 
+    if (_isLoadingPrices) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
+        ),
+        child: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.orangeAccent),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -580,7 +617,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               child: DropdownButton<double>(
                 value: _selectedPrice,
                 hint: Text(
-                  'Choose a price...',
+                  _priceOptions.isEmpty ? 'Loading prices...' : 'Choose a price...',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white54,
@@ -599,7 +636,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     ),
                   );
                 }).toList(),
-                onChanged: (double? newValue) {
+                onChanged: _priceOptions.isEmpty ? null : (double? newValue) {
                   setState(() {
                     _selectedPrice = newValue;
                     _selectedPriceLabel = newValue != null ? '\$${newValue.toStringAsFixed(2)}' : '';

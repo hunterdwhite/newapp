@@ -1,441 +1,347 @@
-const admin = require("firebase-admin");
-const axios = require("axios");
-require("dotenv").config();
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const axios = require('axios');
 
-admin.initializeApp();
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
 const db = admin.firestore();
 
-const DISCOGS_TOKEN = process.env.DISCOGS_TOKEN;
-const DISC_USERNAME = process.env.DISCOGS_USERNAME;
-const REQUEST_DELAY_MS = 1100;
-
+// Lambda endpoint URL
+const LAMBDA_ENDPOINT = 'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels';
 
 /**
- * Fetches the user's full Discogs collection from folder 0 (All).
- * Handles pagination to get all releases.
- * @return {Promise<Array>} List of collected releases.
+ * Helper function to parse address string into components
+ * Handles two formats:
+ * 1. Newline-separated: "Name\nStreet\nCity, State Zip"
+ * 2. Comma-separated: "Name, Street, City, State Zip"
  */
-async function getDiscogsCollection() {
-  let allReleases = [];
-  let page = 1;
-  let hasMorePages = true;
-  
-  while (hasMorePages) {
-    const url =
-      `https://api.discogs.com/users/${DISC_USERNAME}/collection/folders/0/releases` +
-      `?token=${DISCOGS_TOKEN}&per_page=100&page=${page}`;
-    
-    console.log(`Fetching Discogs collection page ${page}...`);
-    const res = await axios.get(url);
-    
-    // Log API response structure for debugging
-    if (page === 1) {
-      console.log(`📊 API Response structure:`, {
-        totalItems: res.data.pagination?.items || 'unknown',
-        totalPages: res.data.pagination?.pages || 'unknown',
-        itemsOnThisPage: res.data.releases?.length || 0,
-        sampleItem: res.data.releases?.[0] ? {
-          hasBasicInfo: !!res.data.releases[0].basic_information,
-          hasId: !!res.data.releases[0].basic_information?.id,
-          id: res.data.releases[0].basic_information?.id,
-          title: res.data.releases[0].basic_information?.title
-        } : 'no items'
-      });
-    }
-    
-    const releases = res.data.releases;
-    allReleases = allReleases.concat(releases);
-    
-    // Check if there are more pages
-    const pagination = res.data.pagination;
-    hasMorePages = page < pagination.pages;
-    page++;
-    
-    // Add delay to respect rate limits
-    if (hasMorePages) {
-      await delay(REQUEST_DELAY_MS);
-    }
-  }
-  
-  console.log(`Fetched ${allReleases.length} total releases from Discogs collection`);
-  return allReleases;
-}
+function parseAddress(addressString) {
+  try {
+    let name, street, city, state, zip;
 
-/**
- * Fetches detailed release data from Discogs for a given release ID.
- * @param {string|number} releaseId - Discogs release ID.
- * @return {Promise<Object>} Release metadata.
- */
-async function fetchReleaseData(releaseId) {
-  const url =
-    `https://api.discogs.com/releases/${releaseId}?token=${DISCOGS_TOKEN}`;
-  const res = await axios.get(url);
-  return res.data;
-}
-
-/**
- * Delays execution for a given number of milliseconds.
- * Useful for throttling API requests to avoid rate limits.
- *
- * @param {number} ms - The number of milliseconds to wait.
- * @return {Promise<void>} A promise that resolves after the delay.
- */
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-
-/**
- * Syncs the Discogs collection into Firestore, updating or inserting
- * album documents, and maintaining inventory availability.
- */
-async function syncAlbums() {
-  const collection = await getDiscogsCollection();
-  
-  console.log(`📊 Total Discogs items fetched: ${collection.length}`);
-  
-  // Track which albums we've seen in this sync to count actual quantities
-  const discogsInventory = new Map();
-  
-  // First pass: count actual quantities from Discogs collection
-  console.log(`🔍 Analyzing collection structure...`);
-  let itemsWithoutBasicInfo = 0;
-  let itemsWithoutId = 0;
-  
-  for (const item of collection) {
-    // Check if item has the expected structure
-    if (!item.basic_information) {
-      console.log(`⚠️  Item missing basic_information:`, JSON.stringify(item, null, 2));
-      itemsWithoutBasicInfo++;
-      continue;
-    }
+    // Try newline-separated format first
+    const lines = addressString.split('\n');
     
-    if (!item.basic_information.id) {
-      console.log(`⚠️  Item missing id:`, JSON.stringify(item.basic_information, null, 2));
-      itemsWithoutId++;
-      continue;
-    }
-    
-    const releaseId = item.basic_information.id.toString();
-    const currentCount = discogsInventory.get(releaseId) || 0;
-    discogsInventory.set(releaseId, currentCount + 1);
-  }
-  
-  if (itemsWithoutBasicInfo > 0) {
-    console.log(`⚠️  Found ${itemsWithoutBasicInfo} items without basic_information`);
-  }
-  if (itemsWithoutId > 0) {
-    console.log(`⚠️  Found ${itemsWithoutId} items without id`);
-  }
-  
-  console.log(`🎵 Total items: ${collection.length}, Unique releases: ${discogsInventory.size}`);
-  
-  // Log duplicates
-  const duplicates = [];
-  discogsInventory.forEach((count, releaseId) => {
-    if (count > 1) {
-      duplicates.push(`${releaseId}: ${count} copies`);
-    }
-  });
-  if (duplicates.length > 0) {
-    console.log(`🔄 Found duplicates: ${duplicates.join(', ')}`);
-  }
-  
-  // Second pass: sync albums and update inventory with actual quantities
-  const processedReleases = new Set();
-  let successCount = 0;
-  let errorCount = 0;
-  let skippedCount = 0;
-  
-  for (const item of collection) {
-    // Skip items that don't have proper structure (already logged above)
-    if (!item.basic_information || !item.basic_information.id) {
-      continue;
-    }
-    
-    const releaseId = item.basic_information.id;
-    const releaseIdStr = releaseId.toString();
-    
-    // Skip if we've already processed this release in this sync
-    if (processedReleases.has(releaseIdStr)) {
-      console.log(`🔄 Skipping duplicate: ${releaseIdStr}`);
-      skippedCount++;
-      continue;
-    }
-    processedReleases.add(releaseIdStr);
-    
-    try {
-      console.log(`🔍 Processing release ${releaseIdStr} (${successCount + errorCount + 1}/${discogsInventory.size})...`);
-      const release = await fetchReleaseData(releaseId);
-      await delay(REQUEST_DELAY_MS);
+    if (lines.length >= 3) {
+      // Format: "Name\nStreet\nCity, State Zip"
+      name = lines[0].trim();
+      street = lines[1].trim();
+      const cityStateZip = lines[2].split(', ');
       
-      // Validate release data
-      if (!release) {
-        throw new Error('Release data is null/undefined');
-      }
-      if (!release.title) {
-        throw new Error('Release missing title');
-      }
-      if (!release.artists_sort) {
-        throw new Error('Release missing artists_sort');
-      }
-
-      const albumName = release.title;
-      const artist = release.artists_sort;
-      const matchingQuery = db
-          .collection("albums")
-          .where("albumName", "==", albumName)
-          .where("artist", "==", artist);
-
-      const snapshot = await matchingQuery.get();
-
-      let albumDocRef;
-
-      const albumData = {
-        albumName,
-        artist,
-        coverUrl:
-          release.images && release.images.length > 0 ?
-            release.images[0].uri :
-            "",
-        discogsId: release.id,
-        genres: release.genres,
-        styles: release.styles,
-        releaseYear: release.released ?
-          release.released.split("-")[0] :
-          "",
-        label:
-          release.labels && release.labels.length > 0 ?
-            release.labels[0].name :
-            "",
-        country: release.country,
-        updatedAt: new Date(),
-      };
-
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        // Exclude coverUrl from update if album exists
-        const albumDataWithoutCover = (({coverUrl, ...rest}) => rest)(albumData);
-        await doc.ref.set(albumDataWithoutCover, {merge: true});
-        albumDocRef = doc.ref;
-      } else {
-        const docRef = await db.collection("albums").add({
-          ...albumData,
-          createdAt: new Date(),
-        });
-        albumDocRef = docRef;
-      }
-
-      // Update inventory with actual quantity from Discogs
-      const inventoryRef = db.collection("inventory").doc(releaseIdStr);
-      const actualQuantity = discogsInventory.get(releaseIdStr);
-
-      const inventoryData = {
-        discogsId: release.id,
-        albumId: albumDocRef.id,
-        albumName,
-        artist,
-        coverUrl: albumData.coverUrl,
-        releaseYear: albumData.releaseYear,
-        genres: albumData.genres,
-        quantity: actualQuantity, // Set to actual count from Discogs
-        lastUpdated: new Date(),
-      };
-
-      // Always set the inventory data (create or overwrite)
-      await inventoryRef.set(inventoryData);
-
-      console.log(`✅ Synced: ${albumName} - ${artist} (Quantity: ${actualQuantity})`);
-      successCount++;
-    } catch (error) {
-      console.error(`❌ Failed to sync release ${releaseIdStr}:`, error.message);
-      errorCount++;
-    }
-  }
-  
-  console.log(`📈 Sync Summary: ${successCount} successful, ${errorCount} errors, ${skippedCount} skipped duplicates`);
-  
-  // Third pass: Remove inventory items that are no longer in Discogs collection
-  console.log("Checking for removed items...");
-  const inventorySnapshot = await db.collection("inventory").get();
-  const batch = db.batch();
-  let removedCount = 0;
-  
-  inventorySnapshot.forEach((doc) => {
-    const inventoryData = doc.data();
-    const discogsId = inventoryData.discogsId ? inventoryData.discogsId.toString() : null;
-    
-    // If this item is no longer in the Discogs collection, remove it
-    if (discogsId && !discogsInventory.has(discogsId)) {
-      console.log(`Removing from inventory: ${inventoryData.albumName} - ${inventoryData.artist} (no longer in Discogs)`);
-      batch.delete(doc.ref);
-      removedCount++;
-    }
-  });
-  
-  if (removedCount > 0) {
-    await batch.commit();
-    console.log(`Removed ${removedCount} items from inventory`);
-  }
-}
-
-
-/**
- * Firebase Cloud Function: runs every 24 hours to sync Discogs data.
- * Using v1 functions for better compatibility with Cloud Scheduler
- */
-const functions = require("firebase-functions");
-
-exports.nightlyDiscogsSync = functions
-  .runWith({
-    timeoutSeconds: 540, // 9 minutes timeout
-    memory: "512MB", // More memory for processing
-  })
-  .pubsub.schedule("every 24 hours")
-  .timeZone("America/New_York") // Set timezone
-  .onRun(async (context) => {
-    console.log("Starting Discogs sync job...");
-    try {
-      await syncAlbums();
-      console.log("Discogs sync complete.");
-    } catch (error) {
-      console.error("Discogs sync failed:", error);
-      throw error; // Re-throw to mark the function as failed
-    }
-  });
-
-// Import and export custom email service functions
-// Temporarily commented out due to environment variable issues
-// const { sendCustomEmailVerification, verifyCustomEmail } = require('./email-service');
-// exports.sendCustomEmailVerification = sendCustomEmailVerification;
-// exports.verifyCustomEmail = verifyCustomEmail;
-
-/**
- * ENHANCED Cloud Function: Send push notification to curator when order is assigned
- */
-exports.notifyCuratorOnOrderAssignment = functions.firestore
-  .document("orders/{orderId}")
-  .onCreate(async (snap, context) => {
-    const orderData = snap.data();
-    const orderId = context.params.orderId;
-  
-    console.log(`🔔 Processing new order ${orderId} for curator notification:`, {
-      curatorId: orderData.curatorId,
-      status: orderData.status,
-      userId: orderData.userId
-    });
-  
-    // Only send notification if order has a curator assigned AND status is curator_assigned
-    if (!orderData.curatorId || orderData.status !== 'curator_assigned') {
-      console.log(`📋 Order ${orderId} - curatorId: ${orderData.curatorId}, status: ${orderData.status} - skipping notification`);
-      return null;
-    }
-  
-    try {
-      // Get curator's FCM token and info from user document
-      const curatorDoc = await db.collection('users').doc(orderData.curatorId).get();
-      
-      if (!curatorDoc.exists) {
-        console.log(`❌ Curator ${orderData.curatorId} not found in users collection`);
-        return null;
-      }
-      
-      const curatorData = curatorDoc.data();
-      const fcmToken = curatorData.fcmToken;
-      const curatorName = curatorData.username || 'Curator';
-      
-      if (!fcmToken) {
-        console.log(`⚠️ No FCM token found for curator ${curatorName} (${orderData.curatorId})`);
-        return null;
-      }
-      
-      // Get customer name from user document
-      let customerName = 'Music Lover';
-      try {
-        const customerDoc = await db.collection('users').doc(orderData.userId).get();
-        if (customerDoc.exists) {
-          const customerData = customerDoc.data();
-          customerName = customerData.username || customerData.displayName || 'Music Lover';
-        }
-      } catch (e) {
-        console.log(`⚠️ Could not fetch customer name: ${e.message}`);
-      }
-      
-      console.log(`📧 Sending notification to curator ${curatorName} about order from ${customerName}`);
-      
-      // Send push notification with enhanced message
-      const message = {
-        token: fcmToken,
-        notification: {
-          title: '🎵 New Order Assigned!',
-          body: `${customerName} has requested your curation expertise. Tap to start curating!`,
-        },
-        data: {
-          type: 'curator_order',
-          orderId: orderId,
-          curatorId: orderData.curatorId,
-          customerName: customerName,
-        },
-        android: {
-          notification: {
-            icon: 'ic_launcher',
-            color: '#FFA12C', // Dissonant orange
-            channelId: 'curator_orders',
-            priority: 'high',
-            sound: 'default',
-          },
-        },
-        apns: {
-          payload: {
-            aps: {
-              badge: 1,
-              sound: 'default',
-              alert: {
-                title: '🎵 New Order Assigned!',
-                body: `${customerName} has requested your curation expertise. Tap to start curating!`,
-              },
-            },
-          },
-        },
-      };
-      
-      const response = await admin.messaging().send(message);
-      console.log(`✅ Successfully sent FCM notification to curator ${curatorName}:`, response);
-      
-      // Also send to topic for backup (in case direct token fails)
-      try {
-        const topicMessage = {
-          topic: `curator_${orderData.curatorId}`,
-          notification: {
-            title: '🎵 New Order Assigned!',
-            body: `${customerName} has requested your curation expertise`,
-          },
-          data: {
-            type: 'curator_order',
-            orderId: orderId,
-            curatorId: orderData.curatorId,
-            customerName: customerName,
-          },
-        };
+      if (cityStateZip.length >= 2) {
+        city = cityStateZip[0].trim();
+        const stateZip = cityStateZip[1].split(' ');
         
-        await admin.messaging().send(topicMessage);
-        console.log(`✅ Successfully sent topic notification for curator ${curatorName}`);
-      } catch (topicError) {
-        console.log(`⚠️ Topic notification failed (not critical): ${topicError.message}`);
+        if (stateZip.length >= 2) {
+          state = stateZip[0].trim();
+          zip = stateZip.slice(1).join(' ').trim();
+        }
       }
+    } else {
+      // Try comma-separated format: "Name, Street, City, State Zip"
+      const parts = addressString.split(', ');
       
-      return null;
+      if (parts.length >= 4) {
+        name = parts[0].trim();
+        street = parts[1].trim();
+        city = parts[2].trim();
+        
+        // Last part should be "State Zip"
+        const stateZip = parts[3].split(' ');
+        if (stateZip.length >= 2) {
+          state = stateZip[0].trim();
+          zip = stateZip.slice(1).join(' ').trim();
+        }
+      }
+    }
+
+    // Validate all required fields are present
+    if (!name || !street || !city || !state || !zip) {
+      throw new Error(`Missing required address fields. Got: name="${name}", street="${street}", city="${city}", state="${state}", zip="${zip}"`);
+    }
+
+    return {
+      name,
+      street1: street,
+      city,
+      state,
+      zip,
+      country: 'US',
+    };
+  } catch (error) {
+    console.error('Error parsing address:', error);
+    console.error('Address string was:', addressString);
+    throw error;
+  }
+}
+
+/**
+ * Helper function to call Lambda endpoint with retry logic
+ */
+async function createShippingLabelsWithRetry(payload, maxRetries = 3) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}/${maxRetries} - Creating shipping labels for order ${payload.order_id}`);
       
-    } catch (error) {
-      console.error(`❌ Error sending notification for order ${orderId}:`, error);
-      
-      // Log detailed error information for debugging
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack?.split('\n')[0]
+      const response = await axios.post(LAMBDA_ENDPOINT, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000, // 30 second timeout
       });
+
+      if (response.status === 200 && response.data.success) {
+        console.log(`✅ Shipping labels created successfully on attempt ${attempt}`);
+        return {
+          success: true,
+          data: response.data,
+        };
+      } else {
+        throw new Error(`Lambda returned non-success: ${response.status} - ${JSON.stringify(response.data)}`);
+      }
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ Attempt ${attempt} failed:`, error.message);
       
+      if (attempt < maxRetries) {
+        // Exponential backoff: 2s, 4s, 8s
+        const waitTime = Math.pow(2, attempt) * 1000;
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+
+  // All retries failed
+  console.error(`❌ All ${maxRetries} attempts failed. Last error:`, lastError.message);
+  return {
+    success: false,
+    error: lastError.message,
+  };
+}
+
+/**
+ * Cloud Function triggered when an order is created
+ * Automatically creates shipping labels via Lambda endpoint
+ */
+exports.onCreateOrder = functions.firestore
+  .document('orders/{orderId}')
+  .onCreate(async (snap, context) => {
+    const orderId = context.params.orderId;
+    const orderData = snap.data();
+    
+    console.log(`📦 Order created: ${orderId}`);
+    console.log('Order data:', JSON.stringify(orderData, null, 2));
+
+    // Wait 2 seconds to let client-side attempt finish first (prevents race condition)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Re-read the order document to check if client-side already created labels
+    const updatedOrderDoc = await snap.ref.get();
+    const updatedOrderData = updatedOrderDoc.data();
+    
+    // Check if shipping labels already exist (prevent duplicate creation)
+    if (updatedOrderData.shippingLabels && updatedOrderData.shippingLabels.created === true) {
+      console.log('✅ Shipping labels already exist for this order (likely created by client), skipping');
+      return null;
+    }
+
+    // Check if label creation is already in progress
+    if (updatedOrderData.shippingLabels && updatedOrderData.shippingLabels.status === 'creating') {
+      console.log('⚠️ Shipping label creation already in progress, skipping');
+      return null;
+    }
+
+    // Validate required fields
+    if (!orderData.userId) {
+      console.error('❌ Missing userId in order data');
+      return null;
+    }
+
+    if (!orderData.address) {
+      console.error('❌ Missing address in order data');
+      return null;
+    }
+
+    try {
+      // Mark label creation as in progress
+      await snap.ref.update({
+        'shippingLabels.status': 'creating',
+        'shippingLabels.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Parse address
+      let toAddress;
+      try {
+        toAddress = parseAddress(orderData.address);
+        console.log('✅ Parsed address:', JSON.stringify(toAddress, null, 2));
+      } catch (parseError) {
+        console.error('❌ Failed to parse address:', parseError);
+        await snap.ref.update({
+          'shippingLabels.status': 'failed',
+          'shippingLabels.error': `Address parsing failed: ${parseError.message}`,
+          'shippingLabels.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return null;
+      }
+
+      // Get user email
+      let userEmail;
+      let customerName = toAddress.name;
+      
+      try {
+        const userDoc = await db.collection('users').doc(orderData.userId).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          userEmail = userData.email;
+          
+          // Use user's display name if available
+          if (userData.displayName) {
+            customerName = userData.displayName;
+          } else if (userData.name) {
+            customerName = userData.name;
+          }
+        } else {
+          // Try to get email from Auth
+          try {
+            const userRecord = await admin.auth().getUser(orderData.userId);
+            userEmail = userRecord.email;
+            if (userRecord.displayName) {
+              customerName = userRecord.displayName;
+            }
+          } catch (authError) {
+            console.error('❌ Failed to get user from Auth:', authError);
+          }
+        }
+      } catch (userError) {
+        console.error('❌ Failed to get user data:', userError);
+      }
+
+      if (!userEmail) {
+        console.error('❌ Could not retrieve user email');
+        await snap.ref.update({
+          'shippingLabels.status': 'failed',
+          'shippingLabels.error': 'Could not retrieve user email',
+          'shippingLabels.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return null;
+      }
+
+      console.log(`✅ Retrieved user email: ${userEmail}`);
+
+      // Parcel dimensions (6x8 inches, 4.9 oz)
+      const parcel = {
+        length: '8',
+        width: '6',
+        height: '0.5',
+        distance_unit: 'in',
+        weight: '4.9',
+        mass_unit: 'oz',
+      };
+
+      // Create order ID for Lambda (use Firestore order ID)
+      // This matches what client-side uses when orderId is provided
+      const lambdaOrderId = `ORDER-${orderId}`;
+
+      // Prepare payload for Lambda
+      const payload = {
+        to_address: toAddress,
+        parcel: parcel,
+        order_id: lambdaOrderId,
+        customer_name: customerName,
+        customer_email: userEmail,
+      };
+
+      console.log('🚀 Calling Lambda endpoint to create shipping labels...');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+
+      // Call Lambda with retry logic
+      const result = await createShippingLabelsWithRetry(payload, 3);
+
+      if (result.success) {
+        // Update order with shipping label information
+        const labelData = result.data;
+        await snap.ref.update({
+          'shippingLabels': {
+            created: true,
+            status: 'success',
+            orderId: lambdaOrderId,
+            outboundLabel: labelData.outbound_label || null,
+            returnLabel: labelData.return_label || null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        });
+
+        console.log('✅ Shipping labels created and stored in order document');
+        console.log('Outbound tracking:', labelData.outbound_label?.tracking_number);
+        console.log('Return tracking:', labelData.return_label?.tracking_number);
+      } else {
+        // Update order with error information
+        await snap.ref.update({
+          'shippingLabels': {
+            created: false,
+            status: 'failed',
+            error: result.error,
+            attemptCount: 3,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        });
+
+        console.error('❌ Failed to create shipping labels after all retries');
+        
+        // Log to a separate collection for monitoring
+        await db.collection('failed_label_creations').add({
+          orderId: orderId,
+          userId: orderData.userId,
+          error: result.error,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          orderData: {
+            address: orderData.address,
+            status: orderData.status,
+          },
+        });
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Unexpected error in onCreateOrder:', error);
+      console.error('Stack trace:', error.stack);
+
+      // Update order with error
+      try {
+        await snap.ref.update({
+          'shippingLabels': {
+            created: false,
+            status: 'failed',
+            error: `Unexpected error: ${error.message}`,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        });
+      } catch (updateError) {
+        console.error('❌ Failed to update order with error:', updateError);
+      }
+
+      // Log to failed_label_creations collection
+      try {
+        await db.collection('failed_label_creations').add({
+          orderId: orderId,
+          userId: orderData.userId,
+          error: error.message,
+          stack: error.stack,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (logError) {
+        console.error('❌ Failed to log error:', logError);
+      }
+
+      // Don't throw - we don't want to retry the entire function
       return null;
     }
   });
+

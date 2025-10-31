@@ -67,6 +67,18 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
         allow write: if isAuthenticated() && isOwner(userId);
       }
+
+      match /curatorReviews/{reviewId} {
+        // Allow anyone to read curator reviews (for displaying ratings)
+        allow read: if isAuthenticated();
+        allow list: if isAuthenticated();
+        // Allow users to create reviews for curators
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        // Allow users to update their own reviews
+        allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+        // Allow users to delete their own reviews or admins to delete any
+        allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
     }
 
     // NEW: Referrals Collection Rules
@@ -137,14 +149,8 @@ service cloud.firestore {
       );
     }
 
-    // Curator Reviews Collection Rules
-    match /curatorReviews/{reviewId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isAuthenticated();
-    }
+    // Curator Reviews are now stored as subcollections under users/{userId}/curatorReviews
+    // Rules for those are defined inside the users collection above
 
     // Albums Collection Rules
     match /albums/{albumId} {
@@ -177,7 +183,22 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       // Allow list/query operations for curators to filter and search inventory
       allow list: if isAuthenticated();
-      // Only admins can write/update inventory
+      // Only admins can write/create/delete inventory
+      allow create, delete: if isAuthenticated() && isAdmin();
+      // Admins can update any field
+      allow update: if isAuthenticated() && isAdmin();
+      // Curators can update ONLY quantity and lastUpdated fields (for decrementing inventory)
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['quantity', 'lastUpdated']) &&
+        request.resource.data.quantity < resource.data.quantity;  // Ensure quantity is being decremented only
+    }
+
+    // App Configuration Collection Rules
+    match /app_config/{configId} {
+      // Allow all users (even unauthenticated) to read app configuration
+      // This includes pricing_config which is needed for displaying product prices
+      allow read: if true;
+      // Only admins can write configuration
       allow write: if isAuthenticated() && isAdmin();
     }
 

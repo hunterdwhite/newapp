@@ -11,6 +11,7 @@ import 'package:keyboard_actions/keyboard_actions.dart';
 import '../services/payment_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'home_screen.dart';
 // import 'how_it_works_screen.dart';
@@ -713,12 +714,15 @@ class _OrderScreenState extends State<OrderScreen> {
       final fullAddress = _buildAddressString();
 
       if (_hasFreeOrder) {
-        // Create shipping labels for free orders (same as paid orders)
-        print('🔄 About to create shipping labels for free order...');
-        await _createShippingLabels(uid, fullAddress);
-        print('✅ Shipping labels creation completed for free order');
+        // Create order first - Cloud Function will handle shipping labels automatically
+        final orderId = await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
         
-        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
+        // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _createShippingLabels(uid, fullAddress, orderId: orderId).catchError((error) {
+            print('⚠️ Client-side label creation failed (Cloud Function will handle): $error');
+          });
+        });
         await HomeScreen.useFreeOrder(uid); // Properly decrement free order count
         
         // No credit awarded for free orders - credits are only earned when paying with money
@@ -766,12 +770,15 @@ class _OrderScreenState extends State<OrderScreen> {
 
         print('Payment completed successfully.');
         
-        // Create shipping labels
-        print('🔄 About to create shipping labels...');
-        await _createShippingLabels(uid, fullAddress);
-        print('✅ Shipping labels creation completed');
+        // Create order first - Cloud Function will handle shipping labels automatically
+        final orderId = await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
         
-        await _firestoreService.addOrder(uid, fullAddress, flowVersion: 2, curatorId: widget.selectedCuratorId);
+        // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _createShippingLabels(uid, fullAddress, orderId: orderId).catchError((error) {
+            print('⚠️ Client-side label creation failed (Cloud Function will handle): $error');
+          });
+        });
         
         // Award 1 credit for placing an order
         await HomeScreen.addFreeOrderCredits(uid, 1);
@@ -1149,11 +1156,14 @@ class _OrderScreenState extends State<OrderScreen> {
   //   }
   // }
 
-  Future<void> _createShippingLabels(String uid, String fullAddress) async {
+  Future<void> _createShippingLabels(String uid, String fullAddress, {String? orderId}) async {
     try {
       print('=== SHIPPING LABELS DEBUG START ===');
       print('UID: $uid');
       print('Full Address: "$fullAddress"');
+      if (orderId != null) {
+        print('Order ID: $orderId');
+      }
       
       // Get the current user's email
       final user = FirebaseAuth.instance.currentUser;
@@ -1215,20 +1225,20 @@ class _OrderScreenState extends State<OrderScreen> {
 
       print('✅ Customer address object: $customerAddress');
 
-      // Define parcel dimensions (CD case)
+      // Define parcel dimensions (6x8 inches, 4.9 oz)
       final parcel = {
-        'length': '5.5',
-        'width': '5.0',
+        'length': '8',
+        'width': '6',
         'height': '0.5',
         'distance_unit': 'in',
-        'weight': '0.2',
-        'mass_unit': 'lb',
+        'weight': '4.9',
+        'mass_unit': 'oz',
       };
 
-      // Generate a unique order ID
-      final orderId = 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
+      // Use provided orderId (Firestore order ID) or generate timestamp-based one
+      final labelOrderId = orderId != null ? 'ORDER-$orderId' : 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
 
-      print('✅ Order ID: $orderId');
+      print('✅ Order ID: $labelOrderId');
       print('✅ Parcel: $parcel');
 
       print('🚀 Calling Lambda endpoint...');
@@ -1237,11 +1247,16 @@ class _OrderScreenState extends State<OrderScreen> {
         body: jsonEncode({
           'to_address': customerAddress,
           'parcel': parcel,
-          'order_id': orderId,
+          'order_id': labelOrderId,
           'customer_name': customerName,
           'customer_email': user.email,
         }),
         headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Shipping label creation timed out after 10 seconds');
+        },
       );
 
       print('📡 Lambda response status: ${response.statusCode}');
@@ -1252,6 +1267,27 @@ class _OrderScreenState extends State<OrderScreen> {
         print('✅ Shipping labels created successfully:');
         print('Outbound: ${labelData['outbound_label']['label_url']}');
         print('Return: ${labelData['return_label']['label_url']}');
+        
+        // Update order document to mark labels as created (prevents Cloud Function from trying)
+        if (orderId != null) {
+          try {
+            await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+              'shippingLabels': {
+                'created': true,
+                'status': 'success',
+                'orderId': labelOrderId,
+                'outboundLabel': labelData['outbound_label'],
+                'returnLabel': labelData['return_label'],
+                'createdAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+                'createdBy': 'client',
+              },
+            });
+            print('✅ Order document updated with shipping label data');
+          } catch (updateError) {
+            print('⚠️ Failed to update order document (Cloud Function will handle): $updateError');
+          }
+        }
         
         // Labels are automatically emailed to warehouse staff and customer
         print('✅ Shipping labels created and emailed successfully');

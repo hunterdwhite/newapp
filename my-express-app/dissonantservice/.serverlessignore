@@ -1,0 +1,36 @@
+# Exclude markdown documentation
+*.md
+README.md
+EMAIL_DEBUG_GUIDE.md
+EMAIL_INVESTIGATION.md
+EMAIL_TESTING_GUIDE.md
+LAMBDA_TESTING_GUIDE.md
+QUICK_TEST_COMMANDS.md
+SES_SETUP_GUIDE.md
+SHIPPING_EMAIL_SYSTEM.md
+
+# Exclude zip files
+*.zip
+
+# Exclude shell scripts
+*.sh
+
+# Exclude test files
+test-*.js
+
+# Exclude JSON config files not needed at runtime
+ses-lambda-policy.json
+lambda-env-variables.md
+
+# Exclude backup files
+*.backup
+
+# Exclude dev dependencies (if any)
+.git
+.gitignore
+.DS_Store
+
+# Keep node_modules (needed at runtime)
+# But serverless will automatically exclude devDependencies
+
+
