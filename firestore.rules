@@ -24,6 +24,41 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isCurator() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCurator == true;
+    }
+
+    function isCuratorForOrder() {
+      return resource.data.curatorId != null && resource.data.curatorId == request.auth.uid;
+    }
+
+    function curatorOrderUpdateAllowed() {
+      let changedKeys = request.resource.data.diff(resource.data).changedKeys();
+      let allowedKeys = ['albumId', 'status', 'curatorNote', 'curatedAt', 'updatedAt'];
+
+      let startingStatusAllowed = resource.data.status in ['curator_assigned', 'in_progress', 'ready_to_ship'];
+      let statusTransitionAllowed =
+          (resource.data.status in ['curator_assigned', 'in_progress']
+            && request.resource.data.status in ['in_progress', 'ready_to_ship'])
+        || (resource.data.status == 'ready_to_ship' && request.resource.data.status == 'ready_to_ship');
+
+      let hasAlbum = request.resource.data.status == 'ready_to_ship'
+        ? request.resource.data.albumId is string && request.resource.data.albumId.size() > 0
+        : true;
+
+      let curatedAtValid = !('curatedAt' in request.resource.data) || request.resource.data.curatedAt == request.time;
+      let updatedAtValid = !('updatedAt' in request.resource.data) || request.resource.data.updatedAt == request.time;
+
+      return startingStatusAllowed
+        && statusTransitionAllowed
+        && changedKeys.hasOnly(allowedKeys)
+        && hasAlbum
+        && curatedAtValid
+        && updatedAtValid;
+    }
+
     // Admins Collection Rules
     match /admins/{adminId} {
       allow read: if isAuthenticated();
@@ -147,6 +182,9 @@ service cloud.firestore {
         // Allow curators to query orders assigned to them (for order count statistics)
         request.auth.uid == resource.data.curatorId
       );
+
+      // Allow assigned curators to update curation metadata while preparing the order
+      allow update: if isAuthenticated() && isCurator() && isCuratorForOrder() && curatorOrderUpdateAllowed();
     }
 
     // Curator Reviews are now stored as subcollections under users/{userId}/curatorReviews
