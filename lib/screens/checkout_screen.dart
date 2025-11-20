@@ -35,10 +35,10 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final PaymentService _paymentService = PaymentService();
-  
+
   String _selectedPaymentMethod = 'stripe';
   bool _isProcessing = false;
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -111,10 +111,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildOrderSummary() {
-    final productTitle = widget.productType == 'dissonant' 
-      ? 'Dissonant Curated Experience'
-      : 'Community Curated Experience';
-    
+    final productTitle = widget.productType == 'dissonant'
+        ? 'Dissonant Curated Experience'
+        : 'Community Curated Experience';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -146,9 +146,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(8),
                   child: Image.asset(
-                    widget.productType == 'dissonant' 
-                      ? 'assets/dissonantordericon.png'
-                      : 'assets/curateicon.png',
+                    widget.productType == 'dissonant'
+                        ? 'assets/dissonantordericon.png'
+                        : 'assets/curateicon.png',
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -261,7 +261,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
           SizedBox(height: 16),
-          
+
           // Credit/Debit Card (Stripe)
           _buildPaymentOption(
             id: 'stripe',
@@ -270,13 +270,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             icon: Icons.credit_card,
             isSelected: _selectedPaymentMethod == 'stripe',
           ),
-          
-          
         ],
       ),
     );
   }
-
 
   Widget _buildPaymentOption({
     required String id,
@@ -294,14 +291,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected 
-            ? Colors.orangeAccent.withOpacity(0.1)
-            : Colors.white.withOpacity(0.02),
+          color: isSelected
+              ? Colors.orangeAccent.withOpacity(0.1)
+              : Colors.white.withOpacity(0.02),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected 
-              ? Colors.orangeAccent
-              : Colors.white.withOpacity(0.1),
+            color: isSelected
+                ? Colors.orangeAccent
+                : Colors.white.withOpacity(0.1),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -319,8 +316,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 color: isSelected ? Colors.orangeAccent : Colors.transparent,
               ),
               child: isSelected
-                ? Icon(Icons.check, color: Colors.white, size: 12)
-                : null,
+                  ? Icon(Icons.check, color: Colors.white, size: 12)
+                  : null,
             ),
             SizedBox(width: 16),
             Icon(
@@ -362,7 +359,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final subtotal = widget.selectedPrice;
     final shipping = widget.shippingCost;
     final total = subtotal + shipping;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -386,7 +383,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           SizedBox(height: 8),
           _buildTotalRow('Shipping:', '\$${shipping.toStringAsFixed(2)}'),
           Divider(color: Colors.white30, height: 24),
-          _buildTotalRow('Total:', '\$${total.toStringAsFixed(2)}', isTotal: true),
+          _buildTotalRow('Total:', '\$${total.toStringAsFixed(2)}',
+              isTotal: true),
         ],
       ),
     );
@@ -418,7 +416,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _buildPlaceOrderButton() {
     final total = widget.selectedPrice + widget.shippingCost;
-    
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -433,28 +431,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           elevation: _isProcessing ? 0 : 4,
         ),
         child: _isProcessing
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
+                  SizedBox(width: 12),
+                  Text('Processing...'),
+                ],
+              )
+            : Text(
+                'Place Order - \$${total.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
-                SizedBox(width: 12),
-                Text('Processing...'),
-              ],
-            )
-          : Text(
-              'Place Order - \$${total.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
               ),
-            ),
       ),
     );
   }
@@ -483,19 +481,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           .orderBy('timestamp', descending: true)
           .limit(1)
           .get();
-      
+
       if (recentOrders.docs.isNotEmpty) {
-        final lastOrderTime = recentOrders.docs.first.data()['timestamp'] as Timestamp?;
+        final lastOrderTime =
+            recentOrders.docs.first.data()['timestamp'] as Timestamp?;
         if (lastOrderTime != null) {
-          final timeSinceLastOrder = DateTime.now().difference(lastOrderTime.toDate());
+          final timeSinceLastOrder =
+              DateTime.now().difference(lastOrderTime.toDate());
           if (timeSinceLastOrder.inSeconds < 30) {
-            print('⚠️ Duplicate order detected (last order was ${timeSinceLastOrder.inSeconds} seconds ago)');
+            print(
+                '⚠️ Duplicate order detected (last order was ${timeSinceLastOrder.inSeconds} seconds ago)');
             setState(() {
               _isProcessing = false;
             });
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('You recently placed an order. Please wait a moment before placing another.'),
+                content: Text(
+                    'You recently placed an order. Please wait a moment before placing another.'),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -514,12 +516,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         default:
           throw Exception('Invalid payment method');
       }
-
     } catch (e) {
       setState(() {
         _isProcessing = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Payment failed: ${e.toString()}'),
@@ -532,11 +533,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _processStripePayment(int amountInCents, String userId) async {
     try {
       // Generate idempotency key to prevent duplicate charges
-      final idempotencyKey = 'order_${userId}_${DateTime.now().millisecondsSinceEpoch}';
-      
+      final idempotencyKey =
+          'order_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+
       // Create payment intent
       final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
+        Uri.parse(
+            'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
         body: jsonEncode({
           'amount': amountInCents,
           'idempotencyKey': idempotencyKey,
@@ -546,14 +549,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (response.statusCode == 200) {
         final paymentIntentData = jsonDecode(response.body);
-        
+
         // Initialize and present payment sheet
-        await _paymentService.initPaymentSheet(paymentIntentData['clientSecret']);
+        await _paymentService
+            .initPaymentSheet(paymentIntentData['clientSecret']);
         await _paymentService.presentPaymentSheet();
 
         // Payment successful, create order
         await _createOrder(userId);
-        
       } else {
         throw Exception('Failed to create payment intent');
       }
@@ -562,28 +565,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-
-
-
   Future<void> _createOrder(String userId) async {
     // Build full address string
     final fullAddress = _buildAddressString();
-    
+
     // Create order first - Cloud Function will handle shipping labels automatically
     final orderId = await _firestoreService.addOrder(
-      userId, 
-      fullAddress, 
+      userId,
+      fullAddress,
       flowVersion: 3, // New checkout flow version
       curatorId: widget.curatorId,
     );
-    
+
     // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
     Future.delayed(const Duration(milliseconds: 500), () {
-      _createShippingLabels(userId, fullAddress, orderId: orderId).catchError((error) {
-        print('⚠️ Client-side label creation failed (Cloud Function will handle): $error');
+      _createShippingLabels(userId, fullAddress, orderId: orderId)
+          .catchError((error) {
+        print(
+            '⚠️ Client-side label creation failed (Cloud Function will handle): $error');
       });
     });
-    
+
     // Award credits for paid orders
     await HomeScreen.addFreeOrderCredits(userId, 1);
 
@@ -609,7 +611,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         '${widget.shippingAddress['city']}, ${widget.shippingAddress['state']} ${widget.shippingAddress['zipCode']}';
   }
 
-  Future<void> _createShippingLabels(String userId, String fullAddress, {String? orderId}) async {
+  Future<void> _createShippingLabels(String userId, String fullAddress,
+      {String? orderId}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user?.email == null) return;
@@ -621,12 +624,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final customerName = addressLines[0].trim();
       final streetAddress = addressLines[1].trim();
       final cityStateZip = addressLines[2].split(', ');
-      
+
       if (cityStateZip.length < 2) return;
 
       final city = cityStateZip[0].trim();
       final stateZip = cityStateZip[1].split(' ');
-      
+
       if (stateZip.length < 2) return;
 
       final state = stateZip[0].trim();
@@ -651,10 +654,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       };
 
       // Use provided orderId (Firestore order ID) or generate timestamp-based one
-      final labelOrderId = orderId != null ? 'ORDER-$orderId' : 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
+      final labelOrderId = orderId != null
+          ? 'ORDER-$orderId'
+          : 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
 
       final response = await http.post(
-        Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels'),
+        Uri.parse(
+            'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels'),
         body: jsonEncode({
           'to_address': customerAddress,
           'parcel': parcel,
@@ -666,18 +672,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          throw TimeoutException('Shipping label creation timed out after 10 seconds');
+          throw TimeoutException(
+              'Shipping label creation timed out after 10 seconds');
         },
       );
 
       if (response.statusCode == 200) {
         final labelData = jsonDecode(response.body);
         print('✅ Shipping labels created successfully');
-        
+
         // Update order document to mark labels as created (prevents Cloud Function from trying)
         if (orderId != null) {
           try {
-            await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+            await FirebaseFirestore.instance
+                .collection('orders')
+                .doc(orderId)
+                .update({
               'shippingLabels': {
                 'created': true,
                 'status': 'success',
@@ -691,7 +701,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             });
             print('✅ Order document updated with shipping label data');
           } catch (updateError) {
-            print('⚠️ Failed to update order document (Cloud Function will handle): $updateError');
+            print(
+                '⚠️ Failed to update order document (Cloud Function will handle): $updateError');
           }
         }
       } else {

@@ -30,44 +30,89 @@ class _CartScreenState extends State<CartScreen> {
   final _formKey = GlobalKey<FormState>();
   late final ShippoAddressService _addressService;
   late final ShippingService _shippingService;
-  
+
   // Controllers for shipping address
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _zipcodeController = TextEditingController();
-  
+
   String _state = '';
   bool _isCalculatingShipping = false;
   double? _shippingCost;
   String? _shippingError;
   bool _isAddressValid = false;
-  
+
   // Previous addresses and free credit functionality
   List<String> _previousAddresses = [];
   bool _hasFreeOrder = false;
 
   final List<String> _states = [
-    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE',
-    'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS',
-    'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS',
-    'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY',
-    'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV',
-    'WI', 'WY'
+    'AL',
+    'AK',
+    'AZ',
+    'AR',
+    'CA',
+    'CO',
+    'CT',
+    'DE',
+    'FL',
+    'GA',
+    'HI',
+    'ID',
+    'IL',
+    'IN',
+    'IA',
+    'KS',
+    'KY',
+    'LA',
+    'ME',
+    'MD',
+    'MA',
+    'MI',
+    'MN',
+    'MS',
+    'MO',
+    'MT',
+    'NE',
+    'NV',
+    'NH',
+    'NJ',
+    'NM',
+    'NY',
+    'NC',
+    'ND',
+    'OH',
+    'OK',
+    'OR',
+    'PA',
+    'RI',
+    'SC',
+    'SD',
+    'TN',
+    'TX',
+    'UT',
+    'VT',
+    'VA',
+    'WA',
+    'WV',
+    'WI',
+    'WY'
   ];
 
   @override
   void initState() {
     super.initState();
     _addressService = ShippoAddressService(
-      endpointBase: 'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev',
+      endpointBase:
+          'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev',
     );
     _shippingService = ShippingService(
-      endpointBase: 'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev',
+      endpointBase:
+          'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev',
     );
-    
+
     // Load user data and previous addresses
     _loadUserData();
     _loadPreviousAddresses();
@@ -83,7 +128,8 @@ class _CartScreenState extends State<CartScreen> {
           if (!mounted) return;
           setState(() {
             // Free orders only apply to community curator orders, not Dissonant orders
-            _hasFreeOrder = (docData['freeOrder'] ?? false) && widget.productType == 'community';
+            _hasFreeOrder = (docData['freeOrder'] ?? false) &&
+                widget.productType == 'community';
           });
         }
       }
@@ -188,10 +234,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildOrderSummary() {
-    final productTitle = widget.productType == 'dissonant' 
-      ? 'Dissonant Curation'
-      : 'Community Curation';
-    
+    final productTitle = widget.productType == 'dissonant'
+        ? 'Dissonant Curation'
+        : 'Community Curation';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -223,9 +269,9 @@ class _CartScreenState extends State<CartScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(8),
                   child: Image.asset(
-                    widget.productType == 'dissonant' 
-                      ? 'assets/dissonantordericon.png'
-                      : 'assets/curateicon.png',
+                    widget.productType == 'dissonant'
+                        ? 'assets/dissonantordericon.png'
+                        : 'assets/curateicon.png',
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -291,7 +337,7 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
             SizedBox(height: 16),
-            
+
             // Previous addresses section
             if (_previousAddresses.isNotEmpty) ...[
               Text(
@@ -303,7 +349,9 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ),
               SizedBox(height: 8),
-              ...(_previousAddresses.map((address) => _buildPreviousAddressOption(address)).toList()),
+              ...(_previousAddresses
+                  .map((address) => _buildPreviousAddressOption(address))
+                  .toList()),
               SizedBox(height: 16),
               Text(
                 'Or enter a new address:',
@@ -364,9 +412,9 @@ class _CartScreenState extends State<CartScreen> {
               child: ElevatedButton(
                 onPressed: _isCalculatingShipping ? null : _calculateShipping,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _hasFreeOrder 
-                    ? Color(0xFF10B981).withOpacity(0.8)
-                    : Colors.orangeAccent.withOpacity(0.8),
+                  backgroundColor: _hasFreeOrder
+                      ? Color(0xFF10B981).withOpacity(0.8)
+                      : Colors.orangeAccent.withOpacity(0.8),
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -374,22 +422,27 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                 ),
                 child: _isCalculatingShipping
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 8),
-                        Text(_hasFreeOrder ? 'Confirming Address...' : 'Calculating Shipping...'),
-                      ],
-                    )
-                  : Text(_hasFreeOrder ? 'Confirm Shipping Address' : 'Calculate Shipping'),
+                          SizedBox(width: 8),
+                          Text(_hasFreeOrder
+                              ? 'Confirming Address...'
+                              : 'Calculating Shipping...'),
+                        ],
+                      )
+                    : Text(_hasFreeOrder
+                        ? 'Confirm Shipping Address'
+                        : 'Calculate Shipping'),
               ),
             ),
             if (_shippingError != null) ...[
@@ -452,33 +505,36 @@ class _CartScreenState extends State<CartScreen> {
   void _fillAddressFromPrevious(String fullAddress) {
     try {
       print('🔄 Attempting to populate address: "$fullAddress"');
-      
+
       List<String> parts = fullAddress.split('\n');
       print('📋 Address parts (${parts.length}): $parts');
-      
+
       if (parts.length < 3) {
-        print('❌ Invalid address format: Expected 3 parts, got ${parts.length}');
+        print(
+            '❌ Invalid address format: Expected 3 parts, got ${parts.length}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Unable to parse the selected address. Please enter it manually.'),
+            content: Text(
+                'Unable to parse the selected address. Please enter it manually.'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
         );
         return;
       }
-      
+
       // Parse name (part 0)
       List<String> nameParts = parts[0].trim().split(' ');
       if (nameParts.isEmpty) {
         print('❌ Could not parse name from: "${parts[0]}"');
         return;
       }
-      
+
       _firstNameController.text = nameParts.first;
       _lastNameController.text = nameParts.skip(1).join(' ');
-      print('✅ Name parsed: ${_firstNameController.text} ${_lastNameController.text}');
-      
+      print(
+          '✅ Name parsed: ${_firstNameController.text} ${_lastNameController.text}');
+
       // Parse street address (part 1)
       _addressController.text = parts[1].trim();
       if (_addressController.text.isEmpty) {
@@ -486,7 +542,7 @@ class _CartScreenState extends State<CartScreen> {
         return;
       }
       print('✅ Street address: ${_addressController.text}');
-      
+
       // Parse city, state, zip (part 2)
       List<String> cityStateZip = parts[2].split(', ');
       if (cityStateZip.length < 2) {
@@ -499,32 +555,34 @@ class _CartScreenState extends State<CartScreen> {
           setState(() {
             _state = spaceParts[spaceParts.length - 2].trim();
           });
-          _cityController.text = spaceParts.sublist(0, spaceParts.length - 2).join(' ').trim();
-          print('✅ Parsed with alternative format - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+          _cityController.text =
+              spaceParts.sublist(0, spaceParts.length - 2).join(' ').trim();
+          print(
+              '✅ Parsed with alternative format - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
         } else {
           return;
         }
       } else {
         _cityController.text = cityStateZip[0].trim();
-        
+
         List<String> stateZip = cityStateZip[1].trim().split(' ');
         if (stateZip.length < 2) {
           print('❌ Could not split state/zip: "${cityStateZip[1]}"');
           return;
         }
-        
+
         setState(() {
           _state = stateZip[0].trim();
         });
         _zipcodeController.text = stateZip.sublist(1).join(' ').trim();
-        print('✅ City/State/Zip parsed - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+        print(
+            '✅ City/State/Zip parsed - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
       }
-      
+
       print('✅ Address successfully populated from card');
-      
+
       // Reset shipping calculation when address changes
       _resetShippingCalculation();
-      
     } catch (e) {
       print('❌ Error parsing address: $e');
       print('❌ Address string was: "$fullAddress"');
@@ -657,11 +715,11 @@ class _CartScreenState extends State<CartScreen> {
         ),
       );
     }
-    
+
     final subtotal = widget.selectedPrice;
     final shipping = _shippingCost ?? 0.0;
     final total = subtotal + shipping;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -684,15 +742,15 @@ class _CartScreenState extends State<CartScreen> {
           _buildTotalRow('Subtotal:', '\$${subtotal.toStringAsFixed(2)}'),
           SizedBox(height: 8),
           _buildTotalRow(
-            'Shipping:', 
-            _shippingCost != null 
-              ? '\$${shipping.toStringAsFixed(2)}'
-              : 'Calculate shipping',
+            'Shipping:',
+            _shippingCost != null
+                ? '\$${shipping.toStringAsFixed(2)}'
+                : 'Calculate shipping',
             isShipping: true,
           ),
           Divider(color: Colors.white30, height: 24),
           _buildTotalRow(
-            'Total:', 
+            'Total:',
             '\$${total.toStringAsFixed(2)}',
             isTotal: true,
           ),
@@ -701,7 +759,8 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildTotalRow(String label, String amount, {bool isTotal = false, bool isShipping = false, bool isFree = false}) {
+  Widget _buildTotalRow(String label, String amount,
+      {bool isTotal = false, bool isShipping = false, bool isFree = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -718,9 +777,11 @@ class _CartScreenState extends State<CartScreen> {
           style: TextStyle(
             fontSize: isTotal ? 16 : 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isFree 
-              ? Colors.green 
-              : (isShipping && _shippingCost == null ? Colors.white.withOpacity(0.5) : Colors.white),
+            color: isFree
+                ? Colors.green
+                : (isShipping && _shippingCost == null
+                    ? Colors.white.withOpacity(0.5)
+                    : Colors.white),
           ),
         ),
       ],
@@ -728,16 +789,17 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildCheckoutButton() {
-    final canCheckout = _isAddressValid && (_shippingCost != null || _hasFreeOrder);
-    
+    final canCheckout =
+        _isAddressValid && (_shippingCost != null || _hasFreeOrder);
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: canCheckout ? _proceedToCheckout : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: canCheckout 
-            ? (_hasFreeOrder ? Colors.green : Colors.orangeAccent) 
-            : Colors.grey,
+          backgroundColor: canCheckout
+              ? (_hasFreeOrder ? Colors.green : Colors.orangeAccent)
+              : Colors.grey,
           foregroundColor: Colors.white,
           padding: EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
@@ -746,9 +808,13 @@ class _CartScreenState extends State<CartScreen> {
           elevation: canCheckout ? 4 : 0,
         ),
         child: Text(
-          _hasFreeOrder 
-            ? (canCheckout ? 'Place Free Order' : 'Complete shipping information')
-            : (canCheckout ? 'Proceed to Checkout' : 'Complete shipping information'),
+          _hasFreeOrder
+              ? (canCheckout
+                  ? 'Place Free Order'
+                  : 'Complete shipping information')
+              : (canCheckout
+                  ? 'Proceed to Checkout'
+                  : 'Complete shipping information'),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -770,10 +836,10 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _calculateShipping() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     // Close the keyboard
     FocusScope.of(context).unfocus();
-    
+
     setState(() {
       _isCalculatingShipping = true;
       _shippingError = null;
@@ -786,7 +852,9 @@ class _CartScreenState extends State<CartScreen> {
         city: _cityController.text.trim(),
         state: _state,
         zip: _zipcodeController.text.trim(),
-        name: '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim(),
+        name:
+            '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'
+                .trim(),
       );
 
       if (validatedAddress == null) {
@@ -799,13 +867,12 @@ class _CartScreenState extends State<CartScreen> {
 
       // Calculate shipping cost using GoShippo
       final shippingCost = await _calculateShippingCost(validatedAddress);
-      
+
       setState(() {
         _shippingCost = shippingCost;
         _isAddressValid = true;
         _isCalculatingShipping = false;
       });
-
     } catch (e) {
       setState(() {
         _shippingError = 'Failed to calculate shipping: ${e.toString()}';
@@ -817,7 +884,7 @@ class _CartScreenState extends State<CartScreen> {
   Future<double> _calculateShippingCost(ValidatedAddress address) async {
     try {
       print('🚚 DEBUG: Starting shipping calculation...');
-      
+
       // Your specific shipping origin and package details
       final fromAddress = {
         'name': 'Dissonant Music',
@@ -830,17 +897,18 @@ class _CartScreenState extends State<CartScreen> {
 
       // Your specific package dimensions: 4.9 oz, 7x9 inches
       final parcel = {
-        'length': '9.0',        // 9 inches
-        'width': '7.0',         // 7 inches  
-        'height': '0.5',        // Assume 0.5 inch thickness for album
+        'length': '9.0', // 9 inches
+        'width': '7.0', // 7 inches
+        'height': '0.5', // Assume 0.5 inch thickness for album
         'distance_unit': 'in',
-        'weight': '0.31',       // 4.9 oz = 0.31 lbs (4.9/16)
+        'weight': '0.31', // 4.9 oz = 0.31 lbs (4.9/16)
         'mass_unit': 'lb',
       };
 
       // Customer's validated address
       final toAddress = {
-        'name': '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
+        'name':
+            '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
         'street1': address.street,
         'city': address.city,
         'state': address.state,
@@ -851,7 +919,8 @@ class _CartScreenState extends State<CartScreen> {
       print('🏠 DEBUG: From address: $fromAddress');
       print('📍 DEBUG: To address: $toAddress');
       print('📦 DEBUG: Parcel: $parcel');
-      print('🌐 DEBUG: API endpoint: ${_shippingService.endpointBase}/calculate-shipping');
+      print(
+          '🌐 DEBUG: API endpoint: ${_shippingService.endpointBase}/calculate-shipping');
 
       // Get the cheapest shipping rate from GoShippo
       final shippingRate = await _shippingService.getCheapestRate(
@@ -860,7 +929,8 @@ class _CartScreenState extends State<CartScreen> {
         parcel: parcel,
       );
 
-      print('💰 DEBUG: Shipping rate result: ${shippingRate?.amount ?? 'NULL'}');
+      print(
+          '💰 DEBUG: Shipping rate result: ${shippingRate?.amount ?? 'NULL'}');
 
       if (shippingRate != null) {
         print('✅ DEBUG: Using real GoShippo rate: \$${shippingRate.amount}');
@@ -881,7 +951,7 @@ class _CartScreenState extends State<CartScreen> {
 
   void _proceedToCheckout() {
     if (!_isAddressValid || (!_hasFreeOrder && _shippingCost == null)) return;
-    
+
     final shippingAddress = {
       'firstName': _firstNameController.text.trim(),
       'lastName': _lastNameController.text.trim(),
@@ -890,7 +960,7 @@ class _CartScreenState extends State<CartScreen> {
       'state': _state,
       'zipCode': _zipcodeController.text.trim(),
     };
-    
+
     if (_hasFreeOrder) {
       // For free orders, skip checkout and create order directly
       _createFreeOrder(shippingAddress);
@@ -918,15 +988,12 @@ class _CartScreenState extends State<CartScreen> {
       if (user == null) return;
 
       // Create the full address string
-      final fullAddress = '${shippingAddress['firstName']} ${shippingAddress['lastName']}, ${shippingAddress['address']}, ${shippingAddress['city']}, ${shippingAddress['state']} ${shippingAddress['zipCode']}';
+      final fullAddress =
+          '${shippingAddress['firstName']} ${shippingAddress['lastName']}, ${shippingAddress['address']}, ${shippingAddress['city']}, ${shippingAddress['state']} ${shippingAddress['zipCode']}';
 
       // Create the order
-      await FirestoreService().addOrder(
-        user.uid, 
-        fullAddress, 
-        flowVersion: 2, 
-        curatorId: widget.curatorId
-      );
+      await FirestoreService().addOrder(user.uid, fullAddress,
+          flowVersion: 2, curatorId: widget.curatorId);
 
       // Use the free order credit
       await _useFreeOrder(user.uid);
@@ -941,7 +1008,6 @@ class _CartScreenState extends State<CartScreen> {
 
       // Navigate back to home
       Navigator.of(context).popUntil((route) => route.isFirst);
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

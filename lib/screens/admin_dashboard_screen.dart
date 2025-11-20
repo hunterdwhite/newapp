@@ -15,7 +15,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   /// Whether to show ALL users (including those with no orders).
   bool showAllUsers = false;
-  
+
   /// Cache for user data to improve performance
   List<Map<String, dynamic>>? _cachedUsers;
   bool _isLoading = false;
@@ -35,11 +35,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _refreshData() async {
     if (_isLoading) return;
-    
+
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final userData = await _fetchUsersWithStatus();
       setState(() {
@@ -99,9 +99,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 ElevatedButton.icon(
                   onPressed: _isLoading ? null : _refreshData,
-                  icon: _isLoading 
-                    ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(Icons.refresh),
+                  icon: _isLoading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.refresh),
                   label: Text(_isLoading ? 'Loading...' : 'Refresh'),
                 ),
                 Spacer(),
@@ -122,7 +125,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Status Legend:', 
+                  'Status Legend:',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -155,10 +158,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ? allUsers
                           : allUsers.where((u) {
                               final status = u['status'];
-                              return status != 'none' && 
-                                     status != 'kept' && 
-                                     status != 'delivered' && 
-                                     status != 'returnedConfirmed';
+                              return status != 'none' &&
+                                  status != 'kept' &&
+                                  status != 'delivered' &&
+                                  status != 'returnedConfirmed';
                             }).toList();
 
                       return ListView.builder(
@@ -174,31 +177,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           String statusText = '';
                           switch (status) {
                             case 'new':
-                              dotColor = Colors.green; // GREEN for new Dissonant orders (original behavior)
+                              dotColor = Colors
+                                  .green; // GREEN for new Dissonant orders (original behavior)
                               statusText = 'New Order (Dissonant)';
                               break;
                             case 'curator_assigned':
-                              dotColor = Colors.red; // RED for curator assigned but no work started
+                              dotColor = Colors
+                                  .red; // RED for curator assigned but no work started
                               statusText = 'Curator Assigned';
                               break;
                             case 'in_progress':
-                              dotColor = Colors.orange; // ORANGE for curator working
+                              dotColor =
+                                  Colors.orange; // ORANGE for curator working
                               statusText = 'Curator Working';
                               break;
                             case 'album_selected':
-                              dotColor = Colors.green; // GREEN for album selected (ready for admin)
+                              dotColor = Colors
+                                  .green; // GREEN for album selected (ready for admin)
                               statusText = 'Album Selected';
                               break;
                             case 'ready_to_ship':
-                              dotColor = Colors.purple; // PURPLE for ready to ship (highest priority!)
+                              dotColor = Colors
+                                  .purple; // PURPLE for ready to ship (highest priority!)
                               statusText = 'Ready to Ship';
                               break;
                             case 'sent':
-                              dotColor = Colors.yellow; // YELLOW for sent (original behavior)
+                              dotColor = Colors
+                                  .yellow; // YELLOW for sent (original behavior)
                               statusText = 'Sent';
                               break;
                             case 'returned':
-                              dotColor = Colors.blue; // BLUE for returned (original behavior)
+                              dotColor = Colors
+                                  .blue; // BLUE for returned (original behavior)
                               statusText = 'Returned';
                               break;
                             default:
@@ -295,7 +305,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
 
     // Sort by priority: ready_to_ship (HIGHEST) -> urgent curator items -> ready items -> active -> none
-    final statusOrder = ['ready_to_ship', 'curator_assigned', 'in_progress', 'new', 'album_selected', 'sent', 'returned', 'none'];
+    final statusOrder = [
+      'ready_to_ship',
+      'curator_assigned',
+      'in_progress',
+      'new',
+      'album_selected',
+      'sent',
+      'returned',
+      'none'
+    ];
     usersWithStatus.sort((a, b) {
       final statusA = a['status'] as String;
       final statusB = b['status'] as String;
@@ -305,7 +324,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (indexA != indexB) return indexA.compareTo(indexB);
 
       // If same status, sort by timestamp (oldest first for urgent statuses)
-      if (['ready_to_ship', 'curator_assigned', 'in_progress', 'new', 'album_selected'].contains(statusA)) {
+      if ([
+        'ready_to_ship',
+        'curator_assigned',
+        'in_progress',
+        'new',
+        'album_selected'
+      ].contains(statusA)) {
         final tsA = a['earliestNewTimestamp'];
         final tsB = b['earliestNewTimestamp'];
         if (tsA != null && tsB != null) {
@@ -392,7 +417,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             curatorInfo = 'Unknown Curator';
           }
         }
-        
+
         // Check if album has been selected
         if (albumId != null && albumId.isNotEmpty) {
           finalStatus = 'album_selected';
@@ -430,7 +455,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 'ready_to_ship':
         // CRITICAL: Curator has selected album, admin needs to ship it!
         finalStatus = 'ready_to_ship';
-        
+
         if (albumId != null && albumId.isNotEmpty) {
           try {
             final albumDoc = await FirebaseFirestore.instance
@@ -449,7 +474,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         } else {
           albumInfo = 'No album selected';
         }
-        
+
         // Also get curator info for ready_to_ship orders
         if (curatorId != null && curatorId.isNotEmpty) {
           try {
@@ -496,23 +521,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, setState) {
             return AlertDialog(
-            title: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PublicProfileScreen(userId: userId),
+              title: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PublicProfileScreen(userId: userId),
+                    ),
+                  );
+                },
+                child: Text(
+                  user['username'] ?? 'Unknown',
+                  style: TextStyle(
+                    color: Colors.blueAccent,
+                    decoration:
+                        TextDecoration.underline, // Optional visual indication
                   ),
-                );
-              },
-              child: Text(
-                user['username'] ?? 'Unknown',
-                style: TextStyle(
-                  color: Colors.blueAccent,
-                  decoration: TextDecoration.underline, // Optional visual indication
                 ),
               ),
-            ),              content: SingleChildScrollView(
+              content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -526,7 +553,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       user['tasteProfile'] as Map<String, dynamic>?,
                     ),
                     SizedBox(height: 10),
-                    Text('Orders:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Orders:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     FutureBuilder<List<DocumentSnapshot>>(
                       future: _firestoreService.getOrdersForUser(userId),
                       builder: (context, snapshot) {
@@ -550,7 +578,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 (o.data() as Map<String, dynamic>)['status'] ==
                                 'ready_to_ship')
                             .toList();
-                        
+
                         newOrders.sort((a, b) {
                           final aTs =
                               (a.data() as Map<String, dynamic>)['timestamp']
@@ -571,11 +599,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           if (aTs == null || bTs == null) return 0;
                           return bTs.compareTo(aTs);
                         });
-                        
+
                         final newestNewOrder =
                             newOrders.isNotEmpty ? newOrders.first : null;
                         final newestReadyToShipOrder =
-                            readyToShipOrders.isNotEmpty ? readyToShipOrders.first : null;
+                            readyToShipOrders.isNotEmpty
+                                ? readyToShipOrders.first
+                                : null;
 
                         // The rest are older orders (excluding newest new and newest ready_to_ship)
                         final olderOrders = <DocumentSnapshot>[];
@@ -616,8 +646,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                           String? lastKnownAddress;
                           if (olderOrders.isNotEmpty) {
-                            final lastOrderData =
-                                olderOrders.first.data() as Map<String, dynamic>?;
+                            final lastOrderData = olderOrders.first.data()
+                                as Map<String, dynamic>?;
                             lastKnownAddress = lastOrderData?['address'];
                           }
                           bool addressDiffers = false;
@@ -646,7 +676,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     ],
                                   ),
                                   SizedBox(height: 4),
-                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
+                                  Text(
+                                      'Status: ${orderData['status'] ?? 'N/A'}'),
                                 ],
                               ),
                               trailing: _buildOrderActions(
@@ -660,8 +691,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                         // If there's a newest "ready_to_ship" order, show it in detail
                         if (newestReadyToShipOrder != null) {
-                          final orderData =
-                              newestReadyToShipOrder.data() as Map<String, dynamic>;
+                          final orderData = newestReadyToShipOrder.data()
+                              as Map<String, dynamic>;
                           final orderId = newestReadyToShipOrder.id;
                           final currentAddress = orderData['address'] ?? 'N/A';
 
@@ -676,7 +707,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 children: [
                                   Text('Address: $currentAddress'),
                                   SizedBox(height: 4),
-                                  Text('Status: ${orderData['status'] ?? 'N/A'}'),
+                                  Text(
+                                      'Status: ${orderData['status'] ?? 'N/A'}'),
                                 ],
                               ),
                               trailing: _buildOrderActions(
@@ -693,8 +725,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           final data = orderDoc.data() as Map<String, dynamic>;
                           final albumId = data['albumId'] as String?;
                           final status = data['status'] ?? 'N/A';
-                          final isReturned =
-                              (status == 'returned') && !(data['returnConfirmed'] ?? false);
+                          final isReturned = (status == 'returned') &&
+                              !(data['returnConfirmed'] ?? false);
 
                           // If the order is returned but NOT confirmed,
                           // skip showing album info, show address + confirm button
@@ -738,14 +770,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   if (albumSnapshot.data == null ||
                                       !albumSnapshot.data!.exists) {
                                     return ListTile(
-                                      title: Text('Older Order (No album assigned)'),
+                                      title: Text(
+                                          'Older Order (No album assigned)'),
                                       subtitle: Text('Status: $status'),
                                     );
                                   }
                                   final albumData = albumSnapshot.data!.data()
                                       as Map<String, dynamic>;
-                                  final artist = albumData['artist'] ?? 'Unknown';
-                                  final name = albumData['albumName'] ?? 'Unknown';
+                                  final artist =
+                                      albumData['artist'] ?? 'Unknown';
+                                  final name =
+                                      albumData['albumName'] ?? 'Unknown';
                                   return ListTile(
                                     title: Text('$artist - $name'),
                                     subtitle: Text('Status: $status'),
@@ -767,8 +802,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           showWishlist = !showWishlist;
                         });
                       },
-                      child:
-                          Text(showWishlist ? 'Hide Wishlist' : 'Show Wishlist'),
+                      child: Text(
+                          showWishlist ? 'Hide Wishlist' : 'Show Wishlist'),
                     ),
                     if (showWishlist)
                       FutureBuilder<List<DocumentSnapshot>>(
@@ -891,7 +926,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   _buildTextField('Artist', (value) => _artist = value),
                   _buildTextField('Album Name', (value) => _albumName = value),
-                  _buildTextField('Release Year', (value) => _releaseYear = value),
+                  _buildTextField(
+                      'Release Year', (value) => _releaseYear = value),
                   _buildTextField('Quality', (value) => _quality = value),
                   _buildTextField('Cover URL', (value) => _coverUrl = value),
                 ],
@@ -946,16 +982,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Future<void> _sendAlbumFromInventory(String orderId, String albumId, Map<String, dynamic> albumData) async {
+  Future<void> _sendAlbumFromInventory(
+      String orderId, String albumId, Map<String, dynamic> albumData) async {
     try {
       await _firestoreService.updateOrderWithAlbum(orderId, albumId);
-      
+
       // Refresh the admin dashboard data
       await _refreshData();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Album "${albumData['albumName']}" by ${albumData['artist']} sent successfully!'),
+          content: Text(
+              'Album "${albumData['albumName']}" by ${albumData['artist']} sent successfully!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -999,16 +1037,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .collection('orders')
           .doc(orderId)
           .get();
-      
+
       final orderData = orderDoc.data();
       final curatorId = orderData?['curatorId'] as String?;
-      
+
       // Award 1 free order credit to the curator for completing the order BEFORE marking as sent
       // This ensures the credit is awarded even if the order update fails
       bool creditAwarded = false;
       if (curatorId != null && curatorId.isNotEmpty) {
         try {
-          print('Awarding 1 credit to curator $curatorId for completing order $orderId');
+          print(
+              'Awarding 1 credit to curator $curatorId for completing order $orderId');
           await HomeScreen.addFreeOrderCredits(curatorId, 1);
           creditAwarded = true;
           print('Successfully awarded credit to curator $curatorId');
@@ -1017,7 +1056,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           // Don't fail the whole operation if credit award fails
         }
       }
-      
+
       // Update order status from 'ready_to_ship' to 'sent'
       await FirebaseFirestore.instance
           .collection('orders')
@@ -1027,12 +1066,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'shippedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'curatorCreditAwarded': creditAwarded, // Track if curator was paid
-        'curatorCreditAwardedAt': creditAwarded ? FieldValue.serverTimestamp() : null,
+        'curatorCreditAwardedAt':
+            creditAwarded ? FieldValue.serverTimestamp() : null,
       });
-      
+
       // Refresh the data to show updated status
       _refreshData();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Order marked as sent!'),
@@ -1056,7 +1096,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Icon(Icons.circle, color: color, size: 12),
         SizedBox(width: 4),
         Text(
-          label, 
+          label,
           style: TextStyle(
             fontSize: 12,
             color: Colors.black,
