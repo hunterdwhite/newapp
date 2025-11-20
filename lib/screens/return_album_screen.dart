@@ -104,6 +104,27 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
     );
   }
 
+  Future<void> _grantFreeOrderForReturn(String userId) async {
+    try {
+      final userDoc = await _firestoreService.getUserDoc(userId);
+      if (userDoc != null && userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>?;
+        final currentFreeOrders = userData?['freeOrdersAvailable'] ?? 0;
+        final newFreeOrders = currentFreeOrders + 1;
+        
+        await _firestoreService.updateUserDoc(userId, {
+          'freeOrdersAvailable': newFreeOrders,
+          'freeOrder': true, // Set to true since we now have free orders available
+        });
+        
+        print('✅ Free order granted! User now has $newFreeOrders free order(s) available');
+      }
+    } catch (e) {
+      print('Error granting free order: $e');
+      // Don't fail the return process if free order grant fails
+    }
+  }
+
   // Helper method to dismiss keyboard
   void _dismissKeyboard() {
     FocusScope.of(context).unfocus();
@@ -139,7 +160,8 @@ class _ReturnAlbumScreenState extends State<ReturnAlbumScreen> {
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && _flowVersion >= 2) {
-        await _firestoreService.updateUserDoc(user.uid, {'freeOrder': true});
+        // Grant a free order by incrementing freeOrdersAvailable
+        await _grantFreeOrderForReturn(user.uid);
       }
 
       setState(() => _isSubmitting = false);

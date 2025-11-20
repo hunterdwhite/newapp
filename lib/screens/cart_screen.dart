@@ -450,27 +450,91 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _fillAddressFromPrevious(String fullAddress) {
-    // Parse the address string and fill the form fields
-    // This is a simple implementation - you might want to make it more robust
-    final parts = fullAddress.split(', ');
-    if (parts.length >= 4) {
-      // Assuming format: "First Last, Street, City, State Zip"
-      final nameParts = parts[0].split(' ');
-      if (nameParts.length >= 2) {
-        _firstNameController.text = nameParts[0];
-        _lastNameController.text = nameParts.sublist(1).join(' ');
-      }
-      _addressController.text = parts[1];
-      _cityController.text = parts[2];
+    try {
+      print('🔄 Attempting to populate address: "$fullAddress"');
       
-      // Parse state and zip from last part
-      final stateZip = parts[3].split(' ');
-      if (stateZip.length >= 2) {
-        setState(() {
-          _state = stateZip[0];
-        });
-        _zipcodeController.text = stateZip[1];
+      List<String> parts = fullAddress.split('\n');
+      print('📋 Address parts (${parts.length}): $parts');
+      
+      if (parts.length < 3) {
+        print('❌ Invalid address format: Expected 3 parts, got ${parts.length}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to parse the selected address. Please enter it manually.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
       }
+      
+      // Parse name (part 0)
+      List<String> nameParts = parts[0].trim().split(' ');
+      if (nameParts.isEmpty) {
+        print('❌ Could not parse name from: "${parts[0]}"');
+        return;
+      }
+      
+      _firstNameController.text = nameParts.first;
+      _lastNameController.text = nameParts.skip(1).join(' ');
+      print('✅ Name parsed: ${_firstNameController.text} ${_lastNameController.text}');
+      
+      // Parse street address (part 1)
+      _addressController.text = parts[1].trim();
+      if (_addressController.text.isEmpty) {
+        print('❌ Street address is empty');
+        return;
+      }
+      print('✅ Street address: ${_addressController.text}');
+      
+      // Parse city, state, zip (part 2)
+      List<String> cityStateZip = parts[2].split(', ');
+      if (cityStateZip.length < 2) {
+        print('❌ Could not split city/state/zip: "${parts[2]}"');
+        // Try alternative parsing without comma
+        List<String> spaceParts = parts[2].trim().split(' ');
+        if (spaceParts.length >= 3) {
+          // Try format: "City State Zip"
+          _zipcodeController.text = spaceParts.last.trim();
+          setState(() {
+            _state = spaceParts[spaceParts.length - 2].trim();
+          });
+          _cityController.text = spaceParts.sublist(0, spaceParts.length - 2).join(' ').trim();
+          print('✅ Parsed with alternative format - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+        } else {
+          return;
+        }
+      } else {
+        _cityController.text = cityStateZip[0].trim();
+        
+        List<String> stateZip = cityStateZip[1].trim().split(' ');
+        if (stateZip.length < 2) {
+          print('❌ Could not split state/zip: "${cityStateZip[1]}"');
+          return;
+        }
+        
+        setState(() {
+          _state = stateZip[0].trim();
+        });
+        _zipcodeController.text = stateZip.sublist(1).join(' ').trim();
+        print('✅ City/State/Zip parsed - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+      }
+      
+      print('✅ Address successfully populated from card');
+      
+      // Reset shipping calculation when address changes
+      _resetShippingCalculation();
+      
+    } catch (e) {
+      print('❌ Error parsing address: $e');
+      print('❌ Address string was: "$fullAddress"');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error parsing address: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 

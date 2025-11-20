@@ -526,6 +526,37 @@ Future<List<DocumentSnapshot>> getWishlistForUser(String userId) async {
   }
 
   Future<String> addOrder(String userId, String address, {int flowVersion = 1, String? curatorId}) async {
+    // Check for recent duplicate orders (within last 30 seconds with same address)
+    final now = DateTime.now();
+    final thirtySecondsAgo = now.subtract(Duration(seconds: 30));
+    
+    QuerySnapshot recentOrdersWithSameAddress = await _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .where('address', isEqualTo: address)
+        .get();
+    
+    // Filter by timestamp (since Firestore can't do complex compound queries easily)
+    final duplicateOrders = recentOrdersWithSameAddress.docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final timestamp = data['timestamp'] as Timestamp?;
+      if (timestamp == null) return false;
+      final orderTime = timestamp.toDate();
+      return orderTime.isAfter(thirtySecondsAgo);
+    }).toList();
+    
+    if (duplicateOrders.isNotEmpty) {
+      final firstDuplicateData = duplicateOrders.first.data() as Map<String, dynamic>;
+      final duplicateTimestamp = firstDuplicateData['timestamp'] as Timestamp?;
+      if (duplicateTimestamp != null) {
+        print('⚠️ Duplicate order detected - order with same address created ${now.difference(duplicateTimestamp.toDate()).inSeconds} seconds ago');
+      } else {
+        print('⚠️ Duplicate order detected - order with same address already exists');
+      }
+      // Return the existing order ID instead of creating a duplicate
+      return duplicateOrders.first.id;
+    }
+    
     // Check if this is the user's first order
     QuerySnapshot existingOrders = await _firestore
         .collection('orders')

@@ -994,6 +994,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _markAsSent(String orderId) async {
     try {
+      // Get the order to check if it has a curator
+      final orderDoc = await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .get();
+      
+      final orderData = orderDoc.data();
+      final curatorId = orderData?['curatorId'] as String?;
+      
+      // Award 1 free order credit to the curator for completing the order BEFORE marking as sent
+      // This ensures the credit is awarded even if the order update fails
+      bool creditAwarded = false;
+      if (curatorId != null && curatorId.isNotEmpty) {
+        try {
+          print('Awarding 1 credit to curator $curatorId for completing order $orderId');
+          await HomeScreen.addFreeOrderCredits(curatorId, 1);
+          creditAwarded = true;
+          print('Successfully awarded credit to curator $curatorId');
+        } catch (e) {
+          print('Error awarding credit to curator: $e');
+          // Don't fail the whole operation if credit award fails
+        }
+      }
+      
       // Update order status from 'ready_to_ship' to 'sent'
       await FirebaseFirestore.instance
           .collection('orders')
@@ -1002,6 +1026,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'status': 'sent',
         'shippedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        'curatorCreditAwarded': creditAwarded, // Track if curator was paid
+        'curatorCreditAwardedAt': creditAwarded ? FieldValue.serverTimestamp() : null,
       });
       
       // Refresh the data to show updated status

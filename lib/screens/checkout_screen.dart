@@ -460,6 +460,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _placeOrder() async {
+    // Prevent duplicate submissions
+    if (_isProcessing) {
+      print('⚠️ Order already being processed, ignoring duplicate submission');
+      return;
+    }
+
     setState(() {
       _isProcessing = true;
     });
@@ -468,6 +474,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
+      }
+
+      // Check for recent duplicate orders (within last 30 seconds)
+      final recentOrders = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+      
+      if (recentOrders.docs.isNotEmpty) {
+        final lastOrderTime = recentOrders.docs.first.data()['timestamp'] as Timestamp?;
+        if (lastOrderTime != null) {
+          final timeSinceLastOrder = DateTime.now().difference(lastOrderTime.toDate());
+          if (timeSinceLastOrder.inSeconds < 30) {
+            print('⚠️ Duplicate order detected (last order was ${timeSinceLastOrder.inSeconds} seconds ago)');
+            setState(() {
+              _isProcessing = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('You recently placed an order. Please wait a moment before placing another.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+        }
       }
 
       final total = widget.selectedPrice + widget.shippingCost;
@@ -497,10 +531,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _processStripePayment(int amountInCents, String userId) async {
     try {
+      // Generate idempotency key to prevent duplicate charges
+      final idempotencyKey = 'order_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+      
       // Create payment intent
       final response = await http.post(
         Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
-        body: jsonEncode({'amount': amountInCents}),
+        body: jsonEncode({
+          'amount': amountInCents,
+          'idempotencyKey': idempotencyKey,
+        }),
         headers: {'Content-Type': 'application/json'},
       );
 

@@ -207,10 +207,14 @@ class _OrderScreenState extends State<OrderScreen> {
     return SafeArea(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: ResponsiveUtils.getResponsiveHorizontalPadding(context,
+              mobile: 16, tablet: 24, desktop: 32),
           child: Text(
             message,
-            style: TextStyle(fontSize: 24, color: Colors.white),
+            style: TextStyle(
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 20, tablet: 24, desktop: 28),
+              color: Colors.white,
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -344,21 +348,50 @@ class _OrderScreenState extends State<OrderScreen> {
               SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 3, tablet: 4, desktop: 6)),
               DropdownButtonFormField<String>(
                 value: _selectedAddress,
+                hint: Text(
+                  'Select a previous address',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+                  ),
+                ),
                 items: _previousAddresses.map((address) {
                   return DropdownMenuItem<String>(
                     value: address,
-                    child: Text(address, style: TextStyle(color: Colors.white)),
+                    child: Tooltip(
+                      message: address,
+                      child: Text(
+                        address.replaceAll('\n', ' | '),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 13, tablet: 14, desktop: 14),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedAddress = value;
                     if (value != null) {
-                      _populateFieldsFromSelectedAddress(value);
-                      // Auto-validate the selected address
-                      Future.delayed(Duration(milliseconds: 100), () {
-                        _validateAddress();
-                      });
+                      final success = _populateFieldsFromSelectedAddress(value);
+                      if (success) {
+                        // Auto-validate the selected address
+                        Future.delayed(Duration(milliseconds: 100), () {
+                          _validateAddress();
+                        });
+                      } else {
+                        // Show error to user
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Unable to parse the selected address. Please enter it manually.'),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
                     }
                   });
                 },
@@ -366,8 +399,13 @@ class _OrderScreenState extends State<OrderScreen> {
                   border: OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white10,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+                    vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 14, desktop: 14),
+                  ),
                 ),
                 dropdownColor: Colors.black87,
+                isExpanded: true,
               ),
               SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
               Text(
@@ -410,7 +448,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 ? Center(child: CircularProgressIndicator())
                 : RetroButtonWidget(
                     text: _isValidating ? 'Validating Address...' : 'Place Order',
-                    onPressed: user == null || _isValidating
+                    onPressed: user == null || _isValidating || _isProcessing
                         ? null
                         : () async {
                             FocusScope.of(context).unfocus();
@@ -527,128 +565,148 @@ class _OrderScreenState extends State<OrderScreen> {
 
   // Updated payment options dialog with refined styling.
  void _showPaymentOptionsDialog() {
+    final bool isMobile = ResponsiveUtils.isMobile(context);
+    final double horizontalPadding = isMobile ? 20.0 : 40.0;
+    final double titleBarHeight = isMobile ? 36.0 : 44.0;
+    
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black, width: 2),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding, 
+            vertical: 24
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: ResponsiveUtils.getContainerMaxWidth(context),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title bar
-                Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Color(0xFFFFA12C),
-                    border: Border(
-                      bottom: BorderSide(color: Colors.black, width: 1),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                          child: Text(
-                            'Select Payment Option',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: 2),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title bar
+                  Container(
+                    height: titleBarHeight,
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFFA12C),
+                      border: Border(
+                        bottom: BorderSide(color: Colors.black, width: 1),
                       ),
-                      Positioned(
-                        right: 8,
-                        top: 6,
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Color(0xFFCBCACB),
-                              border: Border.all(color: Colors.black, width: 1),
+                    ),
+                    child: Stack(
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 12.0 : 16.0
                             ),
-                            alignment: Alignment.center,
                             child: Text(
-                              'X',
+                              'Select Payment Option',
                               style: TextStyle(
                                 color: Colors.black,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: isMobile ? 15 : 18,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  color: Color(0xFFE0E0E0),
-                  padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _windows97OptionButton(
-                        label: "\$8.99",
-                        description: "I can't afford a full price album right now",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 8.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      _windows97OptionButton(
-                        label: "\$11.99",
-                        description: "I'll buy at full price!",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 11.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      _windows97OptionButton(
-                        label: "\$14.99",
-                        description: "I want to pay full price and help contribute so others don't have to pay full price!",
-                        onTap: () {
-                          setState(() {
-                            _selectedPaymentAmount = 14.99;
-                            _hasSelectedPrice = true;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      SizedBox(height: 18),
-                      Text(
-                        'All prices are for the same service',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
+                        Positioned(
+                          right: 8,
+                          top: isMobile ? 6 : 10,
+                          child: GestureDetector(
+                            onTap: () => Navigator.of(dialogContext).pop(),
+                            child: Container(
+                              width: isMobile ? 24 : 28,
+                              height: isMobile ? 24 : 28,
+                              decoration: BoxDecoration(
+                                color: Color(0xFFCBCACB),
+                                border: Border.all(color: Colors.black, width: 1),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                'X',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isMobile ? 16 : 18,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Container(
+                    color: Color(0xFFE0E0E0),
+                    padding: EdgeInsets.symmetric(
+                      vertical: isMobile ? 20 : 24, 
+                      horizontal: isMobile ? 16 : 20
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _windows97OptionButton(
+                          label: "\$8.99",
+                          description: "I can't afford a full price album right now",
+                          onTap: () {
+                            setState(() {
+                              _selectedPaymentAmount = 8.99;
+                              _hasSelectedPrice = true;
+                            });
+                            Navigator.of(dialogContext).pop();
+                          },
+                          isMobile: isMobile,
+                        ),
+                        SizedBox(height: isMobile ? 12 : 14),
+                        _windows97OptionButton(
+                          label: "\$11.99",
+                          description: "I'll buy at full price!",
+                          onTap: () {
+                            setState(() {
+                              _selectedPaymentAmount = 11.99;
+                              _hasSelectedPrice = true;
+                            });
+                            Navigator.of(dialogContext).pop();
+                          },
+                          isMobile: isMobile,
+                        ),
+                        SizedBox(height: isMobile ? 12 : 14),
+                        _windows97OptionButton(
+                          label: "\$14.99",
+                          description: "I want to pay full price and help contribute so others don't have to pay full price!",
+                          onTap: () {
+                            setState(() {
+                              _selectedPaymentAmount = 14.99;
+                              _hasSelectedPrice = true;
+                            });
+                            Navigator.of(dialogContext).pop();
+                          },
+                          isMobile: isMobile,
+                        ),
+                        SizedBox(height: isMobile ? 16 : 18),
+                        Text(
+                          'All prices are for the same service',
+                          style: TextStyle(
+                            fontSize: isMobile ? 11 : 13,
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -660,12 +718,16 @@ class _OrderScreenState extends State<OrderScreen> {
     required String label,
     required String description,
     required VoidCallback onTap,
+    bool isMobile = true,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 10 : 12, 
+          horizontal: isMobile ? 12 : 16
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(color: Colors.black, width: 1),
@@ -685,16 +747,16 @@ class _OrderScreenState extends State<OrderScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
-                fontSize: 16,
+                fontSize: isMobile ? 15 : 18,
               ),
             ),
-            SizedBox(width: 10),
+            SizedBox(width: isMobile ? 10 : 12),
             Expanded(
               child: Text(
                 description,
                 style: TextStyle(
                   color: Colors.black87,
-                  fontSize: 14,
+                  fontSize: isMobile ? 13 : 15,
                 ),
               ),
             ),
@@ -706,12 +768,47 @@ class _OrderScreenState extends State<OrderScreen> {
 
 
   Future<void> _handlePlaceOrder(String uid) async {
+    // Prevent duplicate submissions
+    if (_isProcessing) {
+      print('⚠️ Order already being processed, ignoring duplicate submission');
+      return;
+    }
+
     setState(() {
       _isProcessing = true;
     });
 
     try {
       final fullAddress = _buildAddressString();
+
+      // Check for recent duplicate orders (within last 30 seconds)
+      final recentOrders = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('userId', isEqualTo: uid)
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+      
+      if (recentOrders.docs.isNotEmpty) {
+        final lastOrderTime = recentOrders.docs.first.data()['timestamp'] as Timestamp?;
+        if (lastOrderTime != null) {
+          final timeSinceLastOrder = DateTime.now().difference(lastOrderTime.toDate());
+          if (timeSinceLastOrder.inSeconds < 30) {
+            print('⚠️ Duplicate order detected (last order was ${timeSinceLastOrder.inSeconds} seconds ago)');
+            if (!mounted) return;
+            setState(() {
+              _isProcessing = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('You recently placed an order. Please wait a moment before placing another.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+        }
+      }
 
       if (_hasFreeOrder) {
         // Create order first - Cloud Function will handle shipping labels automatically
@@ -750,10 +847,16 @@ class _OrderScreenState extends State<OrderScreen> {
       //   return;
       // }
       
+      // Generate idempotency key to prevent duplicate charges
+      final idempotencyKey = 'order_${uid}_${DateTime.now().millisecondsSinceEpoch}';
+      
       print('Creating PaymentIntent for $amountInCents cents...');
       final response = await http.post(
         Uri.parse('https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-payment-intent'),
-        body: jsonEncode({'amount': amountInCents}),
+        body: jsonEncode({
+          'amount': amountInCents,
+          'idempotencyKey': idempotencyKey,
+        }),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -851,31 +954,87 @@ class _OrderScreenState extends State<OrderScreen> {
     );
   }
 
-  void _populateFieldsFromSelectedAddress(String address) {
-    List<String> parts = address.split('\n');
-    if (parts.length == 3) {
-      List<String> nameParts = parts[0].split(' ');
-      if (nameParts.isNotEmpty) {
-        _firstNameController.text = nameParts.first;
-        _lastNameController.text = nameParts.skip(1).join(' ');
+  /// Populates form fields from a selected address string.
+  /// Returns true if successful, false if parsing failed.
+  bool _populateFieldsFromSelectedAddress(String address) {
+    try {
+      print('🔄 Attempting to populate address: "$address"');
+      
+      List<String> parts = address.split('\n');
+      print('📋 Address parts (${parts.length}): $parts');
+      
+      if (parts.length < 3) {
+        print('❌ Invalid address format: Expected 3 parts, got ${parts.length}');
+        return false;
       }
+      
+      // Parse name (part 0)
+      List<String> nameParts = parts[0].trim().split(' ');
+      if (nameParts.isEmpty) {
+        print('❌ Could not parse name from: "${parts[0]}"');
+        return false;
+      }
+      
+      _firstNameController.text = nameParts.first;
+      _lastNameController.text = nameParts.skip(1).join(' ');
+      print('✅ Name parsed: ${_firstNameController.text} ${_lastNameController.text}');
+      
+      // Parse street address (part 1)
       _addressController.text = parts[1].trim();
-      List<String> cityStateZip = parts[2].split(', ');
-      if (cityStateZip.length == 2) {
-        _cityController.text = cityStateZip[0].trim();
-        List<String> stateZip = cityStateZip[1].split(' ');
-        if (stateZip.length >= 2) {
-          _state = stateZip[0].trim();
-          _zipcodeController.text = stateZip.sublist(1).join(' ').trim();
-        }
+      if (_addressController.text.isEmpty) {
+        print('❌ Street address is empty');
+        return false;
       }
+      print('✅ Street address: ${_addressController.text}');
+      
+      // Parse city, state, zip (part 2)
+      List<String> cityStateZip = parts[2].split(', ');
+      if (cityStateZip.length < 2) {
+        print('❌ Could not split city/state/zip: "${parts[2]}"');
+        // Try alternative parsing without comma
+        List<String> spaceParts = parts[2].trim().split(' ');
+        if (spaceParts.length >= 3) {
+          // Try format: "City State Zip"
+          _zipcodeController.text = spaceParts.last.trim();
+          _state = spaceParts[spaceParts.length - 2].trim();
+          _cityController.text = spaceParts.sublist(0, spaceParts.length - 2).join(' ').trim();
+          print('✅ Parsed with alternative format - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+        } else {
+          return false;
+        }
+      } else {
+        _cityController.text = cityStateZip[0].trim();
+        
+        List<String> stateZip = cityStateZip[1].trim().split(' ');
+        if (stateZip.length < 2) {
+          print('❌ Could not split state/zip: "${cityStateZip[1]}"');
+          return false;
+        }
+        
+        _state = stateZip[0].trim();
+        _zipcodeController.text = stateZip.sublist(1).join(' ').trim();
+        print('✅ City/State/Zip parsed - City: ${_cityController.text}, State: $_state, Zip: ${_zipcodeController.text}');
+      }
+      
+      // Validate state is in the list
+      if (!_states.contains(_state)) {
+        print('⚠️ Warning: State "$_state" not in valid states list');
+        // Still allow it but warn
+      }
+      
+      // Reset validation state when address is populated from dropdown
+      _isAddressValidated = false;
+      _addressValidationError = null;
+      
+      // Note: No setState() here because this is called from within onChanged's setState()
+      print('✅ Address successfully populated from dropdown');
+      return true;
+      
+    } catch (e) {
+      print('❌ Error parsing address: $e');
+      print('❌ Address string was: "$address"');
+      return false;
     }
-    
-    // Reset validation state when address is populated from dropdown
-    _isAddressValidated = false;
-    _addressValidationError = null;
-    
-    setState(() {});
   }
 
   /// Validates the current address using USPS API
@@ -949,12 +1108,24 @@ class _OrderScreenState extends State<OrderScreen> {
 
   Widget _buildStateDropdown() {
     Color? borderColor;
+    Widget? suffixIcon;
+    
     if (_isValidating) {
       borderColor = Colors.orange;
+      suffixIcon = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+        ),
+      );
     } else if (_isAddressValidated) {
       borderColor = Colors.green;
+      suffixIcon = Icon(Icons.check_circle, color: Colors.green);
     } else if (_addressValidationError != null) {
       borderColor = Colors.red;
+      suffixIcon = Icon(Icons.error, color: Colors.red);
     }
     
     return DropdownButtonFormField<String>(
@@ -971,8 +1142,19 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
         filled: true,
         fillColor: Colors.white10,
+        suffixIcon: suffixIcon,
+        labelStyle: TextStyle(
+          fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+          vertical: ResponsiveUtils.getResponsiveSpacing(context, mobile: 12, tablet: 16, desktop: 16),
+        ),
       ),
-      style: TextStyle(color: Colors.white),
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+      ),
       dropdownColor: Colors.black87,
       value: _state.isNotEmpty ? _state : null,
       items: _states.map((String state) {
@@ -980,7 +1162,10 @@ class _OrderScreenState extends State<OrderScreen> {
           value: state,
           child: Text(
             state,
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+            ),
           ),
         );
       }).toList(),

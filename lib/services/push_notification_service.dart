@@ -194,10 +194,10 @@ class PushNotificationService {
   }
 
   /// Send push notification to a specific curator about a new order
+  /// SECURITY: Does NOT include customer name or address - only order ID
   Future<void> notifyCuratorOfNewOrder({
     required String curatorId,
     required String orderId,
-    required String customerName,
   }) async {
     try {
       // Get curator's FCM token from Firestore
@@ -222,12 +222,13 @@ class PushNotificationService {
       
       // Send notification via Firebase Cloud Functions or your backend
       // For now, we'll store it in Firestore for the backend to pick up
+      // SECURITY: Generic message with no customer information
       await FirebaseFirestore.instance.collection('notifications').add({
         'type': 'curator_order_assigned',
         'recipientId': curatorId,
         'recipientToken': fcmToken,
-        'title': 'New Order Assigned',
-        'body': 'You have a new order from $customerName to curate.',
+        'title': '🎵 New Curation Request',
+        'body': 'You have a new order waiting for your curation! Tap to start selecting the perfect album.',
         'data': {
           'type': 'curator_order',
           'orderId': orderId,
@@ -238,6 +239,7 @@ class PushNotificationService {
       });
       
       print('✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
+      print('🔒 SECURITY: No customer information included in notification');
       
     } catch (e) {
       print('❌ Error sending curator notification: $e');
