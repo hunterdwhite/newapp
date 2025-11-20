@@ -9,6 +9,9 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// SendGrid API for sending emails (you already use this in Lambda)
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+
 // Lambda endpoint URL
 const LAMBDA_ENDPOINT = 'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels';
 
@@ -75,6 +78,74 @@ function parseAddress(addressString) {
     console.error('Error parsing address:', error);
     console.error('Address string was:', addressString);
     throw error;
+  }
+}
+
+/**
+ * Send email notification to curator when they're chosen using SendGrid
+ * @param {string} curatorId - The curator's user ID
+ * @param {string} orderId - The order ID
+ */
+async function notifyCuratorByEmail(curatorId, orderId) {
+  try {
+    // Get curator's email and name from Firestore
+    const curatorDoc = await db.collection('users').doc(curatorId).get();
+    
+    if (!curatorDoc.exists) {
+      console.log(`⚠️ Curator ${curatorId} not found in database`);
+      return;
+    }
+    
+    const curatorData = curatorDoc.data();
+    const curatorEmail = curatorData.email;
+    const curatorName = curatorData.username || 'Curator';
+    
+    if (!curatorEmail) {
+      console.log(`⚠️ No email found for curator ${curatorId}`);
+      return;
+    }
+    
+    if (!SENDGRID_API_KEY) {
+      console.log(`⚠️ SendGrid API key not configured`);
+      return;
+    }
+    
+    // Simple, straightforward email using SendGrid API
+    const emailData = {
+      personalizations: [{
+        to: [{ email: curatorEmail }],
+        subject: 'A user has chosen you to curate an album'
+      }],
+      from: {
+        email: 'no-reply@dissonanthq.com',
+        name: 'Dissonant'
+      },
+      content: [{
+        type: 'text/plain',
+        value: `Hi ${curatorName},\n\nA user has chosen you to curate an album for them. Open the app to pick them something great!\n\nHappy curating!\n- Dissonant Team`
+      }, {
+        type: 'text/html',
+        value: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <p>Hi ${curatorName},</p>
+          <p>A user has chosen you to curate an album for them. Open the app to pick them something great!</p>
+          <p>Happy curating!</p>
+          <p>- Dissonant Team</p>
+        </div>`
+      }]
+    };
+    
+    const response = await axios.post('https://api.sendgrid.com/v3/mail/send', emailData, {
+      headers: {
+        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log(`✅ Curator notification email sent to ${curatorEmail} via SendGrid`);
+    
+  } catch (error) {
+    console.error(`❌ Failed to send curator notification email: ${error.message}`);
+    // Don't throw - we don't want to fail the order creation if email fails
   }
 }
 
@@ -233,6 +304,12 @@ exports.onCreateOrder = functions.firestore
       }
 
       console.log(`✅ Retrieved user email: ${userEmail}`);
+
+      // Send email notification to curator if one was assigned
+      if (orderData.curatorId) {
+        console.log(`📧 Sending curator notification email to curator: ${orderData.curatorId}`);
+        await notifyCuratorByEmail(orderData.curatorId, orderId);
+      }
 
       // Parcel dimensions (6x8 inches, 4.9 oz)
       const parcel = {

@@ -98,18 +98,29 @@ if (process.env.SENDGRID_API_KEY) {
 }
 
 app.post('/create-payment-intent', async (req, res) => {
-  const { amount } = req.body;
+  const { amount, idempotencyKey } = req.body;
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntentOptions = {
       amount: amount,
       currency: 'usd',
-    });
+    };
+
+    // Use idempotency key if provided to prevent duplicate charges
+    const requestOptions = idempotencyKey 
+      ? { idempotencyKey: idempotencyKey }
+      : {};
+
+    const paymentIntent = await stripe.paymentIntents.create(
+      paymentIntentOptions,
+      requestOptions
+    );
 
     res.send({
       clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
+    console.error('Payment intent creation error:', error);
     res.status(500).send(error.message);
   }
 });
@@ -739,6 +750,42 @@ app.post('/create-shipping-labels', async (req, res) => {
       transaction_id: returnTransactionData.object_id,
       billing_method: 'SCAN_BASED' // All Shippo return labels with is_return=true are scan-based
     };
+
+    // CRITICAL: Register tracking with Shippo for automatic webhook updates
+    if (outboundLabel.tracking_number && outboundLabel.status === 'SUCCESS') {
+      try {
+        console.log(`📡 Registering outbound tracking ${outboundLabel.tracking_number} with Shippo...`);
+        const registerTrackingResponse = await fetch('https://api.goshippo.com/tracks/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            carrier: outboundRate.provider.toLowerCase(), // 'usps', 'ups', 'fedex', etc.
+            tracking_number: outboundLabel.tracking_number,
+            metadata: `Order ${order_id} - Customer: ${customer_name}`,
+          }),
+        });
+        
+        if (registerTrackingResponse.ok) {
+          const trackData = await registerTrackingResponse.json();
+          console.log(`✅ Outbound tracking registered successfully`);
+          console.log(`   Tracking ID: ${trackData.object_id}`);
+          console.log(`   Status: ${trackData.tracking_status?.status || 'pending'}`);
+          console.log(`   Webhooks will now fire for this tracking number`);
+        } else {
+          const errorData = await registerTrackingResponse.json();
+          console.error(`⚠️ Failed to register outbound tracking:`, errorData);
+          // Don't fail the whole request - manual checking will still work
+        }
+      } catch (trackError) {
+        console.error(`❌ Error registering outbound tracking:`, trackError.message);
+        // Don't fail the whole request - webhooks might still work
+      }
+    } else {
+      console.log('⏭️ Skipping tracking registration - label creation unsuccessful');
+    }
 
     // Send emails with robust error handling and retry logic
     const sendEmails = async () => {
@@ -1489,6 +1536,10 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
     if (orderId && db) {
       try {
         const orderRef = db.collection('orders').doc(orderId);
+        const orderDoc = await orderRef.get();
+        const orderData = orderDoc.exists ? orderDoc.data() : null;
+        const currentStatus = orderData?.status;
+        
         await orderRef.update({
           status: orderStatus,
           statusDescription: statusDescription,
@@ -1497,6 +1548,20 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
         });
         console.log(`Order ${orderId} status updated to ${orderStatus} in Firestore`);
         updatedOrders.push(orderId);
+        
+        // Grant free order when package is returned
+        if (orderStatus === 'returned' && currentStatus !== 'returned' && orderData) {
+          const userId = orderData.userId;
+          const flowVersion = orderData.flowVersion || 1;
+          
+          if (userId && flowVersion >= 2) {
+            console.log(`🎁 Package returned for order ${orderId}, granting free order to user ${userId}`);
+            // Grant free order asynchronously (don't block)
+            grantFreeOrderForReturn(userId, orderId).catch(err => {
+              console.error(`❌ Failed to grant free order for user ${userId}:`, err);
+            });
+          }
+        }
       } catch (error) {
         console.error(`Failed to update order ${orderId}:`, error);
       }
@@ -1565,6 +1630,20 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
               updatedOrders.push(docId);
               actualUpdates++;
               console.log(`✅ Will update order ${docId}: '${currentStatus}' -> '${orderStatus}'`);
+              
+              // Grant free order when package is returned
+              if (orderStatus === 'returned' && currentStatus !== 'returned') {
+                const userId = currentData.userId;
+                const flowVersion = currentData.flowVersion || 1;
+                
+                if (userId && flowVersion >= 2) {
+                  console.log(`🎁 Package returned for order ${docId}, granting free order to user ${userId}`);
+                  // Grant free order asynchronously (don't block the batch)
+                  grantFreeOrderForReturn(userId, docId).catch(err => {
+                    console.error(`❌ Failed to grant free order for user ${userId}:`, err);
+                  });
+                }
+              }
             } else {
               console.log(`⏭️ Skipping order ${docId}: already has status '${currentStatus}'`);
             }
@@ -1599,9 +1678,10 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
     }
     
     // Send notification email to customer about status change (only for important updates)
+    // TEMPORARILY DISABLED: Testing backend updates first before enabling emails
     if (updatedOrders.length > 0 && shouldSendEmail) {
-      console.log(`📧 Sending ${orderStatus} status email to customer...`);
-      await sendStatusUpdateEmail(trackingNumber, orderStatus, statusDescription, updatedOrders);
+      console.log(`📧 EMAIL DISABLED: Would send ${orderStatus} status email to customer (testing mode)`);
+      // await sendStatusUpdateEmail(trackingNumber, orderStatus, statusDescription, updatedOrders);
     } else if (updatedOrders.length > 0) {
       console.log(`ℹ️ Status updated but no email sent for status: ${orderStatus}`);
     }
@@ -1617,6 +1697,41 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
   } catch (err) {
     console.error('Error updating order status:', err);
     throw err;
+  }
+}
+
+// Function to grant a free order when a package is returned
+async function grantFreeOrderForReturn(userId, orderId) {
+  try {
+    if (!db) {
+      console.error('Database not available - cannot grant free order');
+      return;
+    }
+
+    console.log(`🎁 Granting free order to user ${userId} for returned order ${orderId}`);
+
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      console.error(`User ${userId} not found`);
+      return;
+    }
+
+    const userData = userDoc.data();
+    const currentFreeOrders = userData.freeOrdersAvailable || 0;
+    const newFreeOrders = currentFreeOrders + 1;
+
+    await userRef.update({
+      freeOrdersAvailable: newFreeOrders,
+      freeOrder: true, // Set to true since we now have free orders available
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(`✅ Free order granted! User ${userId} now has ${newFreeOrders} free order(s) available`);
+  } catch (error) {
+    console.error(`Failed to grant free order to user ${userId}:`, error);
+    throw error;
   }
 }
 
@@ -1886,5 +2001,100 @@ If you receive this email, the email functionality is working correctly.`,
     });
   }
 });
+
+// ============================================================================
+// SCHEDULED TRACKING STATUS CHECKER (Backup for webhooks)
+// ============================================================================
+
+const schedule = require('node-schedule');
+
+// Check tracking status every 6 hours for orders in transit
+// This acts as a backup in case Shippo webhooks fail or are delayed
+const trackingCheckJob = schedule.scheduleJob('0 */6 * * *', async function() {
+  console.log('🔄 ============================================');
+  console.log('🔄 Running scheduled tracking status check...');
+  console.log('🔄 ============================================');
+  
+  if (!db) {
+    console.error('❌ Database not available - skipping scheduled check');
+    return;
+  }
+  
+  try {
+    // Find orders that are "sent" and haven't been updated in 12+ hours
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const twelveHoursAgoISO = twelveHoursAgo.toISOString();
+    
+    console.log(`📅 Looking for orders in 'sent' status updated before: ${twelveHoursAgoISO}`);
+    
+    const staleOrders = await db.collection('orders')
+      .where('status', '==', 'sent')
+      .where('updatedAt', '<', twelveHoursAgoISO)
+      .limit(50)
+      .get();
+    
+    console.log(`📦 Found ${staleOrders.size} stale orders to check`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const orderDoc of staleOrders.docs) {
+      const orderData = orderDoc.data();
+      const trackingNumber = orderData.trackingNumber || orderData.outboundTrackingNumber;
+      
+      if (!trackingNumber) {
+        console.log(`⏭️ Skipping order ${orderDoc.id} - no tracking number`);
+        continue;
+      }
+      
+      try {
+        console.log(`🔍 Checking tracking: ${trackingNumber} (Order: ${orderDoc.id})`);
+        
+        // Check tracking status from Shippo
+        const trackingResponse = await fetch(
+          `https://api.goshippo.com/tracks/${trackingNumber}/`,
+          {
+            headers: {
+              'Authorization': `ShippoToken ${process.env.SHIPPO_TOKEN}`,
+            },
+          }
+        );
+        
+        if (trackingResponse.ok) {
+          const trackingData = await trackingResponse.json();
+          console.log(`   Current status: ${trackingData.tracking_status?.status || 'unknown'}`);
+          
+          await updateOrderStatusFromTracking(
+            trackingNumber,
+            trackingData.tracking_status,
+            orderDoc.id
+          );
+          successCount++;
+          console.log(`✅ Updated order ${orderDoc.id}`);
+        } else {
+          errorCount++;
+          console.error(`❌ Failed to fetch tracking for ${trackingNumber}: ${trackingResponse.status}`);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Error checking ${trackingNumber}:`, error.message);
+      }
+      
+      // Rate limit: wait 500ms between requests to avoid hitting API limits
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    console.log('✅ ============================================');
+    console.log(`✅ Scheduled tracking check complete`);
+    console.log(`   Success: ${successCount} orders`);
+    console.log(`   Errors: ${errorCount} orders`);
+    console.log(`   Total checked: ${staleOrders.size} orders`);
+    console.log('✅ ============================================');
+  } catch (error) {
+    console.error('❌ Scheduled tracking check failed:', error);
+  }
+});
+
+console.log('✅ Tracking check job scheduled (runs every 6 hours at :00)');
 
 module.exports.handler = serverless(app);

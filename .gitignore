@@ -41,3 +41,25 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secret keys and credentials - NEVER commit these!
+**/serviceAccountKey.json
+**/*serviceAccount*.json
+*.pem
+*.p12
+.env
+.env.local
+.env.*.local
+**/.env
+scripts/*.json
+!scripts/package.json
+
+# Temporary documentation files (keep only README.md in root)
+/*.md
+!README.md
+!docs/**/*.md
+
+# Scripts that might contain secrets
+check-*.ps1
+test-*.ps1
+*-config.ps1
