@@ -53,3 +53,13 @@ app.*.map.json
 **/.env
 scripts/*.json
 !scripts/package.json
+
+# Temporary documentation files (keep only README.md in root)
+/*.md
+!README.md
+!docs/**/*.md
+
+# Scripts that might contain secrets
+check-*.ps1
+test-*.ps1
+*-config.ps1
