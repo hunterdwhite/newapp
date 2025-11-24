@@ -192,10 +192,17 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
             children: [
               Expanded(
                 child: _hasOrdered
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
+                    ? LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
                           if (_isAlbumRevealed)
                             // Show curator note for curator orders, default text for regular orders
                             _curatorMessage.isNotEmpty
@@ -289,25 +296,31 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                                 ),
                             ],
                           ),
-                          if (_orderSent && !_orderDelivered && !_isAlbumRevealed) ...[
-                            SizedBox(height: 16.0),
-                            Text(
-                              'Your album is on the way!',
-                              style:
-                                  TextStyle(fontSize: 24, color: Colors.white),
-                              textAlign: TextAlign.center,
+                                  if (_orderSent &&
+                                      !_orderDelivered &&
+                                      !_isAlbumRevealed) ...[
+                                    SizedBox(height: 16.0),
+                                    Text(
+                                      'Your album is on the way!',
+                                      style: TextStyle(
+                                          fontSize: 24, color: Colors.white),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                  if (!_orderSent && !_isAlbumRevealed) ...[
+                                    SizedBox(height: 16.0),
+                                    Text(
+                                      'A curator will choose an album for you soon.',
+                                      style: TextStyle(
+                                          fontSize: 24, color: Colors.white),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                          ],
-                          if (!_orderSent && !_isAlbumRevealed) ...[
-                            SizedBox(height: 16.0),
-                            Text(
-                              'A curator will choose an album for you soon.',
-                              style:
-                                  TextStyle(fontSize: 24, color: Colors.white),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ],
+                          );
+                        },
                       )
                     : Center(
                         child: Text(
