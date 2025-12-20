@@ -422,3 +422,136 @@ exports.onCreateOrder = functions.firestore
     }
   });
 
+/**
+ * Sends a SendGrid email using v3 API.
+ * This project already uses SendGrid via axios elsewhere in this file.
+ */
+async function sendSendGridEmail({ to, fromEmail, fromName, subject, text, html }) {
+  if (!SENDGRID_API_KEY) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'SendGrid API key not configured (SENDGRID_API_KEY).'
+    );
+  }
+
+  const emailData = {
+    personalizations: [{ to: [{ email: to }], subject }],
+    from: { email: fromEmail, name: fromName },
+    content: [
+      { type: 'text/plain', value: text },
+      { type: 'text/html', value: html },
+    ],
+  };
+
+  await axios.post('https://api.sendgrid.com/v3/mail/send', emailData, {
+    headers: {
+      Authorization: `Bearer ${SENDGRID_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+/**
+ * Callable used by the Flutter registration flow to send a branded verification email.
+ *
+ * IMPORTANT:
+ * - Uses Firebase Admin to generate a real email verification link.
+ * - Requires the caller to be authenticated (the registering user).
+ *
+ * Environment variables (optional):
+ * - EMAIL_VERIFICATION_CONTINUE_URL: where Firebase should continue after verification
+ * - VERIFICATION_FROM_EMAIL / VERIFICATION_FROM_NAME: SendGrid "from"
+ */
+exports.sendCustomEmailVerification = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  }
+
+  const email = (data && typeof data.email === 'string' ? data.email.trim() : '') ||
+    (context.auth.token && typeof context.auth.token.email === 'string' ? context.auth.token.email.trim() : '');
+  const displayName = data && typeof data.displayName === 'string' ? data.displayName.trim() : '';
+
+  if (!email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing email.');
+  }
+
+  const continueUrl = process.env.EMAIL_VERIFICATION_CONTINUE_URL || 'https://dissonanthq.com';
+
+  // handleCodeInApp=true is recommended for mobile flows (Firebase will use the app, if configured).
+  const actionCodeSettings = {
+    url: continueUrl,
+    handleCodeInApp: true,
+  };
+
+  // Generate a real Firebase email verification link for this email address.
+  const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
+
+  const safeName = displayName || 'Music Lover';
+  const subject = 'Verify your email for Dissonant';
+  const text = `Hi ${safeName},
+
+Thanks for joining Dissonant! Please verify your email address using this link:
+${verificationLink}
+
+If you didn’t create this account, you can ignore this email.
+
+- Dissonant Team`;
+
+  const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="margin: 0 0 12px 0;">Hi ${safeName},</h2>
+  <p style="margin: 0 0 12px 0;">Thanks for joining Dissonant! Please verify your email address by clicking the button below:</p>
+  <p style="margin: 18px 0;">
+    <a href="${verificationLink}" style="background-color:#E46A14;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none;display:inline-block;">
+      Verify Email
+    </a>
+  </p>
+  <p style="margin: 0 0 6px 0; color: #666;">If the button doesn’t work, paste this link into your browser:</p>
+  <p style="word-break: break-all; font-family: monospace; font-size: 12px; background: #f4f4f4; padding: 10px; border-radius: 6px;">
+    ${verificationLink}
+  </p>
+  <p style="margin: 18px 0 0 0; color: #888;">If you didn’t create this account, you can ignore this email.</p>
+  <p style="margin: 10px 0 0 0;">- Dissonant Team</p>
+</div>`;
+
+  const fromEmail = process.env.VERIFICATION_FROM_EMAIL || 'no-reply@dissonanthq.com';
+  const fromName = process.env.VERIFICATION_FROM_NAME || 'Dissonant';
+
+  await sendSendGridEmail({
+    to: email,
+    fromEmail,
+    fromName,
+    subject,
+    text,
+    html,
+  });
+
+  return { success: true };
+});
+
+/**
+ * Admin-only callable: manually mark a user's email as verified by email address.
+ *
+ * Security: requires a custom claim `admin: true` on the caller.
+ */
+exports.adminVerifyUserEmailByEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentication required.');
+  }
+  if (!context.auth.token || context.auth.token.admin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin privileges required.');
+  }
+
+  const email = data && typeof data.email === 'string' ? data.email.trim() : '';
+  if (!email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing email.');
+  }
+
+  const userRecord = await admin.auth().getUserByEmail(email);
+  if (userRecord.emailVerified) {
+    return { success: true, uid: userRecord.uid, emailVerified: true, alreadyVerified: true };
+  }
+
+  await admin.auth().updateUser(userRecord.uid, { emailVerified: true });
+  return { success: true, uid: userRecord.uid, emailVerified: true, alreadyVerified: false };
+});
+
