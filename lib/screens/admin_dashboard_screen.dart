@@ -19,6 +19,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   /// Cache for user data to improve performance
   List<Map<String, dynamic>>? _cachedUsers;
   bool _isLoading = false;
+  int _totalUserCount = 0;
 
   final _albumFormKey = GlobalKey<FormState>();
   String _artist = '';
@@ -41,9 +42,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
 
     try {
-      final userData = await _fetchUsersWithStatus();
+      // Fetch active users and total count in parallel
+      final results = await Future.wait([
+        _fetchUsersWithStatus(),
+        _fetchTotalUserCount(),
+      ]);
+      
       setState(() {
-        _cachedUsers = userData;
+        _cachedUsers = results[0] as List<Map<String, dynamic>>;
+        _totalUserCount = results[1] as int;
         _isLoading = false;
       });
     } catch (e) {
@@ -54,6 +61,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         SnackBar(content: Text('Failed to load data: $e')),
       );
     }
+  }
+  
+  /// Get total user count (fast aggregation query)
+  Future<int> _fetchTotalUserCount() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .count()
+        .get();
+    return snapshot.count ?? 0;
   }
 
   @override
@@ -108,7 +124,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   label: Text(_isLoading ? 'Loading...' : 'Refresh'),
                 ),
                 Spacer(),
-                Text('${_cachedUsers?.length ?? 0} users loaded'),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$_totalUserCount total users',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '${_cachedUsers?.length ?? 0} with active orders',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -283,28 +317,120 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  /// OPTIMIZED: Query active orders first, then batch-load related data
+  /// This reduces 1000+ queries down to ~10 queries total
   Future<List<Map<String, dynamic>>> _fetchUsersWithStatus() async {
-    final usersSnapshot =
-        await FirebaseFirestore.instance.collection('users').get();
-
+    // Step 1: Query ONLY orders with active statuses (instead of all users)
+    final activeStatuses = [
+      'new',
+      'curator_assigned', 
+      'in_progress',
+      'ready_to_ship',
+      'sent',
+      'returned',
+    ];
+    
+    // Get all active orders in ONE query
+    final ordersSnapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', whereIn: activeStatuses)
+        .orderBy('timestamp', descending: true)
+        .get();
+    
+    if (ordersSnapshot.docs.isEmpty) {
+      return [];
+    }
+    
+    // Step 2: Collect unique user IDs, curator IDs, and album IDs
+    final Set<String> userIds = {};
+    final Set<String> curatorIds = {};
+    final Set<String> albumIds = {};
+    
+    // Map to track latest order per user (we only care about their most recent active order)
+    final Map<String, QueryDocumentSnapshot> latestOrderByUser = {};
+    
+    for (var orderDoc in ordersSnapshot.docs) {
+      final orderData = orderDoc.data();
+      final userId = orderData['userId'] as String?;
+      if (userId == null) continue;
+      
+      // Only keep the latest order per user (they're already sorted by timestamp desc)
+      if (!latestOrderByUser.containsKey(userId)) {
+        latestOrderByUser[userId] = orderDoc;
+        userIds.add(userId);
+        
+        final curatorId = orderData['curatorId'] as String?;
+        if (curatorId != null && curatorId.isNotEmpty) {
+          curatorIds.add(curatorId);
+        }
+        
+        final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
+        if (albumId != null && albumId.isNotEmpty) {
+          albumIds.add(albumId);
+        }
+      }
+    }
+    
+    // Step 3: Batch-load all users, curators, and albums in parallel
+    final usersFuture = _batchGetDocuments('users', userIds.toList());
+    final curatorsFuture = curatorIds.isNotEmpty 
+        ? _batchGetDocuments('users', curatorIds.toList())
+        : Future.value(<String, Map<String, dynamic>>{});
+    final albumsFuture = albumIds.isNotEmpty
+        ? _batchGetDocuments('albums', albumIds.toList())
+        : Future.value(<String, Map<String, dynamic>>{});
+    
+    final results = await Future.wait([usersFuture, curatorsFuture, albumsFuture]);
+    final usersMap = results[0];
+    final curatorsMap = results[1];
+    final albumsMap = results[2];
+    
+    // Step 4: Build the result list
     List<Map<String, dynamic>> usersWithStatus = [];
-
-    for (var userDoc in usersSnapshot.docs) {
-      final userId = userDoc.id;
-      final userData = userDoc.data();
-
-      final statusInfo = await _determineUserStatusInfo(userId);
+    
+    for (var entry in latestOrderByUser.entries) {
+      final userId = entry.key;
+      final orderDoc = entry.value;
+      final orderData = orderDoc.data() as Map<String, dynamic>?;
+      if (orderData == null) continue; // Skip if order data is null
+      
+      final userData = usersMap[userId];
+      if (userData == null) continue; // Skip if user not found
+      
+      final status = orderData['status'] as String? ?? '';
+      final orderTs = orderData['timestamp'] as Timestamp?;
+      final curatorId = orderData['curatorId'] as String?;
+      final details = orderData['details'] as Map<String, dynamic>?;
+      final albumId = orderData['albumId'] as String? ?? details?['albumId'] as String?;
+      
+      // Determine display status
+      String finalStatus = _mapOrderStatusToDisplayStatus(status, albumId);
+      
+      // Get curator info from pre-loaded map
+      String? curatorInfo;
+      if (curatorId != null && curatorsMap.containsKey(curatorId)) {
+        curatorInfo = curatorsMap[curatorId]?['username'] ?? 'Unknown Curator';
+      }
+      
+      // Get album info from pre-loaded map
+      String? albumInfo;
+      if (albumId != null && albumsMap.containsKey(albumId)) {
+        final albumData = albumsMap[albumId];
+        albumInfo = '${albumData?['artist'] ?? 'Unknown'} - ${albumData?['albumName'] ?? 'Unknown'}';
+      }
+      
       usersWithStatus.add({
         'userId': userId,
         'user': userData,
-        'status': statusInfo['status'],
-        'earliestNewTimestamp': statusInfo['earliestNewTimestamp'],
-        'curatorInfo': statusInfo['curatorInfo'],
-        'albumInfo': statusInfo['albumInfo'],
+        'status': finalStatus,
+        'earliestNewTimestamp': orderTs,
+        'curatorInfo': curatorInfo,
+        'albumInfo': albumInfo,
+        'orderId': orderDoc.id,
       });
     }
-
-    // Sort by priority: ready_to_ship (HIGHEST) -> urgent curator items -> ready items -> active -> none
+    
+    // Step 5: Sort by priority
     final statusOrder = [
       'ready_to_ship',
       'curator_assigned',
@@ -315,201 +441,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       'returned',
       'none'
     ];
+    
     usersWithStatus.sort((a, b) {
-      final statusA = a['status'] as String;
-      final statusB = b['status'] as String;
-
-      final indexA = statusOrder.indexOf(statusA);
-      final indexB = statusOrder.indexOf(statusB);
+      final indexA = statusOrder.indexOf(a['status'] as String);
+      final indexB = statusOrder.indexOf(b['status'] as String);
       if (indexA != indexB) return indexA.compareTo(indexB);
-
-      // If same status, sort by timestamp (oldest first for urgent statuses)
-      if ([
-        'ready_to_ship',
-        'curator_assigned',
-        'in_progress',
-        'new',
-        'album_selected'
-      ].contains(statusA)) {
-        final tsA = a['earliestNewTimestamp'];
-        final tsB = b['earliestNewTimestamp'];
-        if (tsA != null && tsB != null) {
-          return tsA.compareTo(tsB); // Oldest first for urgent items
-        } else if (tsA == null && tsB != null) {
-          return 1;
-        } else if (tsA != null && tsB == null) {
-          return -1;
-        }
+      
+      // Oldest first for urgent items
+      final tsA = a['earliestNewTimestamp'] as Timestamp?;
+      final tsB = b['earliestNewTimestamp'] as Timestamp?;
+      if (tsA != null && tsB != null) {
+        return tsA.compareTo(tsB);
       }
       return 0;
     });
-
+    
     return usersWithStatus;
   }
-
-  Future<Map<String, dynamic>> _determineUserStatusInfo(String userId) async {
-    final ordersSnapshot = await FirebaseFirestore.instance
-        .collection('orders')
-        .where('userId', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-
-    if (ordersSnapshot.docs.isEmpty) {
-      return {
-        'status': 'none',
-        'earliestNewTimestamp': null,
-        'curatorInfo': null,
-        'albumInfo': null,
-      };
+  
+  /// Batch-load documents by IDs (Firestore allows up to 10 in whereIn)
+  Future<Map<String, Map<String, dynamic>>> _batchGetDocuments(
+      String collection, List<String> ids) async {
+    if (ids.isEmpty) return {};
+    
+    final Map<String, Map<String, dynamic>> results = {};
+    
+    // Firestore whereIn is limited to 10 items, so batch them
+    for (var i = 0; i < ids.length; i += 10) {
+      final batchIds = ids.skip(i).take(10).toList();
+      final snapshot = await FirebaseFirestore.instance
+          .collection(collection)
+          .where(FieldPath.documentId, whereIn: batchIds)
+          .get();
+      
+      for (var doc in snapshot.docs) {
+        results[doc.id] = doc.data();
+      }
     }
-
-    final latestOrder = ordersSnapshot.docs.first;
-    final orderData = latestOrder.data();
-    final status = orderData['status'] ?? '';
-    final orderTs = orderData['timestamp'] as Timestamp?;
-    final curatorId = orderData['curatorId'] as String?;
-    // Fix: Check both new (root level) and old (details) data structures for albumId
-    final albumId = orderData['albumId'] ?? orderData['details']?['albumId'];
-
-    String finalStatus = 'none';
-    String? curatorInfo;
-    String? albumInfo;
-
-    // Determine status based on order progression - maintains both Dissonant and Curator routes
+    
+    return results;
+  }
+  
+  /// Map order status to display status
+  String _mapOrderStatusToDisplayStatus(String status, dynamic albumId) {
     switch (status) {
       case 'new':
-        // Traditional Dissonant route - show as green (ready for admin action)
-        finalStatus = 'new';
-        break;
+        return 'new';
       case 'curator_assigned':
-        finalStatus = 'curator_assigned';
-        // Fetch curator username
-        if (curatorId != null && curatorId.isNotEmpty) {
-          try {
-            final curatorDoc = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(curatorId)
-                .get();
-            if (curatorDoc.exists) {
-              final curatorData = curatorDoc.data() as Map<String, dynamic>;
-              curatorInfo = curatorData['username'] ?? 'Unknown Curator';
-            }
-          } catch (e) {
-            curatorInfo = 'Unknown Curator';
-          }
-        }
-        break;
+        return 'curator_assigned';
       case 'in_progress':
-        finalStatus = 'in_progress';
-        // Curator is working on selection
-        if (curatorId != null && curatorId.isNotEmpty) {
-          try {
-            final curatorDoc = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(curatorId)
-                .get();
-            if (curatorDoc.exists) {
-              final curatorData = curatorDoc.data() as Map<String, dynamic>;
-              curatorInfo = curatorData['username'] ?? 'Unknown Curator';
-            }
-          } catch (e) {
-            curatorInfo = 'Unknown Curator';
-          }
+        // If album selected during in_progress, show as album_selected
+        if (albumId != null && albumId.toString().isNotEmpty) {
+          return 'album_selected';
         }
-
-        // Check if album has been selected
-        if (albumId != null && albumId.isNotEmpty) {
-          finalStatus = 'album_selected';
-          try {
-            final albumDoc = await FirebaseFirestore.instance
-                .collection('albums')
-                .doc(albumId)
-                .get();
-            if (albumDoc.exists) {
-              final albumData = albumDoc.data() as Map<String, dynamic>;
-              albumInfo = '${albumData['artist']} - ${albumData['albumName']}';
-            }
-          } catch (e) {
-            albumInfo = 'Unknown Album';
-          }
-        }
-        break;
-      case 'sent':
-        finalStatus = 'sent';
-        if (albumId != null && albumId.isNotEmpty) {
-          try {
-            final albumDoc = await FirebaseFirestore.instance
-                .collection('albums')
-                .doc(albumId)
-                .get();
-            if (albumDoc.exists) {
-              final albumData = albumDoc.data() as Map<String, dynamic>;
-              albumInfo = '${albumData['artist']} - ${albumData['albumName']}';
-            }
-          } catch (e) {
-            albumInfo = 'Unknown Album';
-          }
-        }
-        break;
+        return 'in_progress';
       case 'ready_to_ship':
-        // CRITICAL: Curator has selected album, admin needs to ship it!
-        finalStatus = 'ready_to_ship';
-
-        if (albumId != null && albumId.isNotEmpty) {
-          try {
-            final albumDoc = await FirebaseFirestore.instance
-                .collection('albums')
-                .doc(albumId)
-                .get();
-            if (albumDoc.exists) {
-              final albumData = albumDoc.data() as Map<String, dynamic>;
-              albumInfo = '${albumData['artist']} - ${albumData['albumName']}';
-            } else {
-              albumInfo = 'Album not found';
-            }
-          } catch (e) {
-            albumInfo = 'Error loading album';
-          }
-        } else {
-          albumInfo = 'No album selected';
-        }
-
-        // Also get curator info for ready_to_ship orders
-        if (curatorId != null && curatorId.isNotEmpty) {
-          try {
-            final curatorDoc = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(curatorId)
-                .get();
-            if (curatorDoc.exists) {
-              final curatorData = curatorDoc.data() as Map<String, dynamic>;
-              curatorInfo = curatorData['username'] ?? 'Unknown Curator';
-            }
-          } catch (e) {
-            curatorInfo = 'Unknown Curator';
-          }
-        }
-        break;
+        return 'ready_to_ship';
+      case 'sent':
+        return 'sent';
       case 'returned':
-        finalStatus = 'returned';
-        break;
-      case 'delivered':
-      case 'kept':
-      case 'returnedConfirmed':
-        // Skip these completed statuses - admin doesn't need to see them
-        finalStatus = 'none';
-        break;
+        return 'returned';
       default:
-        finalStatus = 'none';
+        return 'none';
     }
-
-    return {
-      'status': finalStatus,
-      'earliestNewTimestamp': orderTs,
-      'curatorInfo': curatorInfo,
-      'albumInfo': albumInfo,
-    };
   }
 
   void _showUserDetails(String userId, Map<String, dynamic> user) {
@@ -897,13 +891,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Text('Mark as Sent'),
       );
     }
-    // If the order is 'new' => "Send Album" button
+    // If the order is 'new' => "Select Album" button
     else if (order['status'] == 'new') {
       return ElevatedButton(
         onPressed: () {
-          _showSendAlbumDialog(orderId, order['address'], userId);
+          _showSelectAlbumDialog(orderId, order['address'], userId);
         },
-        child: Text('Send Album'),
+        child: Text('Select Album'),
       );
     }
     // Otherwise no action
@@ -956,7 +950,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _showSendAlbumDialog(String orderId, String address, String userId) {
+  void _showSelectAlbumDialog(String orderId, String address, String userId) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -964,7 +958,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           orderId: orderId,
           orderData: {'address': address, 'userId': userId},
           onAlbumSelected: (albumId, albumData) {
-            _sendAlbumFromInventory(orderId, albumId, albumData);
+            _selectAlbumForOrder(orderId, albumId, albumData);
           },
         ),
       ),
@@ -982,7 +976,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Future<void> _sendAlbumFromInventory(
+  Future<void> _selectAlbumForOrder(
       String orderId, String albumId, Map<String, dynamic> albumData) async {
     try {
       await _firestoreService.updateOrderWithAlbum(orderId, albumId);
@@ -993,14 +987,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Album "${albumData['albumName']}" by ${albumData['artist']} sent successfully!'),
+              'Album "${albumData['albumName']}" by ${albumData['artist']} selected! Ready to ship.'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error sending album: $e'),
+          content: Text('Error selecting album: $e'),
           backgroundColor: Colors.red,
         ),
       );

@@ -111,14 +111,21 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
 
   // Helper method to scroll to text field when focused
   void _scrollToTextField() {
-    // Add a small delay to ensure the keyboard is fully shown
-    Future.delayed(Duration(milliseconds: 300), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 500),
-          curve: Curves.easeInOut,
-        );
+    // Add a delay to ensure the keyboard is fully shown
+    Future.delayed(Duration(milliseconds: 350), () {
+      if (_scrollController.hasClients && mounted) {
+        // Calculate a good scroll position to show the text field above keyboard
+        final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+        final targetPosition = _scrollController.position.maxScrollExtent;
+        
+        // Only scroll if keyboard is actually visible
+        if (keyboardHeight > 0 || targetPosition > _scrollController.offset) {
+          _scrollController.animateTo(
+            targetPosition,
+            duration: Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
+          );
+        }
       }
     });
   }
@@ -306,34 +313,38 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
             ],
           ),
           child: TextFormField(
-            controller: _musicalBioController, // Use controller instead of initialValue
+            controller: _musicalBioController,
             maxLines: 4,
+            minLines: 3,
             style: TextStyle(fontSize: 14, color: Colors.black),
-            // Add text input action to provide a "done" button on keyboard
             textInputAction: TextInputAction.done,
-            // Add onFieldSubmitted to handle return key
             onFieldSubmitted: (value) {
               _dismissKeyboard();
             },
-            // Add onTap to scroll to text field when focused
             onTap: _scrollToTextField,
             decoration: InputDecoration(
               hintText: 'Tell us about your musical journey...',
               hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               border: InputBorder.none,
               contentPadding: EdgeInsets.all(12),
-              // Add suffix icon to provide a clear way to dismiss keyboard
-              suffixIcon: IconButton(
-                icon: Icon(Icons.keyboard_hide, color: Colors.grey.shade600),
-                onPressed: _dismissKeyboard,
-                tooltip: 'Hide keyboard',
-              ),
             ),
             onChanged: (value) {
               setState(() {
                 _musicalBio = value;
               });
             },
+          ),
+        ),
+        // Helpful hint about dismissing keyboard
+        Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Tap "Done" on keyboard or tap outside to dismiss',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ),
       ],
@@ -497,9 +508,10 @@ class _TasteProfileScreenState extends State<TasteProfileScreen> {
                                   ),
                                 ),
                               ),
-                              // Spacer to push content up and leave room for keyboard
-                              Spacer(),
-                              SizedBox(height: 100), // Extra space at bottom
+                              // Extra space at bottom to ensure content can scroll above keyboard
+                              SizedBox(height: MediaQuery.of(context).viewInsets.bottom > 0 
+                                ? MediaQuery.of(context).viewInsets.bottom + 20
+                                : 100),
                             ],
                           ),
                         ),

@@ -649,9 +649,10 @@ class FirestoreService {
 
   Future<void> updateOrderWithAlbum(String orderId, String albumId) async {
     await _firestore.collection('orders').doc(orderId).update({
-      'status': 'sent',
+      'status': 'ready_to_ship',
       'albumId': albumId,
-      'details.albumId': albumId, // <--- Add this line
+      'details.albumId': albumId,
+      'albumSelectedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

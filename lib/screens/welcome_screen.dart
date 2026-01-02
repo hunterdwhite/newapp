@@ -73,7 +73,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       List<String> imageUrls = [];
       for (var albumDoc in albumsSnapshot.docs) {
         final albumData = albumDoc.data();
-        if (albumData != null && albumData['coverUrl'] != null) {
+        if (albumData['coverUrl'] != null) {
           imageUrls.add(albumData['coverUrl'] as String);
         }
       }
@@ -96,20 +96,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     // If the waitlist flag is still null, we haven't loaded it yet
     if (_waitlistEnabled == null) {
       return Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.orange)),
       );
     }
 
     final isWaitlistMode = _waitlistEnabled == true;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Background image
-          Positioned.fill(
+          // Background image - properly fills entire screen
+          SizedBox.expand(
             child: Image.asset(
               'assets/waitlistwelcome.png',
-              fit: BoxFit.cover, // Changed from contain to cover for better responsiveness
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
             ),
           ),
           SafeArea(

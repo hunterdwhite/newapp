@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/grainy_background_widget.dart';
 import '../widgets/star_rating_widget.dart';
 import '../services/curator_service.dart';
@@ -18,12 +17,19 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
   
   List<Map<String, dynamic>> _favoriteCurators = [];
   List<Map<String, dynamic>> _featuredCurators = [];
-  List<Map<String, dynamic>> _allCurators = [];
+  List<Map<String, dynamic>> _allCurators = []; // Full list loaded from Firestore
+  List<Map<String, dynamic>> _displayedCurators = []; // Currently displayed (paginated)
   List<Map<String, dynamic>> _searchResults = [];
   
   bool _isLoading = true;
   bool _isSearching = false;
   String _searchQuery = '';
+  
+  // Client-side pagination state
+  static const int _pageSize = 10;
+  int _currentPageEnd = 10; // How many curators to show
+  bool _hasMoreCurators = true;
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
@@ -55,42 +61,69 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Load favorite curators
-      final favoriteCurators = await _curatorService.getFavoriteCurators(user.uid);
+      // Load all curator data in parallel for faster initial load
+      final results = await Future.wait([
+        _curatorService.getFavoriteCurators(user.uid),
+        _curatorService.getAllCuratorsForPagination(),
+      ]);
       
-      // Enrich favorite curators with stats (order count, rating, review count)
-      for (var curator in favoriteCurators) {
-        final orderCount = await _getCuratorOrderCount(curator['userId']);
-        curator['orderCount'] = orderCount;
-        
-        // Get rating information
-        final ratingInfo = await _curatorService.getCuratorRating(curator['userId']);
-        curator['rating'] = ratingInfo['rating'];
-        curator['reviewCount'] = ratingInfo['reviewCount'];
-        
+      final favoriteCurators = results[0];
+      final allCurators = results[1]; // Already sorted by orderCount from service
+      
+      // Filter featured curators from allCurators (no extra query needed)
+      final featuredCurators = allCurators
+          .where((c) => c['isFeatured'] == true)
+          .map((c) => Map<String, dynamic>.from(c))
+          .toList();
+      
+      // Map denormalized fields to expected names and ensure defaults
+      // allCurators already has: orderCount, averageRating, reviewCount from user doc
+      for (var curator in allCurators) {
+        curator['rating'] = curator['averageRating'] ?? curator['rating'] ?? 0.0;
+        curator['reviewCount'] = curator['reviewCount'] ?? 0;
+        curator['orderCount'] = curator['orderCount'] ?? 0;
         curator['isFeatured'] = curator['isFeatured'] ?? false;
       }
       
-      // Load all curators with order counts and featured status
-      final allCurators = await _loadCuratorsWithStats();
+      // Ensure favorite curators have stats (may need to look up from allCurators)
+      final allCuratorsMap = {for (var c in allCurators) c['userId']: c};
+      for (var curator in favoriteCurators) {
+        final cached = allCuratorsMap[curator['userId']];
+        if (cached != null) {
+          curator['orderCount'] = cached['orderCount'];
+          curator['rating'] = cached['rating'];
+          curator['reviewCount'] = cached['reviewCount'];
+        } else {
+          curator['orderCount'] = curator['orderCount'] ?? 0;
+          curator['rating'] = curator['rating'] ?? 0.0;
+          curator['reviewCount'] = curator['reviewCount'] ?? 0;
+        }
+        curator['isFeatured'] = curator['isFeatured'] ?? false;
+      }
       
-      // Separate featured curators
-      final featuredCurators = allCurators.where((curator) => curator['isFeatured'] == true).toList();
-      
-      // Sort curators by order count (descending)
+      // Sort favorites and featured by order count
       favoriteCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
-      allCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
       featuredCurators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
 
       // Check if widget is still mounted before calling setState
       if (!mounted) return;
       
+      // Set up client-side pagination
+      _currentPageEnd = _pageSize;
+      final displayedCurators = allCurators.take(_currentPageEnd).toList();
+      
       setState(() {
         _favoriteCurators = favoriteCurators;
         _featuredCurators = featuredCurators;
         _allCurators = allCurators;
+        _displayedCurators = displayedCurators;
+        _hasMoreCurators = allCurators.length > _currentPageEnd;
         _isLoading = false;
       });
+      
+      // Stats are now denormalized on user documents - no extra queries needed!
+      // The curator service already returns orderCount, averageRating, reviewCount
+      
     } catch (e) {
       print('Error loading curators: $e');
       
@@ -103,64 +136,44 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadCuratorsWithStats() async {
-    try {
-      // Get all curators
-      final curators = await _curatorService.getAllCurators(limit: 100);
-      
-      // Add order count, featured status, and rating to each curator
-      for (var curator in curators) {
-        // Get order count for this curator
-        final orderCount = await _getCuratorOrderCount(curator['userId']);
-        curator['orderCount'] = orderCount;
-        
-        // Get rating information
-        final ratingInfo = await _curatorService.getCuratorRating(curator['userId']);
-        curator['rating'] = ratingInfo['rating'];
-        curator['reviewCount'] = ratingInfo['reviewCount'];
-        
-        // Check if curator is featured (you can add this field to user documents)
-        curator['isFeatured'] = curator['isFeatured'] ?? false;
-      }
-      
-      return curators;
-    } catch (e) {
-      print('Error loading curators with stats: $e');
-      return [];
-    }
-  }
-
-  Future<int> _getCuratorOrderCount(String curatorId) async {
-    try {
-      // Force fresh data from server, not cache
-      // Only count truly completed orders: kept and returnedConfirmed
-      final snapshot = await FirebaseFirestore.instance
-          .collection('orders')
-          .where('curatorId', isEqualTo: curatorId)
-          .where('status', whereIn: ['kept', 'returnedConfirmed'])
-          .get(const GetOptions(source: Source.server));
-      
-      return snapshot.docs.length;
-    } catch (e) {
-      print('Error getting curator order count: $e');
-      return 0;
-    }
+  void _loadMoreCurators() {
+    if (_isLoadingMore || !_hasMoreCurators) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    // Client-side pagination - stats are already loaded (denormalized on user docs)
+    _currentPageEnd += _pageSize;
+    final newDisplayed = _allCurators.take(_currentPageEnd).toList();
+    
+    setState(() {
+      _displayedCurators = newDisplayed;
+      _hasMoreCurators = _allCurators.length > _currentPageEnd;
+      _isLoadingMore = false;
+    });
   }
 
   Future<void> _performSearch(String query) async {
     try {
       final results = await _curatorService.searchCurators(query);
       
-      // Add order counts and ratings to search results
+      // Use cached stats from _allCurators when available (already loaded)
+      final cachedStats = {for (var c in _allCurators) c['userId']: c};
+      
       for (var curator in results) {
-        final orderCount = await _getCuratorOrderCount(curator['userId']);
-        curator['orderCount'] = orderCount;
-        
-        // Get rating information
-        final ratingInfo = await _curatorService.getCuratorRating(curator['userId']);
-        curator['rating'] = ratingInfo['rating'];
-        curator['reviewCount'] = ratingInfo['reviewCount'];
-        
+        final cached = cachedStats[curator['userId']];
+        if (cached != null) {
+          // Use denormalized stats from cached data
+          curator['orderCount'] = cached['orderCount'] ?? 0;
+          curator['rating'] = cached['rating'] ?? 0.0;
+          curator['reviewCount'] = cached['reviewCount'] ?? 0;
+        } else {
+          // Curator not in cache - use defaults (rare case)
+          curator['orderCount'] = curator['orderCount'] ?? 0;
+          curator['rating'] = curator['rating'] ?? 0.0;
+          curator['reviewCount'] = curator['reviewCount'] ?? 0;
+        }
         curator['isFeatured'] = curator['isFeatured'] ?? false;
       }
       
@@ -237,6 +250,11 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
     
     setState(() {
       _isLoading = true;
+      // Reset pagination state
+      _currentPageEnd = _pageSize;
+      _hasMoreCurators = true;
+      _allCurators = [];
+      _displayedCurators = [];
     });
     await _loadCurators();
   }
@@ -319,9 +337,70 @@ class _CuratorOrderScreenState extends State<CuratorOrderScreen> {
             const SizedBox(height: 24),
           ],
           _buildSectionHeader('All Curators', Icons.people),
-          _buildCuratorSection(_allCurators),
+          _buildCuratorSection(_displayedCurators),
+          _buildLoadMoreButton(),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreButton() {
+    if (!_hasMoreCurators) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(
+          child: Text(
+            _displayedCurators.isEmpty 
+                ? 'No curators available' 
+                : 'All curators loaded',
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Center(
+        child: _isLoadingMore
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE46A14)),
+                ),
+              )
+            : ElevatedButton(
+                onPressed: _loadMoreCurators,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF252525),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: Color(0xFFE46A14), width: 1),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.expand_more, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Load More Curators',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }

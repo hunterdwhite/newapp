@@ -60,12 +60,16 @@ class _WaitlistSignUpScreenState extends State<WaitlistSignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: true,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          Positioned.fill(
+          SizedBox.expand(
             child: Image.asset(
               'assets/welcome_background.png',
               fit: BoxFit.cover,
+              alignment: Alignment.center,
             ),
           ),
           Center(

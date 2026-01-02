@@ -351,30 +351,41 @@ class _FeedScreenState extends State<FeedScreen> {
                     fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 16, tablet: 18, desktop: 18),
                   ),
                 ),
-                // Show curator info for curated albums
-                if (item.isCurated && item.curatorUsername != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PublicProfileScreen(userId: item.curatorId!),
+                // Always show curator attribution
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: item.isCurated && item.curatorUsername != null
+                    ? GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PublicProfileScreen(userId: item.curatorId!),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'curated by ${item.curatorUsername}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
+                            fontStyle: FontStyle.italic,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.white.withOpacity(0.5),
                           ),
-                        );
-                      },
-                      child: Text(
-                        'curated by ${item.curatorUsername}',
+                        ),
+                      )
+                    : Text(
+                        'curated by dissonant',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withOpacity(0.6),
                           fontSize: ResponsiveUtils.getResponsiveFontSize(context, mobile: 14, tablet: 16, desktop: 16),
                           fontStyle: FontStyle.italic,
                         ),
                       ),
-                    ),
-                  ),
+                ),
               ],
             ),
           ),

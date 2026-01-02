@@ -461,6 +461,112 @@ app.post('/create-shipping-labels', async (req, res) => {
     }
 
     console.log(`Creating shipping labels for order ${order_id}`);
+    
+    // CRITICAL DUPLICATE PREVENTION: Check if labels already exist for this order
+    if (db && order_id) {
+      try {
+        // Extract Firestore order ID from order_id (format: ORDER-<firestore_id>)
+        const firestoreOrderId = order_id.replace(/^ORDER-/, '');
+        
+        console.log(`🔒 Checking for existing labels in Firestore order: ${firestoreOrderId}`);
+        const orderDoc = await db.collection('orders').doc(firestoreOrderId).get();
+        
+        if (orderDoc.exists) {
+          const orderData = orderDoc.data();
+          const shippingLabels = orderData.shippingLabels;
+          
+          // Check if labels already exist
+          if (shippingLabels) {
+            if (shippingLabels.created === true) {
+              console.log('🛑 DUPLICATE PREVENTED: Labels already exist (created=true)');
+              return res.status(200).json({
+                success: true,
+                message: 'Labels already exist, skipped duplicate creation',
+                duplicate_prevented: true,
+                outbound_label: shippingLabels.outboundLabel,
+                return_label: shippingLabels.returnLabel
+              });
+            }
+            
+            if (shippingLabels.status === 'success') {
+              console.log('🛑 DUPLICATE PREVENTED: Labels already exist (status=success)');
+              return res.status(200).json({
+                success: true,
+                message: 'Labels already exist, skipped duplicate creation',
+                duplicate_prevented: true,
+                outbound_label: shippingLabels.outboundLabel,
+                return_label: shippingLabels.returnLabel
+              });
+            }
+            
+            if (shippingLabels.outboundLabel?.tracking_number) {
+              console.log(`🛑 DUPLICATE PREVENTED: Outbound tracking number already exists (${shippingLabels.outboundLabel.tracking_number})`);
+              return res.status(200).json({
+                success: true,
+                message: 'Labels already exist, skipped duplicate creation',
+                duplicate_prevented: true,
+                outbound_label: shippingLabels.outboundLabel,
+                return_label: shippingLabels.returnLabel
+              });
+            }
+            
+            if (shippingLabels.returnLabel?.tracking_number) {
+              console.log(`🛑 DUPLICATE PREVENTED: Return tracking number already exists (${shippingLabels.returnLabel.tracking_number})`);
+              return res.status(200).json({
+                success: true,
+                message: 'Labels already exist, skipped duplicate creation',
+                duplicate_prevented: true,
+                outbound_label: shippingLabels.outboundLabel,
+                return_label: shippingLabels.returnLabel
+              });
+            }
+            
+            if (shippingLabels.status === 'creating') {
+              // Check if the 'creating' status is stale (older than 5 minutes)
+              const creatingAt = shippingLabels.creatingAt;
+              const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+              
+              if (creatingAt && new Date(creatingAt).getTime() > fiveMinutesAgo) {
+                console.log('🛑 DUPLICATE PREVENTED: Label creation already in progress (recent)');
+                return res.status(409).json({
+                  error: 'Label creation already in progress',
+                  duplicate_prevented: true
+                });
+              } else {
+                console.log('⚠️ Stale "creating" status detected (>5 min), allowing retry');
+                // Clear the stale status to allow retry
+                await db.collection('orders').doc(firestoreOrderId).update({
+                  'shippingLabels.status': 'retrying',
+                  'shippingLabels.retryAt': new Date().toISOString()
+                });
+              }
+            }
+            
+            // Allow retry if previous attempt failed
+            if (shippingLabels.status === 'failed' || shippingLabels.status === 'retrying') {
+              console.log(`⚠️ Previous attempt status: ${shippingLabels.status}, allowing retry`);
+              // Clear the failed status
+              await db.collection('orders').doc(firestoreOrderId).update({
+                'shippingLabels.status': 'retrying',
+                'shippingLabels.retryAt': new Date().toISOString()
+              });
+            }
+          }
+        }
+        
+        console.log('✅ No existing labels found or retry allowed, proceeding with creation');
+        
+        // Set 'creating' lock with timestamp to prevent concurrent creations
+        await db.collection('orders').doc(firestoreOrderId).update({
+          'shippingLabels.status': 'creating',
+          'shippingLabels.creatingAt': new Date().toISOString()
+        });
+        console.log('🔒 Set creating lock on order');
+      } catch (checkError) {
+        console.error('⚠️ Error checking for existing labels:', checkError);
+        console.log('Proceeding with label creation despite check error');
+      }
+    }
 
     // Warehouse address (from environment variables)
     const from_address = {
@@ -1072,40 +1178,46 @@ DISSONANT
       // Don't throw - we'll create the fallback order anyway
     }
 
-    // Create fallback order record in Firebase to ensure customer gets their order
-    // even if email sending fails completely
-    let orderCreated = false;
+    // Update the EXISTING order record with shipping label info
+    // DO NOT create new order documents - only update existing ones
+    let orderUpdated = false;
     try {
-      if (order_id && customer_email && db) {
-        console.log('Creating fallback order record in Firebase...');
-        await db.collection('orders').doc(order_id).set({
-          orderId: order_id,
-          customerEmail: customer_email,
-          customerName: customer_name || 'Customer',
-          status: 'labelCreated',
-          statusDescription: 'Shipping labels created successfully',
-          trackingNumber: outboundLabel.tracking_number,
-          outboundTrackingNumber: outboundLabel.tracking_number,
-          returnTrackingNumber: returnLabel.tracking_number,
-          shippingAddress: to_address,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          emailStatus: 'pending', // Will be updated if emails succeed
-          fallbackOrder: true, // Flag to indicate this was created as fallback
-          labelUrls: {
-            outbound: outboundLabel.label_url,
-            return: returnLabel.label_url
-          }
-        }, { merge: true }); // Use merge to not overwrite existing data
+      if (order_id && db) {
+        // CRITICAL: Use the correct Firestore document ID (without ORDER- prefix)
+        const firestoreOrderId = order_id.replace(/^ORDER-/, '');
+        console.log(`Updating existing order ${firestoreOrderId} with shipping labels...`);
         
-        orderCreated = true;
-        console.log('✅ Fallback order record created successfully');
+        // First verify the order exists
+        const orderDoc = await db.collection('orders').doc(firestoreOrderId).get();
+        if (orderDoc.exists) {
+          // DO NOT change order status - let the app/Firebase manage status flow
+          // The order status should remain as 'new' or 'curator_assigned'
+          await db.collection('orders').doc(firestoreOrderId).update({
+            trackingNumber: outboundLabel.tracking_number,
+            outboundTrackingNumber: outboundLabel.tracking_number,
+            returnTrackingNumber: returnLabel.tracking_number,
+            shippingLabels: {
+              created: true,
+              status: 'success',
+              outboundLabel: outboundLabel,
+              returnLabel: returnLabel,
+              createdAt: new Date().toISOString()
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          orderUpdated = true;
+          console.log(`✅ Existing order ${firestoreOrderId} updated with shipping labels`);
+        } else {
+          console.log(`⚠️ Order ${firestoreOrderId} not found in Firestore - labels created but order not updated`);
+          console.log('This may happen for manual/test orders - labels are still valid');
+        }
       } else if (!db) {
-        console.log('⚠️ Skipping fallback order record - Firebase not available');
+        console.log('⚠️ Skipping order update - Firebase not available');
       } else {
-        console.log('⚠️ Skipping fallback order record - missing order_id or customer_email');
+        console.log('⚠️ Skipping order update - missing order_id');
       }
     } catch (orderError) {
-      console.error('❌ Failed to create fallback order record:', orderError);
+      console.error('❌ Failed to update order record:', orderError);
       // Don't fail the entire request - labels were created successfully
     }
 
@@ -1115,11 +1227,27 @@ DISSONANT
       message: 'Real shipping labels created and emails sent successfully',
       outbound_label: outboundLabel,
       return_label: returnLabel,
-      order_created: orderCreated,
+      order_updated: orderUpdated,
     });
 
   } catch (err) {
     console.error('Shipping label creation error', err);
+    
+    // Set 'failed' status so retries are allowed
+    if (db && order_id) {
+      try {
+        const firestoreOrderId = order_id.replace(/^ORDER-/, '');
+        await db.collection('orders').doc(firestoreOrderId).update({
+          'shippingLabels.status': 'failed',
+          'shippingLabels.failedAt': new Date().toISOString(),
+          'shippingLabels.failureReason': err.message
+        });
+        console.log('📝 Set failed status on order to allow retry');
+      } catch (updateErr) {
+        console.error('Failed to update order with failed status:', updateErr);
+      }
+    }
+    
     return res.status(500).json({ error: `Internal error creating shipping labels: ${err.message}` });
   }
 });
@@ -1507,7 +1635,8 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
         case 'unknown':
         case 'pre_transit':
         case 'information_received':
-          orderStatus = 'labelCreated';
+          // Don't change order status for pre-transit - keep existing status
+          orderStatus = null; // null means don't update status
           statusDescription = 'Shipping label created';
           shouldSendEmail = false;
           break;
@@ -1540,13 +1669,18 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
         const orderData = orderDoc.exists ? orderDoc.data() : null;
         const currentStatus = orderData?.status;
         
-        await orderRef.update({
-          status: orderStatus,
+        // Build update object - only include status if it's not null
+        const updateData = {
           statusDescription: statusDescription,
           updatedAt: new Date().toISOString(),
           trackingStatus: trackingStatus,
-        });
-        console.log(`Order ${orderId} status updated to ${orderStatus} in Firestore`);
+        };
+        if (orderStatus !== null) {
+          updateData.status = orderStatus;
+        }
+        
+        await orderRef.update(updateData);
+        console.log(`Order ${orderId} ${orderStatus ? `status updated to ${orderStatus}` : 'tracking updated (status unchanged)'} in Firestore`);
         updatedOrders.push(orderId);
         
         // Grant free order when package is returned
@@ -1609,6 +1743,12 @@ async function updateOrderStatusFromTracking(trackingNumber, trackingStatus, ord
             const currentStatus = currentData.status;
             
             console.log(`📝 Order ${docId}: current status '${currentStatus}' -> proposed '${orderStatus}'`);
+            
+            // Skip if orderStatus is null (pre-transit, don't change status)
+            if (orderStatus === null) {
+              console.log(`⏭️ Skipping order ${docId}: pre-transit status, keeping existing '${currentStatus}'`);
+              return;
+            }
             
             // Only update if status is changing to avoid unnecessary updates
             if (currentStatus !== orderStatus) {
@@ -2010,7 +2150,13 @@ const schedule = require('node-schedule');
 
 // Check tracking status every 6 hours for orders in transit
 // This acts as a backup in case Shippo webhooks fail or are delayed
-const trackingCheckJob = schedule.scheduleJob('0 */6 * * *', async function() {
+// NOTE: Disabled in Lambda - use AWS EventBridge for scheduling instead
+// For Lambda, create an EventBridge rule that triggers this function on a schedule
+if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  console.log('⚠️ Running in Lambda - node-schedule disabled. Use EventBridge for scheduling.');
+}
+
+const trackingCheckJob = !process.env.AWS_LAMBDA_FUNCTION_NAME ? schedule.scheduleJob('0 */6 * * *', async function() {
   console.log('🔄 ============================================');
   console.log('🔄 Running scheduled tracking status check...');
   console.log('🔄 ============================================');
@@ -2093,8 +2239,10 @@ const trackingCheckJob = schedule.scheduleJob('0 */6 * * *', async function() {
   } catch (error) {
     console.error('❌ Scheduled tracking check failed:', error);
   }
-});
+}) : null;
 
-console.log('✅ Tracking check job scheduled (runs every 6 hours at :00)');
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  console.log('✅ Tracking check job scheduled (runs every 6 hours at :00)');
+}
 
 module.exports.handler = serverless(app);

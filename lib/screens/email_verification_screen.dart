@@ -14,7 +14,6 @@ class EmailVerificationScreen extends StatefulWidget {
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  bool _isVerified = false;
   bool _isSending = false;
 
   @override
@@ -27,9 +26,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     await FirebaseAuth.instance.currentUser?.reload();
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && user.emailVerified) {
-      setState(() {
-        _isVerified = true;
-      });
       // Navigate to how it works screen for new users
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => HowItWorksPage(showExitButton: false)),
@@ -62,14 +58,23 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     });
   }
 
+  _signOutAndRestart() async {
+    await _auth.signOut();
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Background
-          GrainyBackgroundWidget(
-            child: Container(), // Empty container as background
+          // Background - fills entire screen
+          SizedBox.expand(
+            child: GrainyBackgroundWidget(
+              child: Container(color: Colors.transparent),
+            ),
           ),
           
           // Content
@@ -94,9 +99,22 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   
                   const SizedBox(height: 24),
                   
+                  // Show current email
+                  Text(
+                    _auth.currentUser?.email ?? '',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFFFA500),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
                   // Message
                   Text(
-                    'Please check your email and click the verification link to continue.',
+                    'Please check your email and click the verification link to continue.\n\nDon\'t see it? Check your spam folder.',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white70,
@@ -118,6 +136,21 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   RetroButtonWidget(
                     text: 'I\'ve Verified',
                     onPressed: _checkEmailVerification,
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Wrong email? Sign out option
+                  TextButton(
+                    onPressed: _signOutAndRestart,
+                    child: Text(
+                      'Wrong email? Sign out and try again',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white54,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
                   ),
                                     
                   const Spacer(),
