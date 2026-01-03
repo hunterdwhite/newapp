@@ -5,12 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../main.dart';
 
 class PushNotificationService {
-  static final PushNotificationService _instance = PushNotificationService._internal();
+  static final PushNotificationService _instance =
+      PushNotificationService._internal();
   factory PushNotificationService() => _instance;
   PushNotificationService._internal();
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   /// Initialize the push notification service
@@ -18,7 +20,8 @@ class PushNotificationService {
     if (_initialized) return;
 
     // Initialize local notifications
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -43,7 +46,8 @@ class PushNotificationService {
     );
 
     await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(androidChannel);
 
     // Configure Firebase Messaging
@@ -131,10 +135,10 @@ class PushNotificationService {
       );
 
       print('Notification permission status: ${settings.authorizationStatus}');
-      
+
       // Check for authorized or provisional (iOS)
       return settings.authorizationStatus == AuthorizationStatus.authorized ||
-             settings.authorizationStatus == AuthorizationStatus.provisional;
+          settings.authorizationStatus == AuthorizationStatus.provisional;
     } catch (e) {
       print('Error requesting notification permissions: $e');
       return false;
@@ -146,7 +150,7 @@ class PushNotificationService {
     try {
       final settings = await _firebaseMessaging.getNotificationSettings();
       return settings.authorizationStatus == AuthorizationStatus.authorized ||
-             settings.authorizationStatus == AuthorizationStatus.provisional;
+          settings.authorizationStatus == AuthorizationStatus.provisional;
     } catch (e) {
       print('Error checking notification permissions: $e');
       return false;
@@ -194,17 +198,10 @@ class PushNotificationService {
   }
 
   /// Send push notification to a specific curator about a new order
-<<<<<<< HEAD
-  Future<void> notifyCuratorOfNewOrder({
-    required String curatorId,
-    required String orderId,
-    required String customerName,
-=======
   /// SECURITY: Does NOT include customer name or address - only order ID
   Future<void> notifyCuratorOfNewOrder({
     required String curatorId,
     required String orderId,
->>>>>>> 440304870ce42e9abb923e4a8acb51c2e611df12
   }) async {
     try {
       // Get curator's FCM token from Firestore
@@ -212,38 +209,31 @@ class PushNotificationService {
           .collection('users')
           .doc(curatorId)
           .get();
-      
+
       if (!curatorDoc.exists) {
         print('Curator document not found: $curatorId');
         return;
       }
-      
+
       final curatorData = curatorDoc.data() as Map<String, dynamic>;
       final fcmToken = curatorData['fcmToken'] as String?;
       final curatorName = curatorData['username'] ?? 'Curator';
-      
+
       if (fcmToken == null || fcmToken.isEmpty) {
         print('No FCM token found for curator: $curatorId');
         return;
       }
-      
+
       // Send notification via Firebase Cloud Functions or your backend
       // For now, we'll store it in Firestore for the backend to pick up
-<<<<<<< HEAD
-=======
       // SECURITY: Generic message with no customer information
->>>>>>> 440304870ce42e9abb923e4a8acb51c2e611df12
       await FirebaseFirestore.instance.collection('notifications').add({
         'type': 'curator_order_assigned',
         'recipientId': curatorId,
         'recipientToken': fcmToken,
-<<<<<<< HEAD
-        'title': 'New Order Assigned',
-        'body': 'You have a new order from $customerName to curate.',
-=======
         'title': '🎵 New Curation Request',
-        'body': 'You have a new order waiting for your curation! Tap to start selecting the perfect album.',
->>>>>>> 440304870ce42e9abb923e4a8acb51c2e611df12
+        'body':
+            'You have a new order waiting for your curation! Tap to start selecting the perfect album.',
         'data': {
           'type': 'curator_order',
           'orderId': orderId,
@@ -252,13 +242,10 @@ class PushNotificationService {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
-      print('✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
-<<<<<<< HEAD
-=======
+
+      print(
+          '✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
       print('🔒 SECURITY: No customer information included in notification');
->>>>>>> 440304870ce42e9abb923e4a8acb51c2e611df12
-      
     } catch (e) {
       print('❌ Error sending curator notification: $e');
     }
@@ -267,7 +254,7 @@ class PushNotificationService {
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     print('Notification tapped with payload: ${response.payload}');
-    
+
     if (response.payload == 'curator_order') {
       // Navigate to curator screen
       if (navigatorKey.currentState != null) {
