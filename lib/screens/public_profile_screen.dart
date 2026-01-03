@@ -60,6 +60,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   /// Fetch user doc, orders, wishlist for this userId
   Future<void> _fetchProfileData() async {
+    print('DEBUG: _fetchProfileData called for userId: ${widget.userId}');
     try {
       // 1) Get the user doc
       final userDoc = await FirebaseFirestore.instance
@@ -73,15 +74,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       _username = userData['username'] ?? 'Unknown User';
       _profilePictureUrl = userData['profilePictureUrl'];
 
-      // Load curator info
+      // Load curator info - use denormalized stats from user doc (fast!)
       _isCurator = userData['isCurator'] ?? false;
+      if (_isCurator) {
+        _curatorRating = (userData['curatorAverageRating'] ?? 0.0).toDouble();
+        _reviewCount = userData['curatorReviewCount'] ?? 0;
+      }
 
       // Check if current user has favorited this curator
       await _checkIfFavorited();
       
-      // Load curator rating and reviews if this is a curator
+      // Load curator reviews if this is a curator
       if (_isCurator) {
-        await _loadCuratorRatingAndReviews();
+        await _loadCuratorReviews();
       }
 
       // Load profile customization
@@ -94,35 +99,55 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         _favoriteAlbumCover = customization['favoriteAlbumCover'] ?? '';
       }
 
-      // 2) Orders: 'kept', 'returned', 'returnedConfirmed'
+      // 2) Orders: query only statuses allowed by security rules for public profiles
       final ordersSnapshot = await FirebaseFirestore.instance
           .collection('orders')
           .where('userId', isEqualTo: widget.userId)
-          .where('status', whereIn: ['kept', 'returned', 'returnedConfirmed'])
+          .where('status', whereIn: ['kept', 'returnedConfirmed'])
           .get();
+
+      print('DEBUG: Found ${ordersSnapshot.docs.length} orders for user ${widget.userId}');
 
       final keptAlbumIds = <String>[];
       final returnedAlbumIds = <String>[];
       for (final doc in ordersSnapshot.docs) {
         final data = doc.data();
-        final status = data['status'];
+        final status = data['status'] as String?;
         final albumId = data['albumId'] ?? data['details']?['albumId'];
-        if (albumId == null) continue;
+        if (albumId == null || status == null) continue;
 
         if (status == 'kept') {
           keptAlbumIds.add(albumId);
-        } else {
+        } else if (status == 'returnedConfirmed') {
           returnedAlbumIds.add(albumId);
         }
       }
-      _albumsSentBack = returnedAlbumIds.length;
       _albumsKept = keptAlbumIds.length;
+      _albumsSentBack = returnedAlbumIds.length;
+      
+      print('DEBUG: Kept: $_albumsKept, Returned: $_albumsSentBack');
 
-      // For “Their Music” preview
+      // Gather covers for "Their Music"
       final allAlbumIds = {...keptAlbumIds, ...returnedAlbumIds};
-      _historyCoverUrls = await _fetchAlbumCovers(allAlbumIds);
+      final historyCovers = <String>[];
+      for (final albumId in allAlbumIds) {
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(albumId)
+            .get();
+        if (albumDoc.exists) {
+          final aData = albumDoc.data();
+          final coverUrl = aData?['coverUrl'];
+          if (coverUrl != null) {
+            historyCovers.add(coverUrl as String);
+          }
+        }
+      }
+      _historyCoverUrls = historyCovers;
+      
+      print('DEBUG: History covers: ${_historyCoverUrls.length}');
 
-      // 3) Hybrid wishlist approach
+      // 3) Wishlist
       final wishlistSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.userId)
@@ -130,82 +155,41 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           .orderBy('dateAdded', descending: true)
           .get();
 
-      // We'll unify covers from both new minimal docs & older docs
-      final covers = <String>[];
+      print('DEBUG: Found ${wishlistSnapshot.docs.length} wishlist items');
 
+      final wishlistAlbumIds = <String>[];
       for (final wDoc in wishlistSnapshot.docs) {
         final wData = wDoc.data();
-        // If older docs used doc ID for albumId, fallback:
-        String? docAlbumId = wData['albumId'] ?? wDoc.id;
-
-        // If no albumId but there's an albumImageUrl, fallback
-        final docAlbumImageUrl = wData['albumImageUrl'] as String?; 
-
-        // 1) If docAlbumId is not empty, try to fetch that album doc
-        if (docAlbumId != null && docAlbumId.isNotEmpty) {
-          final albumSnap = await FirebaseFirestore.instance
-              .collection('albums')
-              .doc(docAlbumId)
-              .get();
-          if (albumSnap.exists) {
-            final aData = albumSnap.data();
-            final coverUrl = aData?['coverUrl'] as String?;
-            if (coverUrl != null) {
-              covers.add(coverUrl);
-              continue; // Done, no need to match by image
-            }
-          }
-          // else fallback to next approach if we also have docAlbumImageUrl
-        }
-
-        // 2) If docAlbumId was empty or invalid, but we do have docAlbumImageUrl
-        if (docAlbumImageUrl != null && docAlbumImageUrl.isNotEmpty) {
-          final querySnap = await FirebaseFirestore.instance
-              .collection('albums')
-              .where('coverUrl', isEqualTo: docAlbumImageUrl)
-              .limit(1)
-              .get();
-
-          if (querySnap.docs.isNotEmpty) {
-            final matchedAlbum = querySnap.docs.first.data();
-            final coverUrl = matchedAlbum['coverUrl'] as String?;
-            if (coverUrl != null) {
-              covers.add(coverUrl);
-              continue;
-            }
-          }
-          // if not found, fallback to partial data
-          covers.add(docAlbumImageUrl); 
-        }
-        // if we still have nothing, that doc won't show a cover
+        final albumId = wData['albumId'] ?? wDoc.id;
+        wishlistAlbumIds.add(albumId);
       }
-
-      _wishlistCoverUrls = covers;
-
-      setState(() => _isLoading = false);
-    } catch (e) {
-      print('Error in _fetchProfileData: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  /// Load each album's coverUrl from albums/{albumId}
-  Future<List<String>> _fetchAlbumCovers(Set<String> albumIds) async {
-    List<String> covers = [];
-    for (final albumId in albumIds) {
-      final albumDoc = await FirebaseFirestore.instance
-          .collection('albums')
-          .doc(albumId)
-          .get();
-      if (albumDoc.exists) {
-        final data = albumDoc.data();
-        final coverUrl = data?['coverUrl'] as String?;
-        if (coverUrl != null) {
-          covers.add(coverUrl);
+      final uniqueWishIds = wishlistAlbumIds.toSet();
+      final wishlistCovers = <String>[];
+      for (final albumId in uniqueWishIds) {
+        final albumDoc = await FirebaseFirestore.instance
+            .collection('albums')
+            .doc(albumId)
+            .get();
+        if (albumDoc.exists) {
+          final aData = albumDoc.data();
+          final coverUrl = aData?['coverUrl'];
+          if (coverUrl != null) {
+            wishlistCovers.add(coverUrl as String);
+          }
         }
       }
+      _wishlistCoverUrls = wishlistCovers;
+      
+      print('DEBUG: Wishlist covers: ${_wishlistCoverUrls.length}');
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    } catch (e, stackTrace) {
+      print('ERROR in _fetchProfileData: $e');
+      print('Stack trace: $stackTrace');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
-    return covers;
   }
 
   /// Check if current user has favorited this curator
@@ -229,6 +213,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
+  /// Load curator reviews (rating comes from denormalized user doc)
+  Future<void> _loadCuratorReviews() async {
+    try {
+      _curatorReviews = await _curatorService.getCuratorReviews(widget.userId);
+    } catch (e) {
+      print('Error loading curator reviews: $e');
+      _curatorReviews = [];
+    }
+  }
+
+
   /// Toggle favorite status for this curator
   Future<void> _toggleFavorite() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -245,6 +240,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           'favoriteCurators': FieldValue.arrayRemove([widget.userId]),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        if (!mounted) return;
         setState(() {
           _isFavorited = false;
         });
@@ -257,6 +253,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           'favoriteCurators': FieldValue.arrayUnion([widget.userId]),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        if (!mounted) return;
         setState(() {
           _isFavorited = true;
         });
@@ -266,28 +263,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     } catch (e) {
       print('Error toggling favorite: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error updating favorites')),
       );
     }
   }
 
-  Future<void> _loadCuratorRatingAndReviews() async {
-    try {
-      // Load rating information
-      final ratingInfo = await _curatorService.getCuratorRating(widget.userId);
-      _curatorRating = ratingInfo['rating'];
-      _reviewCount = ratingInfo['reviewCount'];
-      
-      // Load reviews
-      _curatorReviews = await _curatorService.getCuratorReviews(widget.userId);
-    } catch (e) {
-      print('Error loading curator rating and reviews: $e');
-      _curatorRating = 0.0;
-      _reviewCount = 0;
-      _curatorReviews = [];
-    }
-  }
 
   Future<void> _refreshProfileData() async {
     // Refresh all profile data
@@ -737,6 +719,7 @@ Widget _buildWishlistRow(BuildContext context) {
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () {
+                if (!mounted) return;
                 setState(() {
                   _reviewsExpanded = !_reviewsExpanded;
                 });

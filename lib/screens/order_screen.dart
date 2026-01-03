@@ -925,14 +925,10 @@ class _OrderScreenState extends State<OrderScreen> {
         final orderId = await _firestoreService.addOrder(uid, fullAddress,
             flowVersion: 2, curatorId: widget.selectedCuratorId);
 
-        // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _createShippingLabels(uid, fullAddress, orderId: orderId)
-              .catchError((error) {
-            print(
-                '⚠️ Client-side label creation failed (Cloud Function will handle): $error');
-          });
-        });
+        // REMOVED client-side label creation backup to prevent duplicate charges
+        // Cloud Function handles this reliably
+        print('✅ Order created: $orderId - Cloud Function will create shipping labels');
+        
         await HomeScreen.useFreeOrder(
             uid); // Properly decrement free order count
 
@@ -996,14 +992,9 @@ class _OrderScreenState extends State<OrderScreen> {
         final orderId = await _firestoreService.addOrder(uid, fullAddress,
             flowVersion: 2, curatorId: widget.selectedCuratorId);
 
-        // Wait a moment to let Cloud Function start, then attempt client-side (non-blocking backup)
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _createShippingLabels(uid, fullAddress, orderId: orderId)
-              .catchError((error) {
-            print(
-                '⚠️ Client-side label creation failed (Cloud Function will handle): $error');
-          });
-        });
+        // REMOVED client-side label creation backup to prevent duplicate charges
+        // Cloud Function handles this reliably
+        print('✅ Order created: $orderId - Cloud Function will create shipping labels');
 
         // Award 1 credit for placing an order
         await HomeScreen.addFreeOrderCredits(uid, 1);
@@ -1478,160 +1469,4 @@ class _OrderScreenState extends State<OrderScreen> {
   //   }
   // }
 
-  Future<void> _createShippingLabels(String uid, String fullAddress,
-      {String? orderId}) async {
-    try {
-      print('=== SHIPPING LABELS DEBUG START ===');
-      print('UID: $uid');
-      print('Full Address: "$fullAddress"');
-      if (orderId != null) {
-        print('Order ID: $orderId');
-      }
-
-      // Get the current user's email
-      final user = FirebaseAuth.instance.currentUser;
-      if (user?.email == null) {
-        print('❌ User email not available for shipping labels');
-        return;
-      }
-      print('✅ User email: ${user!.email}');
-
-      // Parse the address string to extract components
-      final addressLines = fullAddress.split('\n');
-      print('Address lines count: ${addressLines.length}');
-      print('Address lines: $addressLines');
-
-      if (addressLines.length < 3) {
-        print(
-            '❌ Invalid address format for shipping labels - need at least 3 lines');
-        return;
-      }
-
-      final customerName = addressLines[0].trim();
-      final streetAddress = addressLines[1].trim();
-      final cityStateZip = addressLines[2].split(', ');
-
-      print('Customer name: "$customerName"');
-      print('Street address: "$streetAddress"');
-      print('City/State/Zip parts: $cityStateZip');
-
-      if (cityStateZip.length < 2) {
-        print('❌ Invalid city/state/zip format - need at least 2 parts');
-        return;
-      }
-
-      final city = cityStateZip[0].trim();
-      final stateZip = cityStateZip[1].split(' ');
-
-      print('City: "$city"');
-      print('State/Zip parts: $stateZip');
-
-      if (stateZip.length < 2) {
-        print('❌ Invalid state/zip format - need at least 2 parts');
-        return;
-      }
-
-      final state = stateZip[0].trim();
-      final zip = stateZip.sublist(1).join(' ').trim();
-
-      print('State: "$state"');
-      print('Zip: "$zip"');
-
-      // Create customer address object
-      final customerAddress = {
-        'name': customerName,
-        'street1': streetAddress,
-        'city': city,
-        'state': state,
-        'zip': zip,
-        'country': 'US',
-      };
-
-      print('✅ Customer address object: $customerAddress');
-
-      // Define parcel dimensions (6x8 inches, 4.9 oz)
-      final parcel = {
-        'length': '8',
-        'width': '6',
-        'height': '0.5',
-        'distance_unit': 'in',
-        'weight': '4.9',
-        'mass_unit': 'oz',
-      };
-
-      // Use provided orderId (Firestore order ID) or generate timestamp-based one
-      final labelOrderId = orderId != null
-          ? 'ORDER-$orderId'
-          : 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
-
-      print('✅ Order ID: $labelOrderId');
-      print('✅ Parcel: $parcel');
-
-      print('🚀 Calling Lambda endpoint...');
-      final response = await http.post(
-        Uri.parse(
-            'https://86ej4qdp9i.execute-api.us-east-1.amazonaws.com/dev/create-shipping-labels'),
-        body: jsonEncode({
-          'to_address': customerAddress,
-          'parcel': parcel,
-          'order_id': labelOrderId,
-          'customer_name': customerName,
-          'customer_email': user.email,
-        }),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException(
-              'Shipping label creation timed out after 10 seconds');
-        },
-      );
-
-      print('📡 Lambda response status: ${response.statusCode}');
-      print('📡 Lambda response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final labelData = jsonDecode(response.body);
-        print('✅ Shipping labels created successfully:');
-        print('Outbound: ${labelData['outbound_label']['label_url']}');
-        print('Return: ${labelData['return_label']['label_url']}');
-
-        // Update order document to mark labels as created (prevents Cloud Function from trying)
-        if (orderId != null) {
-          try {
-            await FirebaseFirestore.instance
-                .collection('orders')
-                .doc(orderId)
-                .update({
-              'shippingLabels': {
-                'created': true,
-                'status': 'success',
-                'orderId': labelOrderId,
-                'outboundLabel': labelData['outbound_label'],
-                'returnLabel': labelData['return_label'],
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-                'createdBy': 'client',
-              },
-            });
-            print('✅ Order document updated with shipping label data');
-          } catch (updateError) {
-            print(
-                '⚠️ Failed to update order document (Cloud Function will handle): $updateError');
-          }
-        }
-
-        // Labels are automatically emailed to warehouse staff and customer
-        print('✅ Shipping labels created and emailed successfully');
-      } else {
-        print('❌ Failed to create shipping labels: ${response.body}');
-      }
-
-      print('=== SHIPPING LABELS DEBUG END ===');
-    } catch (e, stackTrace) {
-      print('❌ Error creating shipping labels: $e');
-      print('❌ Stack trace: $stackTrace');
-      // Don't fail the order if label creation fails
-    }
-  }
 }

@@ -69,6 +69,8 @@ dependencies:
   # Push notifications
   firebase_messaging: ^16.0.1
   flutter_local_notifications: ^19.4.2
+  # Version checking for force updates
+  package_info_plus: ^8.1.3
 
 
 

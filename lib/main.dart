@@ -23,6 +23,8 @@ import 'screens/order_selection_screen.dart';
 import 'services/firestore_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/push_notification_service.dart';
+import 'services/version_check_service.dart';
+import 'widgets/force_update_dialog.dart';
 
 // Global navigator key for push notifications
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -103,11 +105,32 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   static const String _stripePublishableKey = 'pk_live_51ODzOACnvJAFsDZ0COKFc7cuwsL2eAijLCxdMETnP8pGsydvkB221bJFeGKuynxSgzUQ0d9T7bDIxcCwcDcmqgDn004VZLJQio';
   
+  final VersionCheckService _versionCheckService = VersionCheckService();
+  VersionCheckResult? _versionCheckResult;
+  bool _versionCheckComplete = false;
+  
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeStripe();
+    _checkAppVersion();
+  }
+  
+  Future<void> _checkAppVersion() async {
+    try {
+      final result = await _versionCheckService.checkVersion();
+      setState(() {
+        _versionCheckResult = result;
+        _versionCheckComplete = true;
+      });
+    } catch (e) {
+      debugPrint('Error checking app version: $e');
+      // On error, allow app to continue
+      setState(() {
+        _versionCheckComplete = true;
+      });
+    }
   }
 
   @override
@@ -162,6 +185,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading screen while checking version
+    if (!_versionCheckComplete) {
+      return MaterialApp(
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: CircularProgressIndicator(
+              color: Colors.orangeAccent,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // Show force update screen if update is required
+    if (_versionCheckResult?.updateRequired == true) {
+      return MaterialApp(
+        home: ForceUpdateScreen(versionCheck: _versionCheckResult!),
+      );
+    }
+    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => OrderModel()),
@@ -224,9 +268,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         builder: (BuildContext context, Widget? child) {
           return MediaQuery(
             data: MediaQuery.of(context).copyWith(
-              textScaleFactor: 1.0,
-              // Reduce overdraw by limiting window insets
-              viewInsets: EdgeInsets.zero,
+              textScaler: TextScaler.linear(1.0),
+              // Note: viewInsets are preserved for proper keyboard handling
             ),
             child: child!,
           );

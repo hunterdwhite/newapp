@@ -85,6 +85,93 @@ class CuratorService {
     }
   }
 
+  /// Get all curators for client-side pagination
+  /// Returns list of all curators sorted by orderCount (most popular first)
+  /// Pagination is done client-side to avoid needing a Firestore composite index
+  Future<List<Map<String, dynamic>>> getAllCuratorsForPagination() async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('isCurator', isEqualTo: true)
+          .get();
+      
+      final curators = <Map<String, dynamic>>[];
+      
+      for (final doc in snapshot.docs) {
+        final userData = doc.data();
+        final profileCustomization = userData['profileCustomization'] as Map<String, dynamic>?;
+        final bio = profileCustomization?['bio'] ?? '';
+        final favoriteGenres = List<String>.from(profileCustomization?['favoriteGenres'] ?? []);
+        
+        curators.add({
+          'userId': doc.id,
+          'username': userData['username'] ?? 'Unknown',
+          'profilePictureUrl': userData['profilePictureUrl'],
+          'bio': bio,
+          'favoriteGenres': favoriteGenres,
+          'curatorJoinedAt': userData['curatorJoinedAt'],
+          'isFeatured': userData['isFeatured'] ?? false,
+          // Read denormalized orderCount for consistent initial sorting
+          'orderCount': userData['curatorOrderCount'] ?? 0,
+          'averageRating': userData['curatorAverageRating'] ?? 0.0,
+          'reviewCount': userData['curatorReviewCount'] ?? 0,
+        });
+      }
+      
+      // Sort by order count (most popular first) for consistent ordering
+      curators.sort((a, b) => (b['orderCount'] as int).compareTo(a['orderCount'] as int));
+      
+      return curators;
+    } catch (e) {
+      print('Error getting all curators for pagination: $e');
+      return [];
+    }
+  }
+  
+  /// Update curator stats on their user document (denormalization for fast queries)
+  /// This should be called when an order is completed
+  Future<void> updateCuratorStats(String curatorId) async {
+    try {
+      // Count completed orders
+      final ordersSnapshot = await _firestore
+          .collection('orders')
+          .where('curatorId', isEqualTo: curatorId)
+          .where('status', whereIn: ['kept', 'returnedConfirmed'])
+          .get();
+      
+      final orderCount = ordersSnapshot.docs.length;
+      
+      // Calculate average rating from curatorReviews subcollection
+      final reviewsSnapshot = await _firestore
+          .collection('users')
+          .doc(curatorId)
+          .collection('curatorReviews')
+          .get();
+      
+      double averageRating = 0.0;
+      int reviewCount = reviewsSnapshot.docs.length;
+      
+      if (reviewCount > 0) {
+        double totalRating = 0;
+        for (final doc in reviewsSnapshot.docs) {
+          totalRating += (doc.data()['rating'] ?? 0).toDouble();
+        }
+        averageRating = totalRating / reviewCount;
+      }
+      
+      // Update denormalized fields on user document
+      await _firestore.collection('users').doc(curatorId).update({
+        'curatorOrderCount': orderCount,
+        'curatorAverageRating': averageRating,
+        'curatorReviewCount': reviewCount,
+      });
+      
+      print('Updated curator stats for $curatorId: $orderCount orders, $averageRating avg rating');
+    } catch (e) {
+      print('Error updating curator stats: $e');
+    }
+  }
+
   /// Search curators by username, bio, or favorite genres
   Future<List<Map<String, dynamic>>> searchCurators(String query) async {
     if (query.trim().isEmpty) return getAllCurators();

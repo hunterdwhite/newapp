@@ -174,10 +174,106 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (value == null || value.trim().isEmpty) {
       return 'Please enter your email';
     }
+    
+    final email = value.trim().toLowerCase();
+    
     // Basic email regex
-    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value.trim())) {
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
       return 'Please enter a valid email';
     }
+    
+    // Check for missing @ symbol variations
+    if (!email.contains('@')) {
+      return 'Email must contain @';
+    }
+    
+    // Check for double @ or spaces
+    if (email.contains('@@') || email.contains(' ')) {
+      return 'Please enter a valid email';
+    }
+    
+    // Extract domain for typo checking
+    final parts = email.split('@');
+    if (parts.length != 2) {
+      return 'Please enter a valid email';
+    }
+    final domain = parts[1];
+    
+    // Check for common domain typos (must match EXACT domain, not substrings)
+    final domainTypos = {
+      // Gmail typos
+      'gnail.com': 'gmail.com',
+      'gmal.com': 'gmail.com',
+      'gamil.com': 'gmail.com',
+      'gmial.com': 'gmail.com',
+      'gmaill.com': 'gmail.com',
+      'gmail.con': 'gmail.com',
+      'gmail.om': 'gmail.com',
+      'gmail.cm': 'gmail.com',
+      'gmail.cpm': 'gmail.com',
+      'gmail.vom': 'gmail.com',
+      'gmail.comm': 'gmail.com',
+      'gmailcom': 'gmail.com',
+      // Yahoo typos
+      'yaho.com': 'yahoo.com',
+      'yahooo.com': 'yahoo.com',
+      'yahoo.con': 'yahoo.com',
+      'yahoo.comm': 'yahoo.com',
+      // Hotmail typos
+      'hotmal.com': 'hotmail.com',
+      'hotmai.com': 'hotmail.com',
+      'hotmail.con': 'hotmail.com',
+      'hotmail.comm': 'hotmail.com',
+      // Outlook typos
+      'outlok.com': 'outlook.com',
+      'outloo.com': 'outlook.com',
+      'outlook.con': 'outlook.com',
+      'outlook.comm': 'outlook.com',
+      // iCloud typos
+      'icoud.com': 'icloud.com',
+      'iclod.com': 'icloud.com',
+      'icloud.con': 'icloud.com',
+      'icloud.comm': 'icloud.com',
+      'icloudd.com': 'icloud.com',
+    };
+    
+    // Check exact domain match for typos
+    if (domainTypos.containsKey(domain)) {
+      final correctDomain = domainTypos[domain]!;
+      final suggestion = '${parts[0]}@$correctDomain';
+      return 'Did you mean $suggestion?';
+    }
+    
+    // Check for TLD-only typos (ending patterns)
+    final tldTypos = {
+      '.con': '.com',
+      '.cim': '.com',
+      '.vom': '.com',
+      '.comm': '.com',
+      '.coom': '.com',
+      '.comn': '.com',
+      '.comj': '.com',
+      '.ner': '.net',
+      '.ney': '.net',
+      '.nett': '.net',
+      '.ogr': '.org',
+      '.orgg': '.org',
+    };
+    
+    for (final typo in tldTypos.entries) {
+      if (domain.endsWith(typo.key)) {
+        final fixedDomain = domain.substring(0, domain.length - typo.key.length) + typo.value;
+        final suggestion = '${parts[0]}@$fixedDomain';
+        return 'Did you mean $suggestion?';
+      }
+    }
+    
+    // Check domain has at least 2 chars after the dot
+    final domainParts = domain.split('.');
+    if (domainParts.isNotEmpty && domainParts.last.length < 2) {
+      return 'Please check your email domain';
+    }
+    
     return null;
   }
 
@@ -207,32 +303,35 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       resizeToAvoidBottomInset: true,
-      body: Container(
-        constraints: BoxConstraints(
-          minHeight: MediaQuery.of(context).size.height,
-        ),
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/welcome_background.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.only(
-              left: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 24, desktop: 32),
-              right: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 24, desktop: 32),
-              top: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24),
-              bottom: MediaQuery.of(context).viewInsets.bottom + ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background image - fixed position, fills entire screen
+          SizedBox.expand(
+            child: Image.asset(
+              'assets/welcome_background.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
             ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+          ),
+          // Scrollable content on top
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 24, desktop: 32),
+                right: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 24, desktop: 32),
+                top: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24),
+                bottom: ResponsiveUtils.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom - 40,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   Image.asset(
                     'assets/dissonantlogotext.png',
                     height: ResponsiveUtils.isMobile(context) ? 50 : 60,
@@ -338,12 +437,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             ),
                           ),
                         ),
-                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 80, tablet: 100, desktop: 120)),
-                ],
+                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, mobile: 80, tablet: 100, desktop: 120)),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
