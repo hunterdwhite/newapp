@@ -202,10 +202,6 @@ class PushNotificationService {
   Future<void> notifyCuratorOfNewOrder({
     required String curatorId,
     required String orderId,
-  Future<void> notifyCuratorOfNewOrder({
-    required String curatorId,
-    required String orderId,
-    required String customerName,
   }) async {
     try {
       // Get curator's FCM token from Firestore
@@ -239,7 +235,7 @@ class PushNotificationService {
         'body':
             'You have a new order waiting for your curation! Tap to start selecting the perfect album.',
         'title': 'New Order Assigned',
-        'body': 'You have a new order from $customerName to curate.',
+        'body': 'You have a new order to curate.',
         'data': {
           'type': 'curator_order',
           'orderId': orderId,
@@ -252,9 +248,9 @@ class PushNotificationService {
       print(
           '✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
       print('🔒 SECURITY: No customer information included in notification');
-      
-      print('✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
-      
+
+      print(
+          '✅ Notification queued for curator $curatorName ($curatorId) about order $orderId');
     } catch (e) {
       print('❌ Error sending curator notification: $e');
     }
